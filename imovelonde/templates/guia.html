@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImoveLonde — Blog e Guia de Bairros</title>
+<style>
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,Arial,sans-serif;background:#f6f8f7;color:#14221d}
+a{text-decoration:none;color:inherit}
+.header{height:76px;background:#071521;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 6%}
+.logo{font-size:27px;font-weight:800;letter-spacing:-1.2px}.logo span{color:#39dc4b}
+.nav{display:flex;gap:28px;font-size:14px;color:#d8e3de}.nav a:nth-child(5){color:#39dc4b}
+.actions{display:flex;gap:10px}.btn{padding:11px 18px;border-radius:9px;font-size:13px;font-weight:800}.outline{border:1px solid #53636c}.green{background:#39dc4b;color:#06150c}
+.hero{background:#071521;color:#fff;padding:62px 7% 70px}
+.hero-in{max-width:1200px;margin:auto}
+.tag{display:inline-block;color:#39dc4b;border:1px solid #255b31;background:#0d2517;padding:7px 12px;border-radius:30px;font-size:11px;font-weight:900;margin-bottom:18px}
+.hero h1{font-size:46px;line-height:1.08;letter-spacing:-2px;max-width:760px}.hero h1 span{color:#39dc4b}
+.hero p{max-width:680px;color:#b9c8c2;font-size:17px;line-height:1.65;margin-top:17px}
+.content{max-width:1200px;margin:auto;padding:58px 0 80px}
+.top{display:flex;justify-content:space-between;align-items:end;margin-bottom:25px}.eyebrow{font-size:11px;color:#1cae32;font-weight:900;letter-spacing:1px;text-transform:uppercase;margin-bottom:9px}
+h2{font-size:32px;letter-spacing:-1.2px}.top p{color:#73817b;font-size:14px;margin-top:7px}
+.search{display:flex;border:1px solid #dce4e0;background:#fff;border-radius:9px;overflow:hidden}.search input{border:0;outline:0;padding:12px 14px;width:230px;font-size:13px}.search button{border:0;background:#39dc4b;padding:0 15px;font-weight:900}
+.featured{display:grid;grid-template-columns:1.2fr .8fr;gap:22px;margin-bottom:55px}
+.big{height:390px;border-radius:18px;background:linear-gradient(180deg,transparent 35%,#071521d9),url('https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&w=1200&q=85') center/cover;position:relative;overflow:hidden}
+.big-text{position:absolute;left:28px;right:28px;bottom:25px;color:#fff}.category{font-size:10px;color:#39dc4b;font-weight:900;text-transform:uppercase;letter-spacing:.8px}.big h3{font-size:28px;line-height:1.15;margin:9px 0}.big p{color:#d0dad6;font-size:13px;line-height:1.5}
+.side{display:grid;gap:18px}.small{background:#fff;border:1px solid #e0e7e3;border-radius:15px;overflow:hidden;display:grid;grid-template-columns:145px 1fr}.small-img{min-height:165px;background-size:cover;background-position:center}.small-info{padding:18px}.small h3{font-size:17px;line-height:1.25;margin:7px 0}.small p{font-size:12px;color:#78847e;line-height:1.5}
+.guides{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:25px}.guide{background:#fff;border:1px solid #e0e7e3;border-radius:15px;overflow:hidden}.guide-img{height:155px;background-size:cover;background-position:center}.guide-info{padding:18px}.guide h3{font-size:18px;margin:7px 0}.guide p{font-size:13px;color:#75817c;line-height:1.5}.read{display:inline-block;margin-top:14px;color:#1cae32;font-size:12px;font-weight:900}
+.newsletter{background:#eef5f1;padding:58px 7%}.news-in{max-width:900px;margin:auto;text-align:center}.newsletter h2{font-size:30px}.newsletter p{color:#718079;margin:10px auto 22px;line-height:1.6}.form{display:flex;max-width:570px;margin:auto;background:#fff;border:1px solid #dce5e0;border-radius:9px;overflow:hidden}.form input{flex:1;border:0;outline:0;padding:14px;font-size:13px}.form button{border:0;background:#39dc4b;padding:0 22px;font-weight:900}
+.footer{background:#071521;color:#899991;padding:28px 7%;display:flex;justify-content:space-between;font-size:12px}
+@media(max-width:900px){.nav{display:none}.content{padding:50px 5%}.featured{grid-template-columns:1fr}.guides{grid-template-columns:1fr 1fr}.top{align-items:flex-start;gap:20px;flex-direction:column}.hero{padding-left:5%;padding-right:5%}}
+@media(max-width:600px){.header{padding:0 5%}.actions .outline{display:none}.hero h1{font-size:36px}.big{height:330px}.small{grid-template-columns:120px 1fr}.guides{grid-template-columns:1fr}.form{flex-direction:column;background:transparent;border:0;gap:8px}.form input,.form button{height:45px;border-radius:8px}.footer{flex-direction:column;gap:8px}}
+
+.btn{display:inline-block}
+
+form.inline{display:inline;margin:0}
+.flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
+.flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
+.flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+</style>
+</head>
+<body>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+
+
+<header class="header"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
+<nav class="nav"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('guia') }}">Guia</a></nav>
+<div class="actions">{% if usuario %}<a class="btn outline" href="{{ url_for('painel') }}">{{ usuario.nome.split()[0] }}</a><a class="btn green" href="{{ url_for('sair') }}">Sair</a>{% else %}<a class="btn outline" href="{{ url_for('entrar') }}">Entrar</a><a class="btn green" href="{{ url_for('cadastrar') }}">Criar conta</a>{% endif %}</div></header>
+
+<section class="hero">
+<div class="hero-in">
+<div class="tag">GUIA IMOVELONDE</div>
+<h1>Descubra bairros, regiões e tudo o que você precisa saber antes de <span>escolher seu imóvel.</span></h1>
+<p>Conteúdos para ajudar você a pesquisar regiões, entender o mercado e encontrar lugares que combinam com o seu jeito de viver.</p>
+</div>
+</section>
+
+<main class="content">
+<div class="top">
+<div><div class="eyebrow">Conteúdos em destaque</div><h2>Informação para escolher melhor</h2><p>Explore nossos guias e descubra novas possibilidades.</p></div>
+<form class="search" method="get" action="{{ url_for('buscar') }}"><input name="q" placeholder="Buscar bairro ou cidade..."><button>Buscar</button></form>
+</div>
+
+<section class="featured">
+<article class="big">
+<div class="big-text"><div class="category">GUIA DE BAIRRO</div><h3>Como escolher o bairro ideal para morar?</h3><p>Veja os principais pontos para analisar antes de decidir onde comprar ou alugar seu próximo imóvel.</p></div>
+</article>
+<div class="side">
+<article class="small">
+<div class="small-img" style="background-image:url('https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=600&q=85')"></div>
+<div class="small-info"><div class="category">LOCALIZAÇÃO</div><h3>O que observar ao visitar uma região</h3><p>Mobilidade, comércio, serviços e rotina.</p></div>
+</article>
+<article class="small">
+<div class="small-img" style="background-image:url('https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=600&q=85')"></div>
+<div class="small-info"><div class="category">MERCADO</div><h3>Comprar ou alugar: como começar sua pesquisa</h3><p>Um caminho simples para comparar opções.</p></div>
+</article>
+</div>
+</section>
+
+<div class="eyebrow">Guias de bairros</div>
+<h2>Conheça melhor cada região</h2>
+<section class="guides">
+<article class="guide">
+<div class="guide-img" style="background-image:url('https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=85')"></div>
+<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Vila Mariana</h3><p>Perfil da região, mobilidade, comércio, serviços e opções de imóveis.</p><a class=\"read\" href=\"{{ url_for('buscar', q='Vila Mariana') }}\">Ver imóveis →</a></div>
+</article>
+<article class="guide">
+<div class="guide-img" style="background-image:url('https://images.unsplash.com/photo-1523731407965-2430cd12f5e4?auto=format&fit=crop&w=800&q=85')"></div>
+<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Moema</h3><p>Conheça a região e veja o que considerar antes de escolher seu imóvel.</p><a class=\"read\" href=\"{{ url_for('buscar', q='Moema') }}\">Ver imóveis →</a></div>
+</article>
+<article class="guide">
+<div class="guide-img" style="background-image:url('https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=800&q=85')"></div>
+<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Pinheiros</h3><p>Um panorama para quem busca praticidade, comércio e mobilidade.</p><a class=\"read\" href=\"{{ url_for('buscar', q='Pinheiros') }}\">Ver imóveis →</a></div>
+</article>
+</section>
+</main>
+
+<section class="newsletter">
+<div class="news-in">
+<h2>Receba novidades do mercado imobiliário</h2>
+<p>Cadastre seu e-mail para acompanhar novos guias, dicas e conteúdos do ImoveLonde.</p>
+<form class="form" method="post" action="{{ url_for('newsletter') }}">{{ csrf() }}<input type="email" name="email" required placeholder="Seu melhor e-mail"><button>Quero receber</button></form>
+</div>
+</section>
+
+<footer class="footer"><div>© 2026 ImoveLonde</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
+
+</body>
+</html>

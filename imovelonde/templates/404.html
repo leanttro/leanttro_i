@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Página não encontrada — ImoveLonde</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#071521;color:#fff;min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px}h1{font-size:72px;margin:0;letter-spacing:-3px;color:#39dc4b}p{color:#b9c8c2;margin:8px 0 24px}a{display:inline-block;background:#39dc4b;color:#06150c;font-weight:800;padding:12px 20px;border-radius:9px;text-decoration:none}
+
+form.inline{display:inline;margin:0}
+.flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
+.flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
+.flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+</style>
+</head>
+<body>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+<div><h1>{{ codigo or 404 }}</h1><p>{{ mensagem or "Não encontramos essa página." }}</p><a href="{{ url_for('home') }}">Voltar para o ImoveLonde</a></div>
+</body>
+</html>

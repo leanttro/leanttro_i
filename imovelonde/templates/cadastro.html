@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImoveLonde — Criar conta</title>
+<style>
+
+:root{
+  --green:#39dc4b;
+  --green-dark:#22b936;
+  --dark:#071521;
+  --text:#17252d;
+  --muted:#718087;
+  --line:#dfe7e2;
+  --bg:#f4f7f5;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--text);background:var(--bg);min-height:100vh}
+.page{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr}
+.visual{position:relative;overflow:hidden;background:#071521;min-height:100vh}
+.visual img{width:100%;height:100%;object-fit:cover;opacity:.54}
+.visual:after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(7,21,33,.96) 5%,rgba(7,21,33,.62) 50%,rgba(7,21,33,.25))}
+.visual-content{position:absolute;z-index:2;inset:0;padding:48px 58px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
+.logo{font-size:29px;font-weight:900;letter-spacing:-1.5px}
+.logo span{color:var(--green)}
+.visual-bottom{max-width:550px}
+.visual-bottom .eyebrow{display:inline-block;color:var(--green);font-size:11px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:15px}
+.visual-bottom h2{font-size:43px;line-height:1.05;letter-spacing:-1.8px;margin:0 0 17px}
+.visual-bottom p{font-size:15px;line-height:1.65;color:rgba(255,255,255,.74);margin:0;max-width:490px}
+.features{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap}
+.feature{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);border-radius:10px;padding:9px 12px;font-size:11px;color:rgba(255,255,255,.86)}
+.form-side{display:flex;align-items:center;justify-content:center;padding:45px 35px;background:#fff}
+.form-wrap{width:100%;max-width:430px}
+.mobile-logo{display:none}
+.form-head{text-align:left;margin-bottom:30px}
+.form-head h1{font-size:30px;letter-spacing:-.8px;margin:0 0 8px}
+.form-head p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.form{display:flex;flex-direction:column;gap:17px}
+.field label{display:block;font-size:12px;font-weight:800;margin-bottom:8px;color:#34464d}
+.field input{width:100%;height:50px;border:1px solid var(--line);border-radius:10px;padding:0 14px;font-size:14px;outline:none;transition:.2s}
+.field input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(57,220,75,.12)}
+.password-wrap{position:relative}.password-wrap input{padding-right:50px}
+.show{position:absolute;right:0;top:0;width:48px;height:50px;border:0;background:none;color:#87949a;cursor:pointer}
+.options{display:flex;justify-content:space-between;align-items:center;margin-top:-2px}
+.remember{display:flex;align-items:center;gap:8px;font-size:12px;color:#65747b}
+.remember input{accent-color:var(--green)}
+.forgot{font-size:12px;color:#19a92a;font-weight:800;text-decoration:none}
+.submit{height:51px;border:0;border-radius:10px;background:var(--green);color:#061108;font-size:14px;font-weight:900;cursor:pointer;margin-top:2px;box-shadow:0 8px 20px rgba(57,220,75,.18)}
+.submit:hover{background:#31cf43}
+.divider{display:flex;align-items:center;gap:12px;color:#9aa5a9;font-size:11px;margin:4px 0}
+.divider:before,.divider:after{content:"";height:1px;background:var(--line);flex:1}
+.social{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.social button{height:47px;background:#fff;border:1px solid var(--line);border-radius:10px;font-weight:800;color:#34464d;cursor:pointer}
+.signup{text-align:center;margin-top:25px;padding-top:23px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.signup a{color:#18a92b;font-weight:900;text-decoration:none}
+.notice{background:#f2fbf3;border:1px solid #d8f0db;border-radius:10px;padding:11px 13px;font-size:11px;line-height:1.5;color:#55705b;margin-top:18px}
+.back{text-align:center;margin-top:23px}.back a{font-size:12px;color:#68777d;text-decoration:none}.back a:hover{color:#18a92b}
+@media(max-width:850px){
+ .page{grid-template-columns:1fr}
+ .visual{display:none}
+ .form-side{min-height:100vh;padding:30px 22px}
+ .mobile-logo{display:block;text-align:center;font-size:27px;font-weight:900;letter-spacing:-1.4px;margin-bottom:38px}
+ .mobile-logo span{color:var(--green-dark)}
+ .form-wrap{max-width:430px}
+}
+@media(max-width:430px){
+ .form-side{padding:25px 18px}
+ .form-head h1{font-size:27px}
+ .social{grid-template-columns:1fr}
+}
+.err{color:#c33e3e;font-size:12px;font-weight:700}select{width:100%;height:50px;border:1px solid var(--line);border-radius:10px;padding:0 14px;font-size:14px;background:#fff}.submit{width:100%}
+
+form.inline{display:inline;margin:0}
+.flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
+.flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
+.flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+</style>
+</head>
+<body>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+<div class="page">
+<section class="visual">
+  <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=85" alt="Imóvel">
+  <div class="visual-content">
+    <a class="logo" href="{{ url_for('home') }}" style="color:#fff">Imove<span>Londe</span></a>
+    <div class="visual-bottom">
+      <span class="eyebrow">Sua busca começa aqui</span>
+      <h2>Encontre um lugar para chamar de seu.</h2>
+      <p>Salve seus imóveis favoritos, acompanhe o que você já visitou, organize seus contatos e agende suas visitas em um só lugar.</p>
+      <div class="features">
+        <span class="feature">♡ Favoritos</span>
+        <span class="feature">⌂ Histórico</span>
+        <span class="feature">💬 Contatos</span>
+        <span class="feature">◷ Visitas</span>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="form-side"><div class="form-wrap"><a class="mobile-logo" href="{{ url_for('home') }}" style="color:inherit">Imove<span>Londe</span></a>
+<div class="form-head"><h1>Crie sua conta</h1><p>É gratuito. Procure imóveis ou anuncie os seus.</p></div><form class="form" method="post" action="{{ url_for('cadastrar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}">
+<div class="field"><label for="tipo">Eu quero</label><select id="tipo" name="tipo"><option value="visitante" {{ 'selected' if tipo == 'visitante' }}>Procurar um imóvel</option><option value="proprietario" {{ 'selected' if tipo == 'proprietario' }}>Anunciar meu imóvel (proprietário)</option><option value="corretor" {{ 'selected' if tipo == 'corretor' }}>Anunciar como corretor</option><option value="imobiliaria" {{ 'selected' if tipo == 'imobiliaria' }}>Anunciar como imobiliária</option></select></div>
+<div class="field"><label for="nome">Nome (ou nome da imobiliária)</label><input id="nome" name="nome" required minlength="3" maxlength="120" value="{{ nome or '' }}" autocomplete="name"></div>
+<div class="field"><label for="email">E-mail</label><input id="email" name="email" type="email" required value="{{ email or '' }}" placeholder="seu@email.com" autocomplete="email"></div>
+<div class="field"><label for="tel">WhatsApp / telefone</label><input id="tel" name="telefone" inputmode="tel" value="{{ telefone or '' }}" placeholder="(11) 99999-9999" autocomplete="tel"></div>
+<div class="field"><label for="password">Senha (mínimo 8 caracteres)</label><div class="password-wrap"><input id="password" name="senha" type="password" required minlength="8" autocomplete="new-password"><button type="button" class="show" onclick="togglePassword()" aria-label="Mostrar senha">◉</button></div></div>
+<button class="submit" type="submit">Criar minha conta</button></form><div class="signup">Já tenho conta. <a href="{{ url_for('entrar', next=next) }}">Entrar</a></div><div class="back"><a href="{{ url_for('home') }}">← Voltar para o ImoveLonde</a></div></div></section></div>
+<script>
+function togglePassword(){var i=document.getElementById('password');i.type=i.type==='password'?'text':'password'}
+</script>
+</body>
+</html>

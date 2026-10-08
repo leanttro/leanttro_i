@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImoveLonde — Anuncie seu imóvel</title>
+<style>
+
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:Inter,Arial,sans-serif;color:#14221d;background:#f6f8f7}a{text-decoration:none;color:inherit}
+.header{height:76px;background:#071521;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 6%}
+.logo{font-size:27px;font-weight:800;letter-spacing:-1.2px}.logo span{color:#39dc4b}.nav{display:flex;gap:28px;color:#d7e2dd;font-size:14px}.nav a:last-child{color:#39dc4b}
+.actions{display:flex;gap:10px}.btn{padding:12px 19px;border-radius:9px;font-size:13px;font-weight:800}.outline{border:1px solid #52616a}.green{background:#39dc4b;color:#06150c}
+.hero{background:#071521;color:white;padding:70px 7% 75px}.hero-in{max-width:1180px;margin:auto;display:grid;grid-template-columns:1.05fr .95fr;gap:60px;align-items:center}
+.tag{display:inline-block;color:#39dc4b;border:1px solid #245c31;background:#0d2618;padding:7px 12px;border-radius:30px;font-size:11px;font-weight:900;margin-bottom:18px}
+h1{font-size:50px;line-height:1.05;letter-spacing:-2.2px}.hero h1 span{color:#39dc4b}.hero p{color:#b9c8c2;font-size:17px;line-height:1.65;max-width:590px;margin:20px 0 28px}
+.hero-img{height:380px;border-radius:22px;background:linear-gradient(180deg,transparent 30%,#07152199),url('https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1100&q=85') center/cover;box-shadow:0 20px 50px #0005}
+.section{max-width:1180px;margin:auto;padding:72px 0}.center{text-align:center}.eyebrow{color:#1daa31;text-transform:uppercase;letter-spacing:1px;font-weight:900;font-size:11px;margin-bottom:10px}
+h2{font-size:34px;letter-spacing:-1.2px}.subtitle{color:#73817b;line-height:1.6;max-width:650px;margin:12px auto 40px}
+.benefits{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.benefit{background:#fff;border:1px solid #e0e7e3;border-radius:16px;padding:27px;box-shadow:0 8px 25px #12261c08}.icon{width:44px;height:44px;border-radius:12px;background:#eaf9ec;color:#1cae32;display:flex;align-items:center;justify-content:center;font-size:21px;margin-bottom:18px}.benefit h3{font-size:18px;margin-bottom:8px}.benefit p{font-size:14px;line-height:1.6;color:#74817b}
+.steps{background:#eef5f1}.stepgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.step{background:#fff;border-radius:16px;padding:25px;border:1px solid #dde6e1}.number{font-size:12px;font-weight:900;color:#1cae32;margin-bottom:18px}.step h3{font-size:18px;margin-bottom:8px}.step p{font-size:14px;color:#738079;line-height:1.6}
+.offer{display:grid;grid-template-columns:1fr 1fr;gap:22px}.offer-card{background:#071521;color:#fff;border-radius:19px;padding:34px}.offer-card.pro{background:#fff;color:#17231e;border:2px solid #39dc4b}.offer-card h3{font-size:23px;margin-bottom:8px}.offer-card p{color:#aab9b3;font-size:14px;line-height:1.6;margin-bottom:20px}.pro p{color:#718079}.offer-card ul{list-style:none}.offer-card li{margin:13px 0;font-size:14px}.offer-card li:before{content:"✓";color:#39dc4b;font-weight:900;margin-right:9px}
+.cta{max-width:1180px;margin:0 auto 70px;border-radius:22px;background:#39dc4b;padding:42px 50px;display:flex;align-items:center;justify-content:space-between;gap:30px}.cta h2{font-size:29px}.dark{background:#071521;color:#fff}
+.footer{background:#071521;color:#899991;padding:28px 7%;display:flex;justify-content:space-between;font-size:12px}
+@media(max-width:900px){.nav{display:none}.hero-in,.offer{grid-template-columns:1fr}.hero-img{height:300px}.benefits,.stepgrid{grid-template-columns:1fr}.section{padding:60px 5%}.cta{margin:0 5% 50px}.hero{padding-left:5%;padding-right:5%}}
+@media(max-width:600px){.header{padding:0 5%}.actions .outline{display:none}h1{font-size:38px}.hero-img{height:240px}.cta{padding:30px;align-items:flex-start;flex-direction:column}.footer{flex-direction:column;gap:8px}}
+
+.btn{display:inline-block}
+
+form.inline{display:inline;margin:0}
+.flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
+.flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
+.flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+</style>
+</head>
+<body>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+
+<header class="header"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
+<nav class="nav"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a></nav>
+<div class="actions">{% if usuario %}<a class="btn outline" href="{{ url_for('painel') }}">{{ usuario.nome.split()[0] }}</a><a class="btn green" href="{{ url_for('sair') }}">Sair</a>{% else %}<a class="btn outline" href="{{ url_for('entrar') }}">Entrar</a><a class="btn green" href="{{ url_for('cadastrar') }}">Criar conta</a>{% endif %}</div></header>
+
+<section class="hero">
+<div class="hero-in">
+<div>
+<div class="tag">PARA CORRETORES E IMOBILIÁRIAS</div>
+<h1>Seu imóvel anunciado para quem está <span>procurando.</span></h1>
+<p>Cadastre seus imóveis no ImoveLonde e tenha uma página profissional para apresentar seu trabalho e receber contatos de interessados.</p>
+<a class="btn green" href="{{ url_for('cadastrar', tipo='imobiliaria') }}">Começar a anunciar</a>
+</div>
+<div class="hero-img"></div>
+</div>
+</section>
+
+<section class="section">
+<div class="center"><div class="eyebrow">Por que anunciar</div><h2>Mais presença. Mais oportunidades.</h2><p class="subtitle">Uma estrutura simples para você divulgar seus imóveis sem complicar sua operação.</p></div>
+<div class="benefits">
+<div class="benefit"><div class="icon">⌂</div><h3>Seus imóveis no portal</h3><p>Seus anúncios ficam disponíveis para pessoas pesquisando imóveis por localização, tipo, preço e características.</p></div>
+<div class="benefit"><div class="icon">↗</div><h3>Página profissional</h3><p>Tenha sua própria página dentro do ImoveLonde com sua identidade, informações e imóveis publicados.</p></div>
+<div class="benefit"><div class="icon">☏</div><h3>Contato direto</h3><p>O interessado encontra o imóvel e pode falar diretamente com você pelo WhatsApp.</p></div>
+</div>
+</section>
+
+<section class="steps">
+<div class="section">
+<div class="center"><div class="eyebrow">É simples</div><h2>Publique em poucos passos</h2><p class="subtitle">Você cadastra uma vez e usa as informações do imóvel para divulgar sua oferta.</p></div>
+<div class="stepgrid">
+<div class="step"><div class="number">01 — CADASTRE</div><h3>Crie sua conta</h3><p>Informe seus dados profissionais e configure sua página de anunciante.</p></div>
+<div class="step"><div class="number">02 — PUBLIQUE</div><h3>Cadastre o imóvel</h3><p>Adicione fotos, preço, localização, características e descrição do imóvel.</p></div>
+<div class="step"><div class="number">03 — RECEBA</div><h3>Fale com interessados</h3><p>O visitante acessa seu anúncio e entra em contato diretamente com você.</p></div>
+</div>
+</div>
+</section>
+
+<section class="section">
+<div class="center"><div class="eyebrow">Escolha como começar</div><h2>Do anúncio gratuito ao projeto personalizado</h2><p class="subtitle">Comece sem custo e evolua conforme sua operação crescer.</p></div>
+<div class="offer">
+<div class="offer-card">
+<h3>Grátis</h3><p>Para começar a divulgar seus imóveis no ImoveLonde.</p>
+<ul><li>Página no portal</li><li>Cadastro de imóveis</li><li>Contato por WhatsApp</li><li>Presença nas buscas</li></ul>
+</div>
+<div class="offer-card pro">
+<h3>Profissional</h3><p>Para quem quer mais espaço e uma apresentação personalizada.</p>
+<ul><li>Mais imóveis e fotos</li><li>Escolha de template</li><li>Logo e cores personalizadas</li><li>Seções e contatos personalizados</li><li>Mais recursos para divulgação</li></ul>
+</div>
+</div>
+</section>
+
+<section class="cta">
+<div><h2>Comece a divulgar seus imóveis hoje.</h2><p>Crie sua página no ImoveLonde e coloque seus anúncios para trabalhar por você.</p></div>
+<a class="btn dark" href="{{ url_for('cadastrar', tipo='imobiliaria') }}">Quero anunciar</a>
+</section>
+
+<footer class="footer"><div>© 2026 ImoveLonde</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
+
+</body>
+</html>
