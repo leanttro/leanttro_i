@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImoveLonde — Meu perfil</title>
+<style>
+
+:root{
+  --green:#39dc4b;
+  --green-dark:#21b934;
+  --dark:#071521;
+  --dark-2:#0d202d;
+  --bg:#f4f7f5;
+  --card:#fff;
+  --text:#16232c;
+  --muted:#70808a;
+  --line:#e5ebe7;
+  --orange:#f39b39;
+  --red:#e85d5d;
+  --blue:#4f8fe8;
+  --shadow:0 10px 30px rgba(7,21,33,.07);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Inter,Arial,sans-serif;color:var(--text)}
+button,input{font:inherit}
+button{cursor:pointer}
+.topbar{height:76px;background:var(--dark);color:#fff;display:flex;align-items:center;padding:0 34px;gap:28px;position:sticky;top:0;z-index:20}
+.logo{font-weight:900;font-size:25px;letter-spacing:-1.4px;white-space:nowrap}
+.logo span{color:var(--green)}
+.search{flex:1;max-width:650px;margin:auto;position:relative}
+.search input{width:100%;height:44px;border:0;border-radius:12px;padding:0 18px 0 44px;background:#fff;color:#17252d;outline:none}
+.search svg{position:absolute;left:15px;top:13px;color:#7c8a91}
+.top-actions{display:flex;align-items:center;gap:14px}
+.icon-btn{width:42px;height:42px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;border-radius:11px}
+.avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#b7c7bc,#e6eee9);display:grid;place-items:center;color:#21312b;font-weight:800}
+.layout{display:flex;min-height:calc(100vh - 76px)}
+.sidebar{width:248px;background:#fff;border-right:1px solid var(--line);padding:24px 16px;flex-shrink:0}
+.user-mini{padding:14px 12px 20px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.user-mini strong{display:block;font-size:15px}.user-mini small{color:var(--muted);display:block;margin-top:4px}
+.nav-label{font-size:10px;font-weight:800;text-transform:uppercase;color:#9aa7ac;letter-spacing:1px;margin:18px 11px 8px}
+.nav a{display:flex;align-items:center;gap:12px;padding:12px 12px;border-radius:10px;color:#53636b;text-decoration:none;font-size:14px;font-weight:650;margin:3px 0}
+.nav a:hover,.nav a.active{background:#effbf0;color:#159d27}
+.nav a.active{font-weight:800}
+.nav svg{width:18px}
+.badge{margin-left:auto;background:#eaf8ec;color:#1baf2e;border-radius:20px;padding:3px 7px;font-size:10px}
+.main{flex:1;padding:32px 34px 60px;min-width:0}
+.container{max-width:1240px;margin:auto}
+.heading{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:26px}
+.heading h1{margin:0;font-size:29px;letter-spacing:-.7px}
+.heading p{margin:7px 0 0;color:var(--muted);font-size:14px}
+.view-site{border:1px solid var(--line);background:#fff;border-radius:10px;padding:11px 15px;color:#32434b;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.stat-top{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;font-weight:700}
+.stat-icon{width:38px;height:38px;border-radius:10px;background:#effbf0;color:#1db52f;display:grid;place-items:center}
+.stat strong{display:block;font-size:28px;margin-top:12px;letter-spacing:-1px}
+.content-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,.9fr);gap:20px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+.panel-head{padding:19px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.panel-head h2{font-size:16px;margin:0}.panel-head a{font-size:12px;color:#18a92b;text-decoration:none;font-weight:800}
+.property{display:flex;gap:15px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.property:last-child{border-bottom:0}
+.property-img{width:150px;height:108px;object-fit:cover;border-radius:11px;flex-shrink:0}
+.property-info{min-width:0;flex:1}
+.property-info h3{margin:2px 0 6px;font-size:15px}
+.property-info p{margin:0 0 8px;color:var(--muted);font-size:12px}
+.price{font-size:17px;font-weight:900}.tag{font-size:10px;background:#f0f7f2;color:#329442;padding:5px 7px;border-radius:6px;margin-left:5px}
+.row-actions{display:flex;gap:7px;margin-top:10px}
+.small-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;font-size:11px;font-weight:800;color:#44545b}
+.small-btn.green{background:var(--green);border-color:var(--green);color:#061108}
+.contact{padding:17px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
+.contact:last-child{border-bottom:0}
+.contact-logo{width:43px;height:43px;border-radius:10px;background:#eef5ef;display:grid;place-items:center;font-weight:900;color:#2c6336}
+.contact-info{flex:1}.contact-info strong{font-size:13px;display:block}.contact-info span{font-size:11px;color:var(--muted);display:block;margin-top:3px}
+.contact-time{font-size:10px;color:#9aa5a9}
+.timeline{padding:4px 20px 18px}
+.event{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.event:last-child{border-bottom:0}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green);margin-top:5px;flex-shrink:0;box-shadow:0 0 0 4px #eaf8ec}
+.event strong{font-size:12px}.event p{font-size:11px;color:var(--muted);margin:4px 0 0;line-height:1.5}
+.profile-card{padding:22px}
+.profile-head{display:flex;gap:14px;align-items:center}
+.profile-avatar{width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,#d6e1db,#f4f7f5);display:grid;place-items:center;font-size:22px;font-weight:900}
+.profile-head h3{margin:0;font-size:16px}.profile-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.progress{height:7px;background:#e9efeb;border-radius:20px;overflow:hidden;margin:15px 0 8px}.progress i{display:block;width:82%;height:100%;background:var(--green);border-radius:20px}
+.profile-card small{color:var(--muted);font-size:11px}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:18px 20px}
+.quick a{border:1px solid var(--line);border-radius:10px;padding:12px;text-decoration:none;color:#34464d;font-size:11px;font-weight:800;text-align:center}
+.quick a:hover{border-color:#b8e8be;background:#f4fff5}
+.empty{padding:25px 20px;color:var(--muted);font-size:12px;text-align:center}
+.footer-note{text-align:center;color:#9aa5a9;font-size:11px;margin-top:20px}
+@media(max-width:1050px){.grid{grid-template-columns:repeat(2,1fr)}.content-grid{grid-template-columns:1fr}.sidebar{width:220px}}
+@media(max-width:760px){
+ .topbar{padding:0 16px;height:68px}.search{display:none}.logo{font-size:22px}.layout{display:block}.sidebar{width:100%;border-right:0;border-bottom:1px solid var(--line);padding:8px 12px;position:sticky;top:68px;z-index:10}.user-mini,.nav-label{display:none}.nav{display:flex;overflow:auto;gap:4px}.nav a{white-space:nowrap;margin:0;padding:9px}.nav a span:not(.badge){display:none}.nav a.active span:not(.badge){display:inline}.nav svg{width:16px}.main{padding:24px 15px 45px}.heading{align-items:flex-start;gap:12px}.heading h1{font-size:24px}.view-site{display:none}.grid{grid-template-columns:1fr 1fr;gap:10px}.stat{padding:14px}.stat strong{font-size:23px}.property{padding:14px;gap:10px}.property-img{width:105px;height:90px}.row-actions .small-btn:nth-child(2){display:none}}
+@media(max-width:470px){.grid{grid-template-columns:1fr 1fr}.property{align-items:flex-start}.property-img{width:92px;height:85px}.price{font-size:15px}}
+
+.topbar .logo{color:inherit}.sidebar a,.nav a{text-decoration:none}.empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
+.small-btn{text-decoration:none;display:inline-block;cursor:pointer}.property-img{object-fit:cover}.fld{margin-bottom:14px}.fld label{display:block;font-size:12px;font-weight:800;margin-bottom:6px}
+.fld input{width:100%;border:1px solid var(--line);border-radius:9px;padding:11px 12px;font-size:14px}.btn-save{border:0;background:#39dc4b;color:#06150c;font-weight:900;border-radius:9px;padding:12px 20px;cursor:pointer}
+.tag.alt{background:#e8f0fe;color:#1d4ed8}.panel-head a{text-decoration:none}.progress i{display:block;height:100%;background:#39dc4b;border-radius:9px}
+
+
+form.inline{display:inline;margin:0}
+.flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
+.flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
+.flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+</style>
+</head>
+<body>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+<header class="topbar"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
+<form class="search" action="{{ url_for('buscar') }}" method="get"><input name="q" placeholder="Buscar imóveis, bairros ou cidades..."></form>
+<div class="top-actions"><div class="avatar">{{ usuario.nome|iniciais }}</div></div></header>
+<div class="layout"><aside class="sidebar"><div class="user-mini"><strong>{{ usuario.nome }}</strong><small>Minha conta</small></div><div class="nav"><div class="nav-label">Minha área</div><a href="{{ url_for('minha_area') }}"><span>▦</span> <span>Visão geral</span></a><a href="{{ url_for('favoritos') }}"><span>♡</span> <span>Favoritos</span></a><a href="{{ url_for('minha_area_lista', aba='visitados') }}"><span>⌂</span> <span>Imóveis visitados</span></a><a href="{{ url_for('minha_area_lista', aba='contatos') }}"><span>💬</span> <span>Meus contatos</span></a><a href="{{ url_for('minha_area_lista', aba='visitas') }}"><span>◷</span> <span>Visitas agendadas</span></a><div class="nav-label">Conta</div><a class="active" href="{{ url_for('minha_area_perfil') }}"><span>♙</span> <span>Meu perfil</span></a><a href="{{ url_for('sair') }}"><span>↩</span> <span>Sair</span></a></div></aside><main class="main"><div class="container">
+<div class="heading"><div><h1>Meu perfil</h1><p>Mantenha seus dados atualizados.</p></div></div>
+<section class="panel"><div class="panel-head"><h2>Dados pessoais</h2></div><form method="post" action="{{ url_for('minha_area_perfil') }}" style="padding:20px;max-width:520px">{{ csrf() }}
+<div class="fld"><label>Nome</label><input name="nome" required minlength="3" maxlength="120" value="{{ usuario.nome }}"></div>
+<div class="fld"><label>E-mail</label><input value="{{ usuario.email }}" disabled></div>
+<div class="fld"><label>Telefone / WhatsApp</label><input name="telefone" inputmode="tel" value="{{ usuario.telefone or '' }}"></div>
+<div class="fld"><label>Cidade</label><input name="cidade" value="{{ usuario.cidade or '' }}"></div>
+<div class="fld"><label>Nova senha (deixe em branco para manter)</label><input name="senha" type="password" minlength="8" autocomplete="new-password"></div>
+<button class="btn-save">Salvar</button></form></section></div></main></div>
+</body>
+</html>
