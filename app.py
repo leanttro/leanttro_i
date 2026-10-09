@@ -1,5 +1,5 @@
 """
-ImoveLonde — portal imobiliário (Flask + PostgreSQL).
+ImovelOnde — portal imobiliário (Flask + PostgreSQL).
 
 Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
@@ -11,6 +11,7 @@ import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import quote, urlparse
+from xml.sax.saxutils import escape as xml_escape
 from zoneinfo import ZoneInfo
 
 import requests
@@ -21,6 +22,7 @@ from PIL import Image, ImageDraw, ImageOps
 from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_template, request,
                    send_file, session, url_for)
 from markupsafe import Markup
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 try:                                    # .env opcional (no Docker as variáveis já vêm do ambiente)
@@ -82,6 +84,8 @@ app.config.update(
 )
 os.makedirs(os.path.join(UPLOAD_DIR, "originais"), exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "cache"), exist_ok=True)
+# atrás do Traefik/Dokploy: respeita X-Forwarded-Proto/Host (https correto em sitemap, canonical e redirects)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 
 def _chave_secreta():
@@ -487,6 +491,154 @@ def placeholder():
     return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
 
 
+# ═══════════════════════════════════════════════════════════════
+# 3b. IMAGENS DO SITE (logo, fundo da home, favicon, imagem de compartilhamento)
+#     Ficam em UPLOAD_DIR/site (no volume). O admin envia em /admin/midia e o site já usa sozinho.
+# ═══════════════════════════════════════════════════════════════
+
+SITE_NOME = "ImovelOnde"
+SITE_TITULO = "ImovelOnde — Casas e apartamentos para comprar ou alugar"
+SITE_DESCRICAO = ("Encontre casas e apartamentos para comprar ou alugar perto de você. "
+                  "Fale direto com o anunciante pelo WhatsApp.")
+SITE_DIR = os.path.join(UPLOAD_DIR, "site")
+os.makedirs(SITE_DIR, exist_ok=True)
+SITE_SLOTS = {
+    "logo": {"nome": "Logo", "max": 1200, "svg": True, "escuro": True,
+             "dica": "Versão para fundo ESCURO (aparece sobre a foto da home, no rodapé e no admin). PNG transparente ou SVG."},
+    "hero": {"nome": "Fundo da home (hero)", "max": 2400, "svg": False, "escuro": False,
+             "dica": "Foto horizontal, ideal 2200×1100 px. A esquerda fica escurecida para o texto aparecer."},
+    "cta": {"nome": "Fundo da faixa final", "max": 2400, "svg": False, "escuro": False,
+            "dica": "Foto horizontal, ideal 2200×700 px. Se vazio, usa a mesma foto da home."},
+    "og": {"nome": "Imagem de compartilhamento", "max": 1200, "svg": False, "escuro": False,
+           "dica": "Aparece no preview do WhatsApp, Facebook e Google. Ideal 1200×630 px, JPG ou PNG."},
+    "favicon": {"nome": "Favicon (ícone da aba)", "max": 512, "svg": True, "escuro": False,
+                "dica": "PNG quadrado 512×512 px (ou SVG), só o símbolo, sem texto."},
+}
+SITE_NOME_RE = re.compile(r"^[a-z0-9_-]{1,90}\.(png|jpg|webp|svg)$")
+_site_cache = {"t": None, "idx": {}}
+
+
+def _site_indice():
+    """{'logo': ('logo.png', mtime), ...} — recalcula só quando a pasta muda."""
+    try:
+        t = os.stat(SITE_DIR).st_mtime_ns
+    except OSError:
+        return {}
+    if _site_cache["t"] != t:
+        idx = {}
+        for f in os.listdir(SITE_DIR):
+            if SITE_NOME_RE.match(f):
+                idx[f.rsplit(".", 1)[0]] = (f, int(os.path.getmtime(os.path.join(SITE_DIR, f))))
+        _site_cache.update(t=t, idx=idx)
+    return _site_cache["idx"]
+
+
+def site_url(chave):
+    f = _site_indice().get(chave)
+    return url_for("site_media", nome=f[0], v=f[1]) if f else None
+
+
+def base_url():
+    return BASE_URL or request.host_url.rstrip("/")
+
+
+def canonical_url():
+    return base_url() + request.path
+
+
+def site_salvar_imagem(arquivo, slot=None):
+    """Valida e grava em SITE_DIR. slot=None → imagem avulsa. Mantém PNG transparente. Devolve o nome do arquivo."""
+    dados = arquivo.read()
+    if not dados:
+        raise ValueError("arquivo vazio")
+    if len(dados) > 15 * 1024 * 1024:
+        raise ValueError("arquivo maior que 15 MB")
+    cfg = SITE_SLOTS.get(slot, {})
+    if b"<svg" in dados[:2048].lower():
+        if slot is None or not cfg.get("svg"):
+            raise ValueError("SVG só é aceito no logo e no favicon")
+        txt = dados.decode("utf-8", "ignore")
+        if re.search(r"<script|javascript:|\son\w+\s*=|<foreignobject|<iframe|<image", txt, re.I):
+            raise ValueError("SVG com conteúdo não permitido (scripts/imagens embutidas)")
+        ext, saida = "svg", dados
+    else:
+        Image.open(io.BytesIO(dados)).verify()
+        im = Image.open(io.BytesIO(dados))
+        fmt = im.format
+        if fmt not in MIME_OK:
+            raise ValueError("use PNG, JPG ou WEBP")
+        im = ImageOps.exif_transpose(im)
+        im.thumbnail((cfg.get("max", 2400),) * 2, Image.LANCZOS)
+        buf = io.BytesIO()
+        if fmt == "PNG":
+            im = im.convert("RGBA" if im.mode in ("P", "LA", "RGBA") else "RGB")
+            im.save(buf, "PNG", optimize=True); ext = "png"
+        elif fmt == "WEBP":
+            im = im.convert("RGBA" if im.mode in ("P", "LA", "RGBA") else "RGB")
+            im.save(buf, "WEBP", quality=88); ext = "webp"
+        else:
+            im.convert("RGB").save(buf, "JPEG", quality=88, optimize=True, progressive=True); ext = "jpg"
+        saida = buf.getvalue()
+    if slot:
+        base = slot
+    else:
+        orig = os.path.splitext(getattr(arquivo, "filename", "") or "imagem")[0]
+        base = f"img-{uuid.uuid4().hex[:8]}-{gerar_slug(orig)[:40]}"
+    nome = f"{base}.{ext}"
+    destino = os.path.join(SITE_DIR, nome)
+    tmp = destino + f".{uuid.uuid4().hex[:6]}.tmp"
+    with open(tmp, "wb") as fh:
+        fh.write(saida)
+    for outra in ("png", "jpg", "webp", "svg"):          # troca de formato (logo.png → logo.svg) não deixa lixo
+        p = os.path.join(SITE_DIR, f"{base}.{outra}")
+        if outra != ext and os.path.exists(p):
+            os.remove(p)
+    os.replace(tmp, destino)
+    return nome
+
+
+def site_remover_imagem(nome):
+    if SITE_NOME_RE.match(nome or ""):
+        try:
+            os.remove(os.path.join(SITE_DIR, nome))
+        except OSError:
+            pass
+
+
+def volume_info():
+    """Diz se UPLOAD_DIR está num volume montado (senão as imagens somem a cada deploy)."""
+    p = os.path.abspath(UPLOAD_DIR)
+    while p != os.path.dirname(p):
+        if os.path.ismount(p):
+            return {"caminho": UPLOAD_DIR, "montado": p}
+        p = os.path.dirname(p)
+    return {"caminho": UPLOAD_DIR, "montado": None}
+
+
+@app.route("/site-media/<nome>")
+def site_media(nome):
+    if not SITE_NOME_RE.match(nome):
+        abort(404)
+    p = os.path.join(SITE_DIR, nome)
+    if not os.path.isfile(p):
+        abort(404)
+    resp = send_file(p, conditional=True)
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable" if request.args.get("v") else "public, max-age=3600"
+    if nome.endswith(".svg"):
+        resp.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    return resp
+
+
+@app.route("/favicon.ico")
+def favicon():
+    f = _site_indice().get("favicon")
+    if f:
+        return site_media(f[0])
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#071421"/>'
+           '<path d="M14 32 32 16l18 16v18H14z" fill="none" stroke="#39e44b" stroke-width="5" stroke-linejoin="round"/></svg>')
+    return Response(svg, mimetype="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+
 CAPA_SQL = "(SELECT f.file_id FROM imovel_fotos f WHERE f.imovel_id = i.id ORDER BY f.ordem, f.id LIMIT 1)"
 
 
@@ -529,10 +681,22 @@ def enriquecer_tenant(t):
 # ═══════════════════════════════════════════════════════════════
 
 @app.before_request
+def _dominio_canonico():
+    """imovelonde.com.br é o endereço oficial: www.imovelonde.com.br vira 301 para ele."""
+    if not BASE_URL or request.method not in ("GET", "HEAD") or request.path == "/healthz":
+        return None
+    oficial = urlparse(BASE_URL).netloc.lower()
+    host = request.host.lower()
+    if host != oficial and host.replace("www.", "", 1) == oficial.replace("www.", "", 1):
+        return redirect(BASE_URL + request.full_path.rstrip("?"), code=301)
+    return None
+
+
+@app.before_request
 def _carregar_usuario():
     g.usuario = g.tenant = None
     uid = session.get("uid")
-    if uid and DATABASE_URL and not request.path.startswith(("/assets/", "/static/")):
+    if uid and DATABASE_URL and not request.path.startswith(("/assets/", "/static/", "/site-media/")):
         u = query_one("SELECT * FROM usuarios WHERE id = %s", (uid,))
         if u:
             g.usuario = u
@@ -557,11 +721,21 @@ def _checar_csrf():
             abort(400, "Sessão expirada. Volte e tente de novo.")
 
 
+def _site_ctx():
+    base = base_url()
+    og = site_url("og") or site_url("hero")
+    logo = site_url("logo")
+    return dict(nome=SITE_NOME, base=base, titulo=SITE_TITULO, descricao=SITE_DESCRICAO,
+                logo=logo, hero=site_url("hero"), cta=site_url("cta"), favicon=site_url("favicon"),
+                og=(base + og) if og else None, logo_abs=(base + logo) if logo else None)
+
+
 @app.context_processor
 def _contexto():
     ctx = dict(usuario=g.get("usuario"), TIPOS_IMOVEL=TIPOS_IMOVEL, FINALIDADES=FINALIDADES, STATUS_IMOVEL=STATUS_IMOVEL,
                CATEGORIAS_PROXIMO=CATEGORIAS_PROXIMO, ICONES_PROXIMO=ICONES_PROXIMO, CARACTERISTICAS=CARACTERISTICAS,
                PLANOS=PLANOS, PRECO_PROFISSIONAL=PRECO_PROFISSIONAL, wa_link=wa_link, url_foto=url_foto,
+               SITE=_site_ctx(), canonical_url=canonical_url, ano=datetime.now(TZ).year,
                csrf=lambda: Markup(f'<input type="hidden" name="_csrf" value="{_token_csrf()}">'))
     if g.get("usuario") and g.usuario["tipo"] == "admin" and request.endpoint and request.endpoint.startswith("admin_"):
         n = query_one("SELECT (SELECT COUNT(*) FROM imoveis WHERE status = 'pendente') + "
@@ -690,7 +864,7 @@ def cadastrar():
             uid = criar_usuario(nome, email, senha, tipo, f["telefone"])
             session.clear()
             session["uid"] = uid
-            flash("Conta criada! Bem-vindo ao ImoveLonde.", "success")
+            flash("Conta criada! Bem-vindo ao ImovelOnde.", "success")
             if tipo in TIPOS_TENANT:
                 flash("Complete a página do seu negócio e cadastre o primeiro imóvel.", "success")
             return redirect(nxt or url_for("painel"))
@@ -893,7 +1067,7 @@ def imovel_whatsapp(slug):
     execute("INSERT INTO eventos (tenant_id, imovel_id, usuario_id, tipo) VALUES (%s,%s,%s,'whatsapp')",
             (i["tenant_id"], i["id"], g.usuario["id"] if g.usuario else None))
     link = (BASE_URL or request.host_url.rstrip("/")) + url_for("imovel", slug=slug)
-    texto = f"Olá! Vi o imóvel “{i['titulo']}” no ImoveLonde e gostaria de mais informações. {link}"
+    texto = f"Olá! Vi o imóvel “{i['titulo']}” no ImovelOnde e gostaria de mais informações. {link}"
     return redirect(wa_link(numero, texto))
 
 
@@ -1026,7 +1200,7 @@ def newsletter():
     email = request.form.get("email", "").strip().lower()[:200]
     if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
         execute("INSERT INTO newsletter (email) VALUES (%s) ON CONFLICT DO NOTHING", (email,))
-        flash("Pronto! Você vai receber as novidades do ImoveLonde.", "success")
+        flash("Pronto! Você vai receber as novidades do ImovelOnde.", "success")
     else:
         flash("Informe um e-mail válido.", "error")
     return redirect(url_for("guia"))
@@ -1034,20 +1208,27 @@ def newsletter():
 
 @app.route("/robots.txt")
 def robots():
-    return Response("User-agent: *\nDisallow: /painel\nDisallow: /admin\nDisallow: /minha-area\n"
-                    f"Sitemap: {(BASE_URL or request.host_url.rstrip('/'))}/sitemap.xml\n", mimetype="text/plain")
+    regras = ["User-agent: *", "Allow: /"] + [f"Disallow: {p}" for p in (
+        "/painel", "/admin", "/minha-area", "/entrar", "/cadastrar", "/sair", "/favoritos", "/api/",
+        "/imovel/*/whatsapp", "/imovel/*/visita", "/newsletter", "/webhooks/")]
+    return Response("\n".join(regras) + f"\n\nSitemap: {base_url()}/sitemap.xml\n", mimetype="text/plain")
 
 
 @app.route("/sitemap.xml")
 def sitemap():
-    base = BASE_URL or request.host_url.rstrip("/")
-    urls = [base + "/", base + url_for("buscar"), base + url_for("imobiliarias"), base + url_for("guia")]
-    urls += [base + url_for("imovel", slug=r["slug"]) for r in
-             query_all("SELECT slug FROM imoveis WHERE status = 'publicado' ORDER BY id DESC LIMIT 5000")]
-    urls += [base + url_for("imobiliaria", slug=r["slug"]) for r in query_all("SELECT slug FROM tenants WHERE status = 'ativo'")]
-    corpo = "".join(f"<url><loc>{u}</loc></url>" for u in urls)
-    return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{corpo}</urlset>',
-                    mimetype="application/xml")
+    base = base_url()
+    itens = [(base + "/", None)]
+    for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia"):
+        itens.append((base + url_for(ep), None))
+    for r in query_all("SELECT slug, atualizado_em FROM imoveis i WHERE i.status = 'publicado' AND EXISTS "
+                       "(SELECT 1 FROM tenants t WHERE t.id = i.tenant_id AND t.status = 'ativo') ORDER BY i.id DESC LIMIT 5000"):
+        itens.append((base + url_for("imovel", slug=r["slug"]), r["atualizado_em"]))
+    for r in query_all("SELECT slug FROM tenants WHERE status = 'ativo' AND tipo = 'imobiliaria'"):
+        itens.append((base + url_for("imobiliaria", slug=r["slug"]), None))
+    corpo = "".join(f"<url><loc>{xml_escape(u)}</loc>" + (f"<lastmod>{d.date().isoformat()}</lastmod>" if d else "") + "</url>"
+                    for u, d in itens)
+    return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                    f"{corpo}</urlset>", mimetype="application/xml")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1481,7 +1662,7 @@ class pagbank:
         base = BASE_URL or request.host_url.rstrip("/")
         corpo = {
             "reference_id": f"assin-{assinatura_id}",
-            "items": [{"name": "ImoveLonde — Plano Profissional (30 dias)", "quantity": 1,
+            "items": [{"name": "ImovelOnde — Plano Profissional (30 dias)", "quantity": 1,
                        "unit_amount": int(round(valor * 100))}],
             "redirect_url": base + url_for("anunciante_assinatura"),
             "payment_notification_urls": [base + url_for("webhook_pagbank") + (f"?t={quote(PAGBANK_WEBHOOK_TOKEN)}" if PAGBANK_WEBHOOK_TOKEN else "")],
@@ -1767,7 +1948,7 @@ def admin_arquivos():
     resumo = query_one("SELECT COUNT(*) AS n, COALESCE(SUM(tamanho), 0) AS bytes FROM arquivos")
     orfaos = query_one("""SELECT COUNT(*) AS n FROM arquivos a WHERE NOT EXISTS (SELECT 1 FROM imovel_fotos f WHERE f.file_id = a.id)
                           AND NOT EXISTS (SELECT 1 FROM tenants t WHERE t.logo_file_id = a.id)""")["n"]
-    return render_template("admin.html", lista=lista, resumo=resumo, orfaos=orfaos, pagina_ativa="arquivos")
+    return render_template("admin.html", lista=lista, resumo=resumo, orfaos=orfaos, vol=volume_info(), pagina_ativa="arquivos")
 
 
 @app.route("/admin/arquivos/limpar", methods=["POST"])
@@ -1781,6 +1962,48 @@ def admin_arquivos_limpar():
         storage.deletar_imagem(fid)
     flash(f"{len(ids)} arquivo(s) órfão(s) removido(s).", "success")
     return redirect(url_for("admin_arquivos"))
+
+
+@app.route("/admin/midia")
+@admin_required
+def admin_midia():
+    idx = _site_indice()
+    base = base_url()
+    slots = []
+    for k, cfg in SITE_SLOTS.items():
+        f = idx.get(k)
+        slots.append(dict(cfg, chave=k, url=url_for("site_media", nome=f[0], v=f[1]) if f else None))
+    av = sorted(((f, v) for b, (f, v) in idx.items() if b.startswith("img-")), key=lambda x: -x[1])
+    avulsas = [dict(nome=f, url=url_for("site_media", nome=f, v=v), completa=base + url_for("site_media", nome=f)) for f, v in av]
+    return render_template("admin.html", slots=slots, avulsas=avulsas, vol=volume_info(), pagina_ativa="midia")
+
+
+@app.route("/admin/midia/enviar", methods=["POST"])
+@admin_required
+def admin_midia_enviar():
+    slot = request.form.get("slot") or None
+    if slot and slot not in SITE_SLOTS:
+        abort(400)
+    arquivos = [a for a in request.files.getlist("arquivo") if a and a.filename]
+    if not arquivos:
+        flash("Escolha um arquivo.", "error")
+        return redirect(url_for("admin_midia"))
+    for a in (arquivos[:1] if slot else arquivos[:20]):
+        try:
+            site_salvar_imagem(a, slot)
+            flash(f"{SITE_SLOTS[slot]['nome']} atualizado(a)." if slot else f"“{a.filename}” enviada.", "success")
+        except Exception as e:
+            log.info("upload do site recusado: %s", e)
+            flash(f"“{a.filename}”: {e if isinstance(e, ValueError) else 'imagem inválida'}.", "error")
+    return redirect(url_for("admin_midia"))
+
+
+@app.route("/admin/midia/remover", methods=["POST"])
+@admin_required
+def admin_midia_remover():
+    site_remover_imagem(request.form.get("nome", ""))
+    flash("Arquivo removido.", "success")
+    return redirect(url_for("admin_midia"))
 
 
 # ═══════════════════════════════════════════════════════════════
