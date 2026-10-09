@@ -1,0 +1,30 @@
+{#- SEO reutilizável. Em cada página, ANTES do include, defina (todas opcionais):
+    seo_title, seo_desc, seo_canonical, seo_image, seo_robots, seo_og_type, seo_jsonld (lista de dicts) -#}
+{%- set _tit = seo_title or SITE.titulo -%}
+{%- set _desc = seo_desc or SITE.descricao -%}
+{%- set _url = seo_canonical or canonical_url() -%}
+{%- set _img = seo_image or SITE.og -%}
+<title>{{ _tit }}</title>
+<meta name="description" content="{{ _desc }}">
+<meta name="robots" content="{{ seo_robots or 'index,follow,max-image-preview:large' }}">
+<link rel="canonical" href="{{ _url }}">
+<meta name="theme-color" content="#071421">
+<link rel="icon" href="{{ SITE.favicon or url_for('favicon') }}">
+{%- if SITE.favicon %}
+<link rel="apple-touch-icon" href="{{ SITE.favicon }}">{% endif %}
+<meta property="og:site_name" content="{{ SITE.nome }}">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:type" content="{{ seo_og_type or 'website' }}">
+<meta property="og:title" content="{{ _tit }}">
+<meta property="og:description" content="{{ _desc }}">
+<meta property="og:url" content="{{ _url }}">
+{%- if _img %}
+<meta property="og:image" content="{{ _img }}">{% endif %}
+<meta name="twitter:card" content="{{ 'summary_large_image' if _img else 'summary' }}">
+<meta name="twitter:title" content="{{ _tit }}">
+<meta name="twitter:description" content="{{ _desc }}">
+{%- if _img %}
+<meta name="twitter:image" content="{{ _img }}">{% endif %}
+{%- for d in (seo_jsonld or []) %}
+<script type="application/ld+json">{{ d|tojson }}</script>
+{%- endfor %}
