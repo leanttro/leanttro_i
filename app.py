@@ -808,6 +808,31 @@ def admin_required(f):
     return w
 
 
+def _smtp_enviar(msg):
+    """Envia pela porta configurada (587 + STARTTLS). Se a conexão cair, tenta de novo pela 465 (SSL direto)."""
+    ctx = ssl.create_default_context()
+    rotas = [(SMTP_PORT, SMTP_PORT == 465)]
+    if SMTP_PORT != 465:
+        rotas.append((465, True))
+    ultimo = None
+    for porta, ssl_direto in rotas:
+        try:
+            srv = (smtplib.SMTP_SSL(SMTP_HOST, porta, timeout=15, context=ctx) if ssl_direto
+                   else smtplib.SMTP(SMTP_HOST, porta, timeout=15))
+            with srv:
+                if not ssl_direto:
+                    srv.starttls(context=ctx)
+                srv.login(SMTP_USER, SMTP_SENHA)
+                srv.send_message(msg)
+            return
+        except smtplib.SMTPAuthenticationError:
+            raise  # senha/usuário recusados: tentar outra porta não adianta
+        except (smtplib.SMTPException, OSError) as e:
+            log.warning("E-mail de aviso: falhou pela porta %s (%s: %s)", porta, type(e).__name__, e)
+            ultimo = e
+    raise ultimo
+
+
 def _enviar_email(assunto, corpo):
     """Envia um e-mail de aviso em segundo plano (nunca trava nem derruba a requisição)."""
     if not (SMTP_USER and SMTP_SENHA and EMAIL_AVISOS):
@@ -820,12 +845,12 @@ def _enviar_email(assunto, corpo):
             msg["From"] = f"{SITE_NOME} <{SMTP_USER}>"
             msg["To"] = EMAIL_AVISOS
             msg.set_content(corpo)
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as srv:
-                srv.starttls(context=ssl.create_default_context())
-                srv.login(SMTP_USER, SMTP_SENHA)
-                srv.send_message(msg)
+            _smtp_enviar(msg)
+        except smtplib.SMTPAuthenticationError as e:
+            log.error("E-mail de aviso: o servidor recusou o login de %s (%s %s). Confira SMTP_USER e a senha de app.",
+                      SMTP_USER, e.smtp_code, e.smtp_error)
         except Exception:
-            log.exception("Falha ao enviar e-mail de aviso")
+            log.exception("Falha ao enviar e-mail de aviso (%s como %s)", SMTP_HOST, SMTP_USER)
 
     threading.Thread(target=_job, daemon=True).start()
 
@@ -1044,7 +1069,21 @@ def consulta_imoveis(args, extra_where="", extra_params=(), por_pagina=POR_PAGIN
         f"SELECT i.*, t.nome AS anunciante_nome, t.slug AS anunciante_slug, {CAPA_SQL} AS capa {juncao} "
         f"WHERE {cond} ORDER BY {ORDENS[f['ordem']]}, i.id DESC LIMIT %s OFFSET %s",
         params + [por_pagina, (pagina - 1) * por_pagina])
-    return preparar_imoveis(lista), total, pagina, paginas, f
+    return anexar_fotos(preparar_imoveis(lista)), total, pagina, paginas, f
+
+
+def anexar_fotos(lista, maximo=6):
+    """Põe em cada imóvel a lista de fotos (file_id) usada no carrossel do card (até `maximo`)."""
+    por_id = {i["id"]: i for i in lista}
+    for i in lista:
+        i["fotos"] = []
+    if por_id:
+        for r in query_all("SELECT imovel_id, file_id FROM imovel_fotos WHERE imovel_id = ANY(%s) ORDER BY ordem, id",
+                           (list(por_id),)):
+            fs = por_id[r["imovel_id"]]["fotos"]
+            if len(fs) < maximo:
+                fs.append(r["file_id"])
+    return lista
 
 
 def _faixa_paginas(pagina, paginas):
