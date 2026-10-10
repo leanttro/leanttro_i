@@ -215,10 +215,12 @@ var box=document.getElementById('proxbox');
 document.getElementById('addprox').onclick=function(){if(box.children.length>=10)return alert('Máximo de 10 lugares.');box.appendChild(document.getElementById('tpl').content.cloneNode(true))};
 box.addEventListener('click',function(e){if(e.target.classList.contains('x'))e.target.closest('.prox').remove()});
 (function(){var end=document.getElementById('endereco'),btn=document.getElementById('geoend'),msg=document.getElementById('geomsg');
-function buscar(){var f=document.getElementById('lat').form,partes=[end.value,f.elements.bairro&&f.elements.bairro.value,f.elements.cidade&&f.elements.cidade.value,f.elements.uf&&f.elements.uf.value].filter(function(x){return x&&String(x).trim()});
+function buscar(){var f=document.getElementById('lat').form,v=function(n){return f.elements[n]?String(f.elements[n].value||'').trim():''};
 if(!end.value.trim()){msg.textContent='Digite a rua e o número.';return}
+if(!v('cidade')){msg.textContent='Preencha a cidade (e a UF) acima para eu achar a rua certa.';return}
 btn.disabled=true;msg.textContent='Buscando…';
-fetch('/api/geocodificar?q='+encodeURIComponent(partes.join(', '))).then(function(r){return r.json()}).then(function(d){if(d.ok){document.getElementById('lat').value=d.lat;document.getElementById('lng').value=d.lng;msg.textContent='✓ Encontrado: '+d.rotulo+' — confira se é o lugar certo.'}else{msg.textContent=d.erro||'Não encontrei esse endereço.'}}).catch(function(){msg.textContent='Erro de conexão. Tente de novo.'}).then(function(){btn.disabled=false})}
+var qs='rua='+encodeURIComponent(end.value.trim())+'&bairro='+encodeURIComponent(v('bairro'))+'&cidade='+encodeURIComponent(v('cidade'))+'&uf='+encodeURIComponent(v('uf'));
+fetch('/api/geocodificar?'+qs).then(function(r){return r.json()}).then(function(d){if(d.ok){document.getElementById('lat').value=d.lat;document.getElementById('lng').value=d.lng;msg.textContent=(d.aprox?'✓ Achei a rua, mas não o número exato (posição aproximada): ':'✓ Encontrado: ')+d.rotulo+' — confira se é o lugar certo.'}else{msg.textContent=d.erro||'Não encontrei esse endereço.'}}).catch(function(){msg.textContent='Erro de conexão. Tente de novo.'}).then(function(){btn.disabled=false})}
 btn.onclick=buscar;end.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();buscar()}}})();
 document.getElementById('geo').onclick=function(){if(!navigator.geolocation)return alert('Seu navegador não permite localização.');
 navigator.geolocation.getCurrentPosition(function(p){document.getElementById('lat').value=p.coords.latitude.toFixed(6);document.getElementById('lng').value=p.coords.longitude.toFixed(6)},function(){alert('Não consegui pegar sua localização.')})};
