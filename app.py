@@ -1,5 +1,5 @@
 """
-ImovelOnde — portal imobiliário (Flask + PostgreSQL).
+ImóvelOnde — portal imobiliário (Flask + PostgreSQL).
 
 Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
@@ -496,8 +496,8 @@ def placeholder():
 #     Ficam em UPLOAD_DIR/site (no volume). O admin envia em /admin/midia e o site já usa sozinho.
 # ═══════════════════════════════════════════════════════════════
 
-SITE_NOME = "ImovelOnde"
-SITE_TITULO = "ImovelOnde — Casas e apartamentos para comprar ou alugar"
+SITE_NOME = "ImóvelOnde"
+SITE_TITULO = "ImóvelOnde — Casas e apartamentos para comprar ou alugar"
 SITE_DESCRICAO = ("Encontre casas e apartamentos para comprar ou alugar perto de você. "
                   "Fale direto com o anunciante pelo WhatsApp.")
 SITE_WHATSAPP = re.sub(r"\D", "", os.environ.get("PORTAL_WHATSAPP", ""))   # ex.: 5511999999999 (opcional)
@@ -611,12 +611,20 @@ def site_remover_imagem(nome):
 
 def volume_info():
     """Diz se UPLOAD_DIR está num volume montado (senão as imagens somem a cada deploy)."""
+    gravavel, erro = True, ""
+    try:
+        teste = os.path.join(SITE_DIR, f".w{uuid.uuid4().hex[:6]}")
+        with open(teste, "w") as fh:
+            fh.write("ok")
+        os.remove(teste)
+    except OSError as e:
+        gravavel, erro = False, str(e)
     p = os.path.abspath(UPLOAD_DIR)
     while p != os.path.dirname(p):
         if os.path.ismount(p):
-            return {"caminho": UPLOAD_DIR, "montado": p}
+            return {"caminho": UPLOAD_DIR, "montado": p, "gravavel": gravavel, "erro": erro}
         p = os.path.dirname(p)
-    return {"caminho": UPLOAD_DIR, "montado": None}
+    return {"caminho": UPLOAD_DIR, "montado": None, "gravavel": gravavel, "erro": erro}
 
 
 @app.route("/site-media/<nome>")
@@ -869,7 +877,7 @@ def cadastrar():
             uid = criar_usuario(nome, email, senha, tipo, f["telefone"])
             session.clear()
             session["uid"] = uid
-            flash("Conta criada! Bem-vindo ao ImovelOnde.", "success")
+            flash("Conta criada! Bem-vindo ao ImóvelOnde.", "success")
             if tipo in TIPOS_TENANT:
                 flash("Complete a página do seu negócio e cadastre o primeiro imóvel.", "success")
             return redirect(nxt or url_for("painel"))
@@ -1072,7 +1080,7 @@ def imovel_whatsapp(slug):
     execute("INSERT INTO eventos (tenant_id, imovel_id, usuario_id, tipo) VALUES (%s,%s,%s,'whatsapp')",
             (i["tenant_id"], i["id"], g.usuario["id"] if g.usuario else None))
     link = (BASE_URL or request.host_url.rstrip("/")) + url_for("imovel", slug=slug)
-    texto = f"Olá! Vi o imóvel “{i['titulo']}” no ImovelOnde e gostaria de mais informações. {link}"
+    texto = f"Olá! Vi o imóvel “{i['titulo']}” no ImóvelOnde e gostaria de mais informações. {link}"
     return redirect(wa_link(numero, texto))
 
 
@@ -1190,6 +1198,33 @@ def api_perto():
         "foto": url_foto(r["capa"], 320), "url": url_for("imovel", slug=r["slug"])} for r in linhas])
 
 
+@app.route("/api/geocodificar")
+@login_required
+def api_geocodificar():
+    """Endereço → latitude/longitude (OpenStreetMap/Nominatim). Usado no cadastro do imóvel."""
+    q = sanitize_input(request.args.get("q", ""))[:200]
+    if len(q) < 5:
+        return jsonify(ok=False, erro="Digite o endereço (rua, número, bairro e cidade)."), 400
+    agora = time.time()
+    if agora - session.get("_geo_t", 0) < 1.1:                 # política do Nominatim: no máx. 1 consulta/segundo
+        return jsonify(ok=False, erro="Calma, uma busca por vez. Tente de novo."), 429
+    session["_geo_t"] = agora
+    try:
+        r = requests.get("https://nominatim.openstreetmap.org/search",
+                         params={"q": q, "format": "jsonv2", "limit": 1, "countrycodes": "br"},
+                         headers={"User-Agent": f"{SITE_NOME}/1.0 ({ADMIN_EMAIL or BASE_URL or 'portal imobiliario'})",
+                                  "Accept-Language": "pt-BR"}, timeout=6)
+        r.raise_for_status()
+        dados = r.json()
+    except Exception:
+        log.exception("geocodificação falhou")
+        return jsonify(ok=False, erro="Não consegui consultar o mapa agora. Tente de novo ou use “Usar minha localização atual”."), 502
+    if not dados:
+        return jsonify(ok=False, erro="Endereço não encontrado. Tente com rua, número, bairro e cidade."), 404
+    d = dados[0]
+    return jsonify(ok=True, lat=round(float(d["lat"]), 6), lng=round(float(d["lon"]), 6), rotulo=d.get("display_name", ""))
+
+
 @app.route("/anuncie-seu-imovel")
 def anuncie():
     return render_template("anuncie.html")
@@ -1205,7 +1240,7 @@ def newsletter():
     email = request.form.get("email", "").strip().lower()[:200]
     if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
         execute("INSERT INTO newsletter (email) VALUES (%s) ON CONFLICT DO NOTHING", (email,))
-        flash("Pronto! Você vai receber as novidades do ImovelOnde.", "success")
+        flash("Pronto! Você vai receber as novidades do ImóvelOnde.", "success")
     else:
         flash("Informe um e-mail válido.", "error")
     return redirect(url_for("guia"))
@@ -1668,7 +1703,7 @@ class pagbank:
         base = BASE_URL or request.host_url.rstrip("/")
         corpo = {
             "reference_id": f"assin-{assinatura_id}",
-            "items": [{"name": "ImovelOnde — Plano Profissional (30 dias)", "quantity": 1,
+            "items": [{"name": "ImóvelOnde — Plano Profissional (30 dias)", "quantity": 1,
                        "unit_amount": int(round(valor * 100))}],
             "redirect_url": base + url_for("anunciante_assinatura"),
             "payment_notification_urls": [base + url_for("webhook_pagbank") + (f"?t={quote(PAGBANK_WEBHOOK_TOKEN)}" if PAGBANK_WEBHOOK_TOKEN else "")],
@@ -1999,8 +2034,18 @@ def admin_midia_enviar():
             site_salvar_imagem(a, slot)
             flash(f"{SITE_SLOTS[slot]['nome']} atualizado(a)." if slot else f"“{a.filename}” enviada.", "success")
         except Exception as e:
-            log.info("upload do site recusado: %s", e)
-            flash(f"“{a.filename}”: {e if isinstance(e, ValueError) else 'imagem inválida'}.", "error")
+            log.exception("upload do site falhou (%s)", a.filename)
+            if isinstance(e, ValueError):
+                motivo = str(e)
+            elif isinstance(e, PermissionError):
+                motivo = f"sem permissão para gravar em {SITE_DIR} (ajuste o dono da pasta/volume)"
+            elif isinstance(e, OSError) and e.__class__.__name__ == "UnidentifiedImageError":
+                motivo = "não é uma imagem válida — use PNG, JPG ou WEBP (AVIF/HEIC não funcionam)"
+            elif isinstance(e, OSError):
+                motivo = f"erro ao gravar o arquivo ({e.strerror or e})"
+            else:
+                motivo = f"erro inesperado ({e.__class__.__name__}) — veja os logs do container"
+            flash(f"“{a.filename}”: {motivo}.", "error")
     return redirect(url_for("admin_midia"))
 
 
