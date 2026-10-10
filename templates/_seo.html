@@ -2,12 +2,12 @@
     seo_title, seo_desc, seo_canonical, seo_image, seo_robots, seo_og_type, seo_jsonld (lista de dicts) -#}
 {%- set _tit = seo_title or SITE.titulo -%}
 {%- set _desc = seo_desc or SITE.descricao -%}
-{%- set _url = seo_canonical or canonical_url() -%}
+{%- set _url = seo_canonical if (seo_canonical and seo_canonical != 'none') else canonical_url() -%}
 {%- set _img = seo_image or SITE.og -%}
 <title>{{ _tit }}</title>
 <meta name="description" content="{{ _desc }}">
 <meta name="robots" content="{{ seo_robots or 'index,follow,max-image-preview:large' }}">
-<link rel="canonical" href="{{ _url }}">
+{% if seo_canonical != 'none' %}<link rel="canonical" href="{{ _url }}">{% endif %}
 <meta name="theme-color" content="#071421">
 <link rel="icon" href="{{ SITE.favicon or url_for('favicon') }}">
 {% if SITE.favicon %}<link rel="apple-touch-icon" href="{{ SITE.favicon }}">{% endif %}
