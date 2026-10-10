@@ -1242,31 +1242,84 @@ def api_perto():
         "foto": url_foto(r["capa"], 320), "url": url_for("imovel", slug=r["slug"])} for r in linhas])
 
 
+_GEO_RUIM = {"city", "town", "village", "hamlet", "suburb", "neighbourhood", "quarter", "city_district", "borough",
+             "state", "county", "region", "municipality", "country", "postcode", "district"}
+
+
+def _nominatim(**params):
+    r = requests.get("https://nominatim.openstreetmap.org/search",
+                     params={"format": "jsonv2", "limit": 3, "countrycodes": "br", **params},
+                     headers={"User-Agent": f"{SITE_NOME}/1.0 ({ADMIN_EMAIL or BASE_URL or 'portal imobiliario'})",
+                              "Accept-Language": "pt-BR"}, timeout=6)
+    r.raise_for_status()
+    # descarta resultados que são só cidade/bairro/estado: queremos a rua ou o imóvel
+    return [d for d in r.json() if d.get("category") != "boundary" and d.get("type") not in _GEO_RUIM
+            and d.get("addresstype") not in _GEO_RUIM]
+
+
 @app.route("/api/geocodificar")
 @login_required
 def api_geocodificar():
-    """Endereço → latitude/longitude (OpenStreetMap/Nominatim). Usado no cadastro do imóvel."""
+    """Endereço → latitude/longitude (OpenStreetMap/Nominatim). Usado no cadastro do imóvel.
+    Tenta várias formas (com/sem bairro, com/sem número) porque o OSM é irregular no Brasil."""
+    rua = sanitize_input(request.args.get("rua", ""))[:150]
+    bairro = sanitize_input(request.args.get("bairro", ""))[:100]
+    cidade = sanitize_input(request.args.get("cidade", ""))[:100]
+    uf = sanitize_input(request.args.get("uf", ""))[:2]
     q = sanitize_input(request.args.get("q", ""))[:200]
-    if len(q) < 5:
-        return jsonify(ok=False, erro="Digite o endereço (rua, número, bairro e cidade)."), 400
+    if len(rua or q) < 3:
+        return jsonify(ok=False, erro="Digite a rua e o número."), 400
     agora = time.time()
     if agora - session.get("_geo_t", 0) < 1.1:                 # política do Nominatim: no máx. 1 consulta/segundo
         return jsonify(ok=False, erro="Calma, uma busca por vez. Tente de novo."), 429
     session["_geo_t"] = agora
-    try:
-        r = requests.get("https://nominatim.openstreetmap.org/search",
-                         params={"q": q, "format": "jsonv2", "limit": 1, "countrycodes": "br"},
-                         headers={"User-Agent": f"{SITE_NOME}/1.0 ({ADMIN_EMAIL or BASE_URL or 'portal imobiliario'})",
-                                  "Accept-Language": "pt-BR"}, timeout=6)
-        r.raise_for_status()
-        dados = r.json()
-    except Exception:
-        log.exception("geocodificação falhou")
-        return jsonify(ok=False, erro="Não consegui consultar o mapa agora. Tente de novo ou use “Usar minha localização atual”."), 502
-    if not dados:
-        return jsonify(ok=False, erro="Endereço não encontrado. Tente com rua, número, bairro e cidade."), 404
-    d = dados[0]
-    return jsonify(ok=True, lat=round(float(d["lat"]), 6), lng=round(float(d["lon"]), 6), rotulo=d.get("display_name", ""))
+
+    sem_numero = re.sub(r"(,\s*|\s+)(n[ºo°.]*\s*)?\d+[a-zA-Z]?\s*$", "", rua).strip() if rua else ""
+    cidade_uf = ", ".join(x for x in (cidade, uf) if x)
+    tentativas = []                                             # (parâmetros, aproximado?)
+    if rua:
+        if cidade:
+            est = {"street": rua.replace(",", " "), "city": cidade, "country": "Brazil"}
+            if uf:
+                est["state"] = uf
+            tentativas.append((est, False))
+        tentativas.append(({"q": ", ".join(x for x in (rua, bairro, cidade_uf) if x)}, False))
+        if bairro:
+            tentativas.append(({"q": ", ".join(x for x in (rua, cidade_uf) if x)}, False))
+        if sem_numero and sem_numero != rua:
+            if cidade:
+                est = {"street": sem_numero, "city": cidade, "country": "Brazil"}
+                if uf:
+                    est["state"] = uf
+                tentativas.append((est, True))
+            tentativas.append(({"q": ", ".join(x for x in (sem_numero, bairro, cidade_uf) if x)}, True))
+    else:
+        tentativas.append(({"q": q}, False))
+
+    vistos, falhas, d, aprox = set(), 0, None, False
+    for params, aprox_t in tentativas:
+        chave = json.dumps(params, sort_keys=True)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        if len(vistos) > 1:
+            time.sleep(1.05)                                    # respeita 1 consulta/segundo
+        try:
+            achados = _nominatim(**params)
+        except Exception:
+            falhas += 1
+            log.exception("geocodificação falhou")
+            continue
+        if achados:
+            d, aprox = achados[0], aprox_t
+            break
+    if not d:
+        if falhas == len(vistos):
+            return jsonify(ok=False, erro="Não consegui consultar o mapa agora. Tente de novo ou use “Usar minha localização atual”."), 502
+        return jsonify(ok=False, erro="Não achei essa rua no mapa. Confira cidade e UF, tente sem o número, ou preencha latitude/longitude "
+                                      "(Google Maps: botão direito no local → copiar coordenadas)."), 404
+    return jsonify(ok=True, lat=round(float(d["lat"]), 6), lng=round(float(d["lon"]), 6),
+                   rotulo=d.get("display_name", ""), aprox=aprox)
 
 
 @app.route("/anuncie-seu-imovel")
