@@ -72,6 +72,22 @@ header .accent{color:#fff}header .mark{border-color:var(--ink);color:var(--ink)}
 .actions .anunciar{background:var(--ink)!important;color:#fff!important}
 footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{color:#6b7a83}
 @media(max-width:700px){.hero{padding-top:36px}}
+/* card: foto sempre 1:1, inteira; o que sobrar vira borda branca */
+.pic{height:auto!important;aspect-ratio:1/1;background:#fff}
+.pic img{object-fit:contain;background:#fff}
+/* menu hambúrguer (só no mobile) */
+.burger{display:none;width:44px;height:44px;margin-left:6px;padding:0;border:0;background:transparent;border-radius:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+.burger span{display:block;width:25px;height:2.5px;background:var(--ink);border-radius:2px;transition:transform .2s,opacity .2s}
+.burger[aria-expanded=true] span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+.burger[aria-expanded=true] span:nth-child(2){opacity:0}
+.burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+.mnav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);border-top:1px solid #ffffff1f;box-shadow:0 16px 30px #0007;padding:8px 0 14px}
+.mnav.on{display:block}
+.mnav a{display:block;padding:15px 22px;font-size:16px;font-weight:650;color:#fff}
+.mnav a:active{background:#ffffff14}
+.mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
+@media(max-width:700px){.burger{display:flex;margin-left:0}.nav{gap:10px}.actions a:not(.anunciar){display:none}}
+@media(min-width:701px){.mnav{display:none!important}}
 </style>
 </head>
 <body>
@@ -82,7 +98,8 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 {%- endmacro %}
 <header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
 <nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
-<div class="actions"><a class="anunciar" href="#anunciar" onclick="document.querySelector('[data-t=anunciar]').click()">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
+<div class="actions"><a class="anunciar" href="#anunciar" onclick="document.querySelector('[data-t=anunciar]').click()">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
+<nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
 <main>
 <section class="hero"{% if SITE.hero %} style="--hero-img:url('{{ SITE.hero }}')"{% endif %}><div class="container hero-grid">
 <div class="hcard">
@@ -108,14 +125,14 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 <script>(function(){var s=document.querySelectorAll('.seg button'),p={buscar:document.getElementById('p-buscar'),anunciar:document.getElementById('p-anunciar')};function t(k){s.forEach(function(b){b.classList.toggle('on',b.dataset.t===k)});for(var x in p)p[x].hidden=x!==k}s.forEach(function(b){b.onclick=function(){t(b.dataset.t)}});if(location.hash==='#anunciar')t('anunciar');var f=document.getElementById('fin');document.querySelectorAll('.sub button').forEach(function(b){b.onclick=function(){f.value=b.dataset.f;document.querySelectorAll('.sub button').forEach(function(x){x.classList.toggle('on',x===b)})}})})();</script>
 </section>
 
-<section aria-labelledby="destaques"><div class="container"><div class="section-head"><h2 class="title" id="destaques">Imóveis em destaque</h2><a href="{{ url_for('buscar') }}">Ver todos os imóveis →</a></div>
+{% if destaques %}<section aria-labelledby="destaques"><div class="container"><div class="section-head"><h2 class="title" id="destaques">Imóveis em destaque</h2><a href="{{ url_for('buscar') }}">Ver todos os imóveis →</a></div>
 <div class="cards">
 {% for i in destaques %}
 <article class="card"><div class="pic"><img src="{{ i.foto }}"{% if i.capa %} srcset="{{ url_foto(i.capa, 320) }} 320w, {{ url_foto(i.capa, 480) }} 480w, {{ url_foto(i.capa, 640) }} 640w" sizes="(max-width:700px) 100vw, (max-width:1000px) 50vw, 265px"{% endif %} alt="{{ TIPOS_IMOVEL[i.tipo] }} {{ 'à venda' if i.finalidade == 'venda' else 'para alugar' }} em {{ i.bairro }}, {{ i.cidade }} — {{ i.titulo }}" width="640" height="428" loading="lazy" decoding="async"><a class="cover" href="{{ url_for('imovel', slug=i.slug) }}" aria-label="{{ i.titulo }}"></a><span class="badge">{{ FINALIDADES[i.finalidade] }}</span><form class="inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="heart{{ ' on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form></div>
 <div class="body"><div class="price">{{ i|preco }}</div><div class="details"><a class="title-link" href="{{ url_for('imovel', slug=i.slug) }}">{{ i.titulo }}</a></div><div class="details">{{ TIPOS_IMOVEL[i.tipo] }}{% if i.dormitorios %} | {{ i.dormitorios }} quarto{{ 's' if i.dormitorios != 1 }}{% endif %}{% if i.vagas %} | {{ i.vagas }} vaga{{ 's' if i.vagas != 1 }}{% endif %}</div><div class="loc">⌖ {{ i.bairro }} - {{ i.cidade }}/{{ i.uf }}</div>
 <div class="features"><span title="Área">⌗ {{ i.area|num if i.area else '—' }} m²</span><span title="Quartos">▣ {{ i.dormitorios }}</span><span title="Vagas">♙ {{ i.vagas }}</span><span title="Banheiros">▱ {{ i.banheiros }}</span></div></div></article>
 {% else %}<div class="empty-box">Ainda não há imóveis publicados. <a class="accent" href="{{ url_for('anuncie') }}">Anuncie o primeiro →</a></div>{% endfor %}
-</div></div></section>
+</div></div></section>{% endif %}
 
 <section style="padding-top:4px"><div class="container"><div class="location-block"><div class="map" role="img" aria-label="Mapa ilustrativo"></div><div class="copy"><small><b style="color:var(--g)">▌</b> Busque por localização</small><h3>Imóveis perto de você</h3><a class="btn" href="{{ url_for('perto_de_mim') }}">⌖ &nbsp;Usar minha localização</a> <a class="btn alt" href="{{ url_for('buscar') }}">Buscar por região</a></div>
 <aside class="nearby"><h4>O que tem por perto?</h4><ul>{% for k, v in CATEGORIAS_PROXIMO.items() %}{% if loop.index <= 5 %}<li>{{ ICONES_PROXIMO[k] }} &nbsp; {{ v }}</li>{% endif %}{% endfor %}</ul></aside></div></div></section>
@@ -127,5 +144,12 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 </main>
 <footer><div class="container"><div class="foot"><span>© {{ ano }} {{ SITE.nome }}</span><nav class="links" aria-label="Rodapé"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('anuncie') }}">Anunciar imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></nav></div>
 <p class="legal">Portal de divulgação de anúncios, sem intermediação: a negociação é feita diretamente entre anunciante e interessado.</p></div></footer>
+<script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
+function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
+b.onclick=function(){set(!m.classList.contains('on'))};
+m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
+document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
+window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
 </body>
 </html>
