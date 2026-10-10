@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Blog e Guia de Bairros</title>
+{% set seo_title = 'Guia de bairros e dicas para escolher seu imóvel | ImovelOnde' %}
+{% set seo_desc = 'Guias de bairros, dicas para comprar ou alugar e informações para escolher melhor o seu próximo imóvel.' %}
+{% include '_seo.html' %}
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -44,8 +46,8 @@ form.inline{display:inline;margin:0}
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
 
 
-<header class="header"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
-<nav class="nav"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('guia') }}">Guia</a></nav>
+<header class="header"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}Imovel<span>Onde</span>{% endif %}</a>
+<nav class="nav"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('guia') }}">Guia</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
 <div class="actions">{% if usuario %}<a class="btn outline" href="{{ url_for('painel') }}">{{ usuario.nome.split()[0] }}</a><a class="btn green" href="{{ url_for('sair') }}">Sair</a>{% else %}<a class="btn outline" href="{{ url_for('entrar') }}">Entrar</a><a class="btn green" href="{{ url_for('cadastrar') }}">Criar conta</a>{% endif %}</div></header>
 
 <section class="hero">
@@ -83,15 +85,15 @@ form.inline{display:inline;margin:0}
 <section class="guides">
 <article class="guide">
 <div class="guide-img" style="background-image:url('https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=85')"></div>
-<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Vila Mariana</h3><p>Perfil da região, mobilidade, comércio, serviços e opções de imóveis.</p><a class=\"read\" href=\"{{ url_for('buscar', q='Vila Mariana') }}\">Ver imóveis →</a></div>
+<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Vila Mariana</h3><p>Perfil da região, mobilidade, comércio, serviços e opções de imóveis.</p><a class="read" href="{{ url_for('buscar', q='Vila Mariana') }}">Ver imóveis →</a></div>
 </article>
 <article class="guide">
 <div class="guide-img" style="background-image:url('https://images.unsplash.com/photo-1523731407965-2430cd12f5e4?auto=format&fit=crop&w=800&q=85')"></div>
-<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Moema</h3><p>Conheça a região e veja o que considerar antes de escolher seu imóvel.</p><a class=\"read\" href=\"{{ url_for('buscar', q='Moema') }}\">Ver imóveis →</a></div>
+<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Moema</h3><p>Conheça a região e veja o que considerar antes de escolher seu imóvel.</p><a class="read" href="{{ url_for('buscar', q='Moema') }}">Ver imóveis →</a></div>
 </article>
 <article class="guide">
 <div class="guide-img" style="background-image:url('https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=800&q=85')"></div>
-<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Pinheiros</h3><p>Um panorama para quem busca praticidade, comércio e mobilidade.</p><a class=\"read\" href=\"{{ url_for('buscar', q='Pinheiros') }}\">Ver imóveis →</a></div>
+<div class="guide-info"><div class="category">SÃO PAULO</div><h3>Pinheiros</h3><p>Um panorama para quem busca praticidade, comércio e mobilidade.</p><a class="read" href="{{ url_for('buscar', q='Pinheiros') }}">Ver imóveis →</a></div>
 </article>
 </section>
 </main>
@@ -99,12 +101,12 @@ form.inline{display:inline;margin:0}
 <section class="newsletter">
 <div class="news-in">
 <h2>Receba novidades do mercado imobiliário</h2>
-<p>Cadastre seu e-mail para acompanhar novos guias, dicas e conteúdos do ImoveLonde.</p>
+<p>Cadastre seu e-mail para acompanhar novos guias, dicas e conteúdos do ImovelOnde.</p>
 <form class="form" method="post" action="{{ url_for('newsletter') }}">{{ csrf() }}<input type="email" name="email" required placeholder="Seu melhor e-mail"><button>Quero receber</button></form>
 </div>
 </section>
 
-<footer class="footer"><div>© 2026 ImoveLonde</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
+<footer class="footer"><div>© {{ ano }} {{ SITE.nome }}</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
 
 </body>
 </html>
