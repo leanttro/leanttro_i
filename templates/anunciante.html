@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Painel do anunciante</title>
+<title>ImóvelOnde — Painel do anunciante</title>
+<meta name="robots" content="noindex,nofollow"><link rel="icon" href="{{ SITE.favicon or url_for('favicon') }}">
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -87,7 +88,7 @@ form.inline{display:inline;margin:0}
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-{% set sc = {'publicado':'published','pendente':'pending','pausado':'draft','rejeitado':'rejected'} %}<div class="layout"><aside class="sidebar"><div class="brand"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a></div>
+{% set sc = {'publicado':'published','pendente':'pending','pausado':'draft','rejeitado':'rejected'} %}<div class="layout"><aside class="sidebar"><div class="brand"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:30px;width:auto;display:block">{% else %}Imóvel<span>Onde</span>{% endif %}</a></div>
 <div class="profile"><div class="avatar">{{ t.nome|iniciais }}</div><div><strong>{{ t.nome }}</strong><small>Plano {{ 'Profissional' if t.plano_efetivo == 'profissional' else 'Grátis' }}</small></div></div>
 <nav class="menu"><div class="label">Principal</div><a data-pane="geral" href="#geral" class="{{ 'active' if ativa == 'geral' }}"><span class="ico">⌂</span>Visão geral</a><a data-pane="imoveis" href="#imoveis" class="{{ 'active' if ativa == 'imoveis' }}"><span class="ico">▣</span>Meus imóveis</a><a data-pane="form" href="{{ url_for('anunciante_imovel_novo') }}" class="{{ 'active' if ativa == 'form' }}"><span class="ico">＋</span>Novo imóvel</a><a data-pane="interessados" href="#interessados" class="{{ 'active' if ativa == 'interessados' }}"><span class="ico">♥</span>Interessados</a><div class="label">Minha presença</div><a href="{{ url_for('imobiliaria', slug=t.slug) }}" target="_blank"><span class="ico">▤</span>Minha página pública</a><a data-pane="pagina" href="#pagina" class="{{ 'active' if ativa == 'pagina' }}"><span class="ico">✦</span>Personalizar página</a><div class="label">Conta</div><a data-pane="assinatura" href="#assinatura" class="{{ 'active' if ativa == 'assinatura' }}"><span class="ico">◷</span>Assinatura</a><a href="{{ url_for('home') }}"><span class="ico">⌕</span>Voltar ao portal</a><a href="{{ url_for('sair') }}"><span class="ico">↩</span>Sair</a></nav></aside>
 <main class="main"><header class="topbar"><div class="page-title"><strong id="pt">&nbsp;</strong><small id="ps"></small></div>
@@ -95,7 +96,7 @@ form.inline{display:inline;margin:0}
 <div class="container">
 <div class="pane" id="pane-geral" data-title="Visão geral" data-sub="Painel do anunciante" hidden>
 
-<div class="welcome"><div><h1>Olá, {{ t.nome }} 👋</h1><p>Acompanhe seus imóveis e os contatos recebidos pelo ImoveLonde.</p></div><a class="primary" href="#novo">+ Cadastrar imóvel</a></div>
+<div class="welcome"><div><h1>Olá, {{ t.nome }} 👋</h1><p>Acompanhe seus imóveis e os contatos recebidos pelo ImóvelOnde.</p></div><a class="primary" href="#novo">+ Cadastrar imóvel</a></div>
 {% if t.plano != 'gratis' and t.plano_efetivo == 'gratis' %}<div class="warn">⚠ Sua assinatura Profissional não está ativa — sua página voltou ao plano Grátis. <a class="link" href="#assinatura">Regularizar →</a></div>{% endif %}
 <section class="stats">
 <div class="stat"><div class="stat-top"><span>Imóveis publicados</span><div class="stat-icon">⌂</div></div><strong>{{ est.publicados }}</strong><div class="positive">↑ {{ est.novos_30 }} nos últimos 30 dias</div></div>
@@ -155,6 +156,7 @@ form.inline{display:inline;margin:0}
 <div class="section-t">Características</div><div class="checks" style="padding-top:12px">{% for c in CARACTERISTICAS %}<label><input type="checkbox" name="caracteristicas" value="{{ c }}" {{ 'checked' if c in sel }}> {{ c }}</label>{% endfor %}</div></div>
 
 <div class="card" style="margin-top:18px"><div class="card-head"><h2>Localização no mapa</h2></div><div class="fgrid">
+<div class="fld s4"><label>Endereço do imóvel</label><div style="display:flex;gap:8px"><input id="endereco" placeholder="Rua e número (ex.: Rua das Flores, 120)" autocomplete="off" style="flex:1"><button type="button" class="ghost" id="geoend">⌕ Buscar no mapa</button></div><small id="geomsg">Usamos também o bairro e a cidade preenchidos acima. Serve só para achar a posição: o endereço não é salvo nem exibido.</small></div>
 <div class="fld"><label>Latitude</label><input name="lat" id="lat" value="{{ val.get('lat') if val.get('lat') is not none else '' }}" placeholder="-23.5890"></div>
 <div class="fld"><label>Longitude</label><input name="lng" id="lng" value="{{ val.get('lng') if val.get('lng') is not none else '' }}" placeholder="-46.6340"></div>
 <div class="fld s2"><label>&nbsp;</label><button type="button" class="ghost" id="geo">⌖ Usar minha localização atual</button><small>Opcional. É o que faz o imóvel aparecer no “Perto de mim”. No Google Maps: clique com o botão direito no local e copie as coordenadas.</small></div></div></div>
@@ -212,6 +214,12 @@ form.inline{display:inline;margin:0}
 var box=document.getElementById('proxbox');
 document.getElementById('addprox').onclick=function(){if(box.children.length>=10)return alert('Máximo de 10 lugares.');box.appendChild(document.getElementById('tpl').content.cloneNode(true))};
 box.addEventListener('click',function(e){if(e.target.classList.contains('x'))e.target.closest('.prox').remove()});
+(function(){var end=document.getElementById('endereco'),btn=document.getElementById('geoend'),msg=document.getElementById('geomsg');
+function buscar(){var f=document.getElementById('lat').form,partes=[end.value,f.elements.bairro&&f.elements.bairro.value,f.elements.cidade&&f.elements.cidade.value,f.elements.uf&&f.elements.uf.value].filter(function(x){return x&&String(x).trim()});
+if(!end.value.trim()){msg.textContent='Digite a rua e o número.';return}
+btn.disabled=true;msg.textContent='Buscando…';
+fetch('/api/geocodificar?q='+encodeURIComponent(partes.join(', '))).then(function(r){return r.json()}).then(function(d){if(d.ok){document.getElementById('lat').value=d.lat;document.getElementById('lng').value=d.lng;msg.textContent='✓ Encontrado: '+d.rotulo+' — confira se é o lugar certo.'}else{msg.textContent=d.erro||'Não encontrei esse endereço.'}}).catch(function(){msg.textContent='Erro de conexão. Tente de novo.'}).then(function(){btn.disabled=false})}
+btn.onclick=buscar;end.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();buscar()}}})();
 document.getElementById('geo').onclick=function(){if(!navigator.geolocation)return alert('Seu navegador não permite localização.');
 navigator.geolocation.getCurrentPosition(function(p){document.getElementById('lat').value=p.coords.latitude.toFixed(6);document.getElementById('lng').value=p.coords.longitude.toFixed(6)},function(){alert('Não consegui pegar sua localização.')})};
 document.getElementById('fotos').onchange=function(){document.getElementById('fcount').textContent=this.files.length?this.files.length+' arquivo(s) selecionado(s)':''};
@@ -226,7 +234,7 @@ function show(p){
   var el=document.getElementById('pane-'+p);
   document.getElementById('pt').textContent=el.dataset.title;
   document.getElementById('ps').textContent=el.dataset.sub;
-  document.title='ImoveLonde — '+el.dataset.title;
+  document.title='ImóvelOnde — '+el.dataset.title;
   window.scrollTo(0,0);
 }
 function fromHash(){var h=location.hash.slice(1);return h==='novo'?'form':h}
