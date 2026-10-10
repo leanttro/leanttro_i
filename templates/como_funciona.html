@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Como funciona</title>
+{% set seo_title = 'Como funciona | ImovelOnde' %}
+{% set seo_desc = 'Veja como anunciar seu imóvel no ImovelOnde: cadastre, publique e receba contatos direto no WhatsApp. Comece grátis.' %}
+{% include '_seo.html' %}
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -48,8 +50,8 @@ form.inline{display:inline;margin:0}
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
 
 
-<header class="header"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
-<nav class="nav"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a></nav>
+<header class="header"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}Imovel<span>Onde</span>{% endif %}</a>
+<nav class="nav"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
 <div class="actions">{% if usuario %}<a class="btn outline" href="{{ url_for('painel') }}">{{ usuario.nome.split()[0] }}</a><a class="btn green" href="{{ url_for('sair') }}">Sair</a>{% else %}<a class="btn outline" href="{{ url_for('entrar') }}">Entrar</a><a class="btn green" href="{{ url_for('cadastrar') }}">Criar conta</a>{% endif %}</div></header>
 
 <section class="hero">
@@ -62,11 +64,11 @@ form.inline{display:inline;margin:0}
   <div class="center">
     <div class="eyebrow">Como funciona</div>
     <h2>Do cadastro ao contato em poucos passos</h2>
-    <p class="subtitle">O ImoveLonde conecta quem procura um imóvel a quem anuncia. A negociação acontece diretamente entre as partes.</p>
+    <p class="subtitle">O ImovelOnde conecta quem procura um imóvel a quem anuncia. A negociação acontece diretamente entre as partes.</p>
   </div>
   <div class="steps">
     <div class="step"><div class="num">01</div><h3>Cadastre o imóvel</h3><p>Informe os dados, fotos, localização, preço e características do imóvel uma única vez.</p></div>
-    <div class="step"><div class="num">02</div><h3>Publique no portal</h3><p>O imóvel passa a aparecer nas buscas e também na página do anunciante dentro do ImoveLonde.</p></div>
+    <div class="step"><div class="num">02</div><h3>Publique no portal</h3><p>O imóvel passa a aparecer nas buscas e também na página do anunciante dentro do ImovelOnde.</p></div>
     <div class="step"><div class="num">03</div><h3>Receba interessados</h3><p>O visitante encontra seu imóvel e pode entrar em contato diretamente pelo WhatsApp.</p></div>
     <div class="step"><div class="num">04</div><h3>Negocie diretamente</h3><p>Você conversa com o interessado e conduz a negociação fora do portal.</p></div>
   </div>
@@ -82,7 +84,7 @@ form.inline{display:inline;margin:0}
     <div class="plan-grid">
       <div class="plan">
         <h3>Grátis</h3><p>Para começar a divulgar seus imóveis no portal.</p>
-        <ul><li>Página no ImoveLonde</li><li>Cadastro de imóveis</li><li>Contato por WhatsApp</li><li>Presença nas buscas</li></ul>
+        <ul><li>Página no ImovelOnde</li><li>Cadastro de imóveis</li><li>Contato por WhatsApp</li><li>Presença nas buscas</li></ul>
       </div>
       <div class="plan featured">
         <div class="badge">PROFISSIONAL</div>
@@ -106,12 +108,12 @@ form.inline{display:inline;margin:0}
 <section class="cta">
   <div>
     <h2>Você anuncia. O interessado encontra.</h2>
-    <p>Tenha sua presença no ImoveLonde e facilite o caminho entre o imóvel e quem realmente está procurando.</p>
+    <p>Tenha sua presença no ImovelOnde e facilite o caminho entre o imóvel e quem realmente está procurando.</p>
   </div>
   <a class="btn green" href="{{ url_for('cadastrar', tipo='imobiliaria') }}">Quero anunciar</a>
 </section>
 
-<footer class="footer"><div>© 2026 ImoveLonde</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
+<footer class="footer"><div>© {{ ano }} {{ SITE.nome }}</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
 
 </body>
 </html>
