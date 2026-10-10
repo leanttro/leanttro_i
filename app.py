@@ -1010,6 +1010,7 @@ def consulta_imoveis(args, extra_where="", extra_params=(), por_pagina=POR_PAGIN
          "preco_min": num_br(args.get("preco_min")), "preco_max": num_br(args.get("preco_max")),
          "quartos": args.get("quartos", type=int), "vagas": args.get("vagas", type=int),
          "bairro": sanitize_input(args.get("bairro", "").strip())[:80],
+         "cidade": sanitize_input(args.get("cidade", "").strip())[:80],
          "ordem": args.get("ordem", "relevantes") if args.get("ordem") in ORDENS else "relevantes"}
     if f["finalidade"] in FINALIDADES:
         where.append("i.finalidade = %s"); params.append(f["finalidade"])
@@ -1027,6 +1028,8 @@ def consulta_imoveis(args, extra_where="", extra_params=(), por_pagina=POR_PAGIN
         where.append("i.vagas >= %s"); params.append(f["vagas"])
     if f["bairro"]:
         where.append("i.bairro_slug LIKE %s"); params.append(f"%{gerar_slug(f['bairro'])}%")
+    if f["cidade"]:
+        where.append("i.cidade_slug = %s"); params.append(gerar_slug(f["cidade"]))
     if f["q"]:
         parte = f["q"].split(",")[0].strip()
         slug = gerar_slug(parte)
@@ -1048,13 +1051,43 @@ def _faixa_paginas(pagina, paginas):
     return [p for p in range(max(1, pagina - 2), min(paginas, pagina + 2) + 1)]
 
 
+TIPO_PLURAL = {"apartamento": "Apartamentos", "casa": "Casas", "cobertura": "Coberturas",
+               "comercial": "Imóveis comerciais", "terreno": "Terrenos"}
+FRASE_FINALIDADE = {"venda": "à venda", "aluguel": "para alugar"}
+
+
+def cidades_home(limite=10):
+    """Cidades com mais imóveis publicados e, por finalidade, os links por tipo (só os que têm imóvel)."""
+    linhas = query_all(
+        "SELECT MIN(i.cidade) AS cidade, MIN(i.uf) AS uf, i.cidade_slug, i.finalidade, i.tipo, COUNT(*) AS n "
+        "FROM imoveis i JOIN tenants t ON t.id = i.tenant_id WHERE i.status = 'publicado' AND t.status = 'ativo' "
+        "GROUP BY i.cidade_slug, i.finalidade, i.tipo")
+    cidades = {}
+    for r in linhas:
+        c = cidades.setdefault(r["cidade_slug"], {"nome": r["cidade"], "uf": r["uf"], "slug": r["cidade_slug"], "total": 0,
+                                                  "venda": [], "aluguel": []})
+        c["total"] += r["n"]
+        if r["finalidade"] in FRASE_FINALIDADE and r["tipo"] in TIPO_PLURAL:
+            c[r["finalidade"]].append({"tipo": r["tipo"], "n": r["n"]})
+    ordem_tipos = list(TIPO_PLURAL)
+    saida = []
+    for c in sorted(cidades.values(), key=lambda c: (-c["total"], c["nome"] or ""))[:limite]:
+        for fin in FRASE_FINALIDADE:
+            c[fin].sort(key=lambda x: ordem_tipos.index(x["tipo"]))
+            c[fin] = [{"rotulo": f"{TIPO_PLURAL[x['tipo']]} {FRASE_FINALIDADE[fin]} em {c['nome']}", "n": x["n"],
+                       "url": url_for("buscar", finalidade=fin, tipo=x["tipo"], cidade=c["slug"])} for x in c[fin]]
+            c[fin + "_url"] = url_for("buscar", finalidade=fin, cidade=c["slug"])
+        saida.append(c)
+    return saida
+
+
 @app.route("/")
 def home():
     destaques = query_all(
         f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
         "WHERE i.status = 'publicado' AND t.status = 'ativo' AND i.destaque ORDER BY i.criado_em DESC LIMIT 4")
     total = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE status = 'publicado'")["n"]
-    return render_template("home.html", destaques=preparar_imoveis(destaques, 640), total=total)
+    return render_template("home.html", destaques=preparar_imoveis(destaques, 640), total=total, cidades=cidades_home())
 
 
 @app.route("/buscar")
