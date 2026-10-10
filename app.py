@@ -4,6 +4,7 @@ ImóvelOnde — portal imobiliário (Flask + PostgreSQL).
 Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
   PAGBANK_TOKEN, PAGBANK_SANDBOX, PAGBANK_WEBHOOK_TOKEN, PRECO_PROFISSIONAL, DEBUG, PORT
+  Chatbot (Groq): GROQ_API_KEY, GROQ_API_KEY_2 (reserva), GROQ_MODEL (opcional)
   Avisos por e-mail (opcional): SMTP_USER, SMTP_SENHA, EMAIL_AVISOS, SMTP_HOST, SMTP_PORT
 Fotos: ficam num volume (UPLOAD_DIR) e são servidas por /assets/<id>?w=640 (redimensiona e guarda em cache).
 Os templates (templates/*.html) são HTML único, com CSS e JS no mesmo arquivo.
@@ -234,6 +235,32 @@ ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS rua TEXT;
 """
 
 
+# Chatbot — só CREATE ... IF NOT EXISTS: nunca apaga nem recria nada.
+SCHEMA_CHAT = """
+CREATE TABLE IF NOT EXISTS chatbot_config (
+  chave TEXT PRIMARY KEY, valor TEXT NOT NULL DEFAULT '', atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE TABLE IF NOT EXISTS chatbot_config_historico (
+  id BIGSERIAL PRIMARY KEY, chave TEXT NOT NULL, valor TEXT, usuario_id INT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX IF NOT EXISTS ix_chatcfg_hist ON chatbot_config_historico (chave, id DESC);
+CREATE TABLE IF NOT EXISTS chat_sessoes (
+  id TEXT PRIMARY KEY, modo TEXT NOT NULL, usuario_id INT, perfil TEXT, finalizada BOOLEAN NOT NULL DEFAULT FALSE,
+  ip_hash TEXT, user_agent TEXT, origem TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX IF NOT EXISTS ix_chat_sessoes_data ON chat_sessoes (criado_em DESC);
+CREATE TABLE IF NOT EXISTS chat_mensagens (
+  id BIGSERIAL PRIMARY KEY, sessao_id TEXT NOT NULL REFERENCES chat_sessoes(id), papel TEXT NOT NULL,
+  tipo TEXT NOT NULL DEFAULT 'texto', texto TEXT, meta TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX IF NOT EXISTS ix_chat_msgs_sessao ON chat_mensagens (sessao_id, id);
+CREATE TABLE IF NOT EXISTS chat_respostas (
+  id BIGSERIAL PRIMARY KEY, sessao_id TEXT NOT NULL REFERENCES chat_sessoes(id), campo TEXT NOT NULL, valor TEXT, rotulo TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX IF NOT EXISTS ix_chat_resp_sessao ON chat_respostas (sessao_id, id);
+CREATE TABLE IF NOT EXISTS chat_recomendacoes (
+  id BIGSERIAL PRIMARY KEY, sessao_id TEXT NOT NULL REFERENCES chat_sessoes(id), imovel_id INT, imovel_slug TEXT, titulo TEXT,
+  preco NUMERIC(14,2), score INT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX IF NOT EXISTS ix_chat_rec_sessao ON chat_recomendacoes (sessao_id, id);
+"""
+
+
 def init_db():
     """Cria as tabelas (idempotente). Espera o Postgres subir; trava para só 1 worker migrar."""
     ultimo = None
@@ -251,6 +278,7 @@ def init_db():
         with c.cursor() as cur:
             cur.execute("SELECT pg_advisory_lock(727274)")
             cur.execute(SCHEMA)
+            cur.execute(SCHEMA_CHAT)
             cur.execute("SELECT pg_advisory_unlock(727274)")
         c.commit()
     finally:
@@ -2274,6 +2302,764 @@ def admin_midia_remover():
     site_remover_imagem(request.form.get("nome", ""))
     flash("Arquivo removido.", "success")
     return redirect(url_for("admin_midia"))
+
+
+# ═══════════════════════════════════════════════════════════════
+# 6c. CHATBOT — indica o imóvel ideal (formulário rápido ou conversa com IA / Groq)
+#     Chaves no .env: GROQ_API_KEY e GROQ_API_KEY_2 (reserva). Modelo: GROQ_MODEL (opcional).
+#     Tudo é salvo: sessões, mensagens, respostas do formulário e imóveis indicados. Nada é apagado.
+# ═══════════════════════════════════════════════════════════════
+
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODELO = os.environ.get("GROQ_MODEL", "").strip() or "openai/gpt-oss-120b"
+
+PERSONA_PADRAO = (
+    "Você é {nome}, consultora de imóveis do {site}. Fala português do Brasil, de um jeito simpático, leve e humano, "
+    "como uma amiga que entende de imóvel. Respostas CURTAS: no máximo 2 frases, no máximo 1 pergunta por vez. "
+    "Cumprimente de volta quando a pessoa cumprimentar (bom dia, tudo bem?) e logo conduza a conversa para descobrir: "
+    "comprar ou alugar, tipo de imóvel, bairro/cidade, orçamento, quartos, vagas e o que não pode faltar. "
+    "Não use listas nem textos longos. Use no máximo 1 emoji por mensagem.")
+
+CHAT_PADRAO = {
+    "ativo": "1", "nome": "Duda", "temperatura": "0.6", "persona": PERSONA_PADRAO,
+    "boas_vindas": "Oi! Eu sou a {nome} 👋 Vou te ajudar a achar o imóvel perfeito. Como você prefere?",
+    "ia_abertura": "{saudacao}! Tudo bem? 😊 Me conta o que você está procurando.",
+    "qtd_resultados": "3", "max_msgs": "40"}
+
+_chat_cfg_cache = {"t": 0, "v": None}
+
+
+def chat_cfg(forcar=False):
+    """Configuração do chatbot (banco + padrões). Cache curto para não consultar a cada página."""
+    if not forcar and _chat_cfg_cache["v"] and time.time() - _chat_cfg_cache["t"] < 20:
+        return _chat_cfg_cache["v"]
+    bruto = dict(CHAT_PADRAO)
+    try:
+        for r in query_all("SELECT chave, valor FROM chatbot_config"):
+            if r["chave"] in bruto:
+                bruto[r["chave"]] = r["valor"]
+    except Exception:
+        log.exception("chat_cfg")
+    try:
+        temp = min(1.5, max(0.0, float(str(bruto["temperatura"]).replace(",", "."))))
+    except ValueError:
+        temp = 0.6
+    try:
+        qtd = min(5, max(1, int(bruto["qtd_resultados"])))
+    except ValueError:
+        qtd = 3
+    try:
+        mx = min(200, max(6, int(bruto["max_msgs"])))
+    except ValueError:
+        mx = 40
+    cfg = dict(ativo=bruto["ativo"], nome=(bruto["nome"] or "Duda")[:30], temp=temp, qtd=qtd, max_msgs_n=mx,
+               persona=bruto["persona"] or PERSONA_PADRAO, boas_vindas=bruto["boas_vindas"], ia_abertura=bruto["ia_abertura"])
+    _chat_cfg_cache.update(t=time.time(), v=cfg)
+    return cfg
+
+
+def chat_cfg_set(chave, valor, usuario_id=None):
+    """Grava a configuração (upsert). Persona nova → guarda no histórico. Nunca apaga nada."""
+    atual = query_one("SELECT valor FROM chatbot_config WHERE chave = %s", (chave,))
+    execute("INSERT INTO chatbot_config (chave, valor, atualizado_em) VALUES (%s,%s,NOW()) "
+            "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = NOW()", (chave, valor))
+    if chave == "persona" and (atual is None or atual["valor"] != valor):
+        execute("INSERT INTO chatbot_config_historico (chave, valor, usuario_id) VALUES (%s,%s,%s)", (chave, valor, usuario_id))
+
+
+@app.context_processor
+def _chat_ctx():
+    def ativo():
+        try:
+            return chat_cfg()["ativo"] == "1"
+        except Exception:
+            return False
+    return dict(chat_ativo=ativo, chat_pub=lambda: dict(nome=chat_cfg()["nome"], ia=bool(_groq_chaves())))
+
+
+# ---------- Groq (2 chaves, com reserva automática) ----------
+
+def _groq_chaves():
+    return [k for k in (os.environ.get("GROQ_API_KEY", "").strip(), os.environ.get("GROQ_API_KEY_2", "").strip()) if k]
+
+
+_groq_pausa = {}
+
+
+def _groq_post(chave, payload):
+    return requests.post(GROQ_URL, json=payload, timeout=30,
+                         headers={"Authorization": f"Bearer {chave}", "Content-Type": "application/json"})
+
+
+def _groq_payload(mensagens, temp, json_mode, max_tokens=1200):
+    p = {"model": GROQ_MODELO, "messages": mensagens, "temperature": temp, "max_tokens": max_tokens}
+    if GROQ_MODELO.startswith("openai/gpt-oss"):
+        p["reasoning_effort"] = "low"
+    if json_mode:
+        p["response_format"] = {"type": "json_object"}
+    return p
+
+
+def groq_chat(mensagens, temp=0.6, json_mode=False):
+    """Tenta a chave principal; se der erro/limite, usa a reserva. Devolve (texto, tokens, nº da chave)."""
+    chaves = _groq_chaves()
+    if not chaves:
+        raise RuntimeError("nenhuma chave Groq configurada")
+    payload = _groq_payload(mensagens, temp, json_mode)
+    ordem = [k for k in chaves if _groq_pausa.get(k, 0) <= time.time()] or chaves
+    ultimo = None
+    for k in ordem:
+        try:
+            r = _groq_post(k, payload)
+            if r.status_code == 400 and json_mode:       # modelo sem JSON mode: tenta sem
+                r = _groq_post(k, {x: v for x, v in payload.items() if x != "response_format"})
+            if r.status_code == 200:
+                d = r.json()
+                txt = (d["choices"][0]["message"].get("content") or "").strip()
+                if not txt:
+                    raise ValueError("resposta vazia")
+                return txt, int((d.get("usage") or {}).get("total_tokens") or 0), str(chaves.index(k) + 1)
+            espera = 60
+            if r.status_code == 429:
+                try:
+                    espera = min(900, max(5, int(float(r.headers.get("retry-after", 30)))))
+                except ValueError:
+                    espera = 30
+            _groq_pausa[k] = time.time() + espera
+            try:
+                detalhe = (r.json().get("error") or {}).get("message", "")
+            except Exception:
+                detalhe = ""
+            ultimo = f"HTTP {r.status_code}: {detalhe}"[:200]
+            log.warning("Groq: chave %s falhou (%s)", chaves.index(k) + 1, ultimo)
+        except Exception as e:
+            _groq_pausa[k] = time.time() + 30
+            ultimo = f"{type(e).__name__}: {e}"[:200]
+            log.warning("Groq: chave %s falhou (%s)", chaves.index(k) + 1, ultimo)
+    raise RuntimeError(f"todas as chaves falharam — último erro: {ultimo}")
+
+
+def _json_da_ia(txt):
+    txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.M).strip()
+    a, b = txt.find("{"), txt.rfind("}")
+    if a < 0 or b <= a:
+        raise ValueError("sem JSON")
+    d = json.loads(txt[a:b + 1])
+    return d if isinstance(d, dict) else {}
+
+
+# ---------- perfil do cliente, busca e pontuação ----------
+
+EXTRAS_CHAT = ["Piscina", "Sacada", "Churrasqueira", "Elevador", "Aceita pets", "Mobiliado"]
+ORCAMENTOS = {
+    "venda": [("300000", "Até R$ 300 mil"), ("500000", "Até R$ 500 mil"), ("800000", "Até R$ 800 mil"),
+              ("1200000", "Até R$ 1,2 milhão"), ("2000000", "Até R$ 2 milhões"), ("0", "Sem limite")],
+    "aluguel": [("1500", "Até R$ 1.500"), ("2500", "Até R$ 2.500"), ("4000", "Até R$ 4.000"),
+                ("6000", "Até R$ 6.000"), ("10000", "Até R$ 10.000"), ("0", "Sem limite")]}
+PASSOS = ["finalidade", "tipo", "local", "orcamento", "quartos", "vagas", "extras"]
+
+
+def _valor_ia(v):
+    """Número vindo da IA: aceita 500000, "500.000", "500 mil", "1,2 milhão", "800k"."""
+    if v in (None, "", "null") or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    t = str(v).lower()
+    fator = 1_000_000 if re.search(r"milh|\bmi\b|\bmm\b", t) else 1000 if re.search(r"\bmil\b|\d\s*k\b", t) else 1
+    n = num_br(re.sub(r"[^\d,.]", "", t.replace("r$", "")))
+    return n * fator if n is not None else None
+
+
+def _int_ou_none(v, mx=10):
+    try:
+        n = int(float(v))
+    except (TypeError, ValueError):
+        return None
+    return min(max(n, 0), mx) if n > 0 else None
+
+
+def normalizar_perfil(p):
+    """Limpa o que a IA devolveu: só valores válidos, tipos seguros."""
+    p = p if isinstance(p, dict) else {}
+    out = {}
+    fin = str(p.get("finalidade") or "").strip().lower()
+    if fin in ("venda", "comprar", "compra"):
+        out["finalidade"] = "venda"
+    elif fin in ("aluguel", "alugar", "locação", "locacao"):
+        out["finalidade"] = "aluguel"
+    tipo = str(p.get("tipo") or "").strip().lower()
+    if tipo in TIPOS_IMOVEL:
+        out["tipo"] = tipo
+    for k in ("bairro", "cidade"):
+        v = sanitize_input(p.get(k) if isinstance(p.get(k), (str, int, float)) else "")[:80]
+        if v and v.lower() not in ("null", "none"):
+            out[k] = v
+    pm = _valor_ia(p.get("preco_max"))
+    if pm and pm > 0:
+        out["preco_max"] = pm
+    for k in ("quartos", "vagas"):
+        n = _int_ou_none(p.get(k))
+        if n:
+            out[k] = n
+    ex = p.get("extras")
+    ex = ex if isinstance(ex, list) else []
+    mapa = {gerar_slug(e): e for e in EXTRAS_CHAT}
+    lista = []
+    for e in ex:
+        e = mapa.get(gerar_slug(str(e)))
+        if e and e not in lista:
+            lista.append(e)
+    if lista:
+        out["extras"] = lista
+    return out
+
+
+def resumo_perfil(d):
+    if not d:
+        return ""
+    partes = []
+    if d.get("finalidade"):
+        partes.append("Comprar" if d["finalidade"] == "venda" else "Alugar")
+    if d.get("tipo"):
+        partes.append(TIPOS_IMOVEL[d["tipo"]])
+    loc = ", ".join(x for x in (d.get("bairro"), d.get("cidade")) if x)
+    if loc:
+        partes.append(loc)
+    if d.get("preco_max"):
+        partes.append("até R$ " + _fmt_num(d["preco_max"]))
+    if d.get("quartos"):
+        partes.append(f"{d['quartos']}+ quartos")
+    if d.get("vagas"):
+        partes.append(f"{d['vagas']}+ vagas")
+    partes += d.get("extras") or []
+    return " · ".join(partes)
+
+
+def link_busca(d):
+    from urllib.parse import urlencode
+    q = [("finalidade", d.get("finalidade")), ("tipo", d.get("tipo")),
+         ("preco_max", int(d["preco_max"]) if d.get("preco_max") else None),
+         ("quartos", d.get("quartos")), ("vagas", d.get("vagas")), ("cidade", d.get("cidade")), ("bairro", d.get("bairro"))]
+    return base_url() + url_for("buscar") + "?" + urlencode([(k, v) for k, v in q if v not in (None, "")])
+
+
+def chat_buscar(d, qtd=3):
+    """Pontua os imóveis publicados contra o perfil. Devolve (cards, nº de combinações quase perfeitas)."""
+    where, params = ["i.status = 'publicado'", "t.status = 'ativo'"], []
+    if d.get("finalidade"):
+        where.append("i.finalidade = %s"); params.append(d["finalidade"])
+    linhas = query_all(
+        f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
+        f"WHERE {' AND '.join(where)} ORDER BY i.destaque DESC, i.criado_em DESC LIMIT 400", params)
+    bairro_s, cidade_s = gerar_slug(d.get("bairro", "")) if d.get("bairro") else "", gerar_slug(d.get("cidade", "")) if d.get("cidade") else ""
+    pontuados = []
+    for r in linhas:
+        pts, maxi, ok, falta = 0.0, 0, [], []
+        if d.get("tipo"):
+            maxi += 25
+            if r["tipo"] == d["tipo"]:
+                pts += 25; ok.append(TIPOS_IMOVEL[r["tipo"]])
+        if bairro_s or cidade_s:
+            maxi += 25
+            if bairro_s and (bairro_s in r["bairro_slug"] or r["bairro_slug"] in bairro_s):
+                pts += 25; ok.append(r["bairro"])
+            elif bairro_s and cidade_s and r["cidade_slug"] == cidade_s:
+                pts += 10; falta.append(f"Fica em {r['bairro']}")
+            elif not bairro_s and r["cidade_slug"] == cidade_s:
+                pts += 25; ok.append(r["cidade"])
+            elif bairro_s and not cidade_s:
+                falta.append(f"Fica em {r['bairro']}")
+        if d.get("preco_max"):
+            maxi += 30
+            pr, mx = float(r["preco"] or 0), float(d["preco_max"])
+            if pr <= mx:
+                pts += 30; ok.append("Dentro do orçamento")
+            elif pr <= mx * 1.15:
+                pts += 15; falta.append("Um pouco acima do orçamento")
+        if d.get("quartos"):
+            maxi += 15
+            if r["dormitorios"] >= d["quartos"]:
+                pts += 15; ok.append(f"{r['dormitorios']} quarto{'s' if r['dormitorios'] != 1 else ''}")
+            else:
+                if r["dormitorios"] == d["quartos"] - 1:
+                    pts += 6
+                falta.append(f"{d['quartos']}+ quartos")
+        if d.get("vagas"):
+            maxi += 5
+            if r["vagas"] >= d["vagas"]:
+                pts += 5; ok.append(f"{r['vagas']} vaga{'s' if r['vagas'] != 1 else ''}")
+            else:
+                falta.append(f"{d['vagas']}+ vagas")
+        if d.get("extras"):
+            maxi += 10
+            carac = gerar_slug((r.get("caracteristicas") or "").replace("|", " "))
+            tem = [e for e in d["extras"] if gerar_slug(e) in carac]
+            pts += 10 * len(tem) / len(d["extras"]); ok += tem
+            falta += [e for e in d["extras"] if e not in tem][:1]
+        score = round(100 * pts / maxi) if maxi else 50
+        pontuados.append((score, bool(r["destaque"]), r, ok, falta))
+    pontuados = [x for x in pontuados if x[0] >= 35]
+    pontuados.sort(key=lambda x: (-x[0], not x[1]))
+    exatos = sum(1 for x in pontuados if x[0] >= 90)
+    cards = []
+    for score, _, r, ok, falta in pontuados[:qtd]:
+        specs = " · ".join(x for x in (f"{r['dormitorios']} quarto{'s' if r['dormitorios'] != 1 else ''}" if r["dormitorios"] else "",
+                                       f"{r['vagas']} vaga{'s' if r['vagas'] != 1 else ''}" if r["vagas"] else "",
+                                       f"{_fmt_num(r['area'])} m²" if r["area"] else "") if x)
+        cards.append({"id": r["id"], "slug": r["slug"], "titulo": r["titulo"], "preco": preco_txt(r), "preco_num": float(r["preco"] or 0),
+                      "url": base_url() + url_for("imovel", slug=r["slug"]), "foto": url_foto(r.get("capa"), 480),
+                      "local": f"{r['bairro']} · {r['cidade']}", "specs": specs, "match": score, "ok": ok[:5], "falta": falta[:2]})
+    return cards, exatos
+
+
+# ---------- sessão e mensagens ----------
+
+def _chat_ip():
+    return request.remote_addr or "?"
+
+
+_chat_ips = {}
+
+
+def _chat_limite_ip(acao, maximo, janela=600):
+    """Segura abuso: no máximo `maximo` chamadas de cada `acao` por IP a cada `janela` segundos."""
+    chave, t = (_chat_ip(), acao), time.time()
+    marcas = [x for x in _chat_ips.get(chave, []) if t - x < janela] + [t]
+    _chat_ips[chave] = marcas
+    if len(_chat_ips) > 5000:
+        _chat_ips.clear()
+    return len(marcas) > maximo
+
+
+def _erro_json(msg, code=400):
+    return jsonify({"erro": msg}), code
+
+
+def _saudacao():
+    h = datetime.now(TZ).hour
+    return "Bom dia" if h < 12 else "Boa tarde" if h < 18 else "Boa noite"
+
+
+def _tpl(txt, cfg):
+    return (txt or "").replace("{nome}", cfg["nome"]).replace("{site}", SITE_NOME).replace("{saudacao}", _saudacao())
+
+
+def _chat_sessao():
+    sid = session.get("chat_sid")
+    s = query_one("SELECT * FROM chat_sessoes WHERE id = %s", (sid,)) if sid else None
+    if s:
+        try:
+            s["p"] = json.loads(s["perfil"] or "{}")
+        except ValueError:
+            s["p"] = {}
+        s["p"].setdefault("dados", {}); s["p"].setdefault("ok", [])
+    return s
+
+
+def _perfil_salvar(sid, p):
+    execute("UPDATE chat_sessoes SET perfil = %s, atualizado_em = NOW() WHERE id = %s", (json.dumps(p, ensure_ascii=False), sid))
+
+
+def _msg(sid, papel, tipo, texto, **meta):
+    """Salva a mensagem e devolve o dict que o widget desenha."""
+    execute("INSERT INTO chat_mensagens (sessao_id, papel, tipo, texto, meta) VALUES (%s,%s,%s,%s,%s)",
+            (sid, papel, tipo, texto, json.dumps(meta, ensure_ascii=False) if meta else None))
+    return dict(meta, papel=papel, tipo=tipo, texto=texto)
+
+
+def _msgs_sessao(sid):
+    out = []
+    for r in query_all("SELECT papel, tipo, texto, meta FROM chat_mensagens WHERE sessao_id = %s ORDER BY id", (sid,)):
+        try:
+            meta = json.loads(r["meta"]) if r["meta"] else {}
+        except ValueError:
+            meta = {}
+        meta.pop("tokens", None); meta.pop("chave", None); meta.pop("erro", None)
+        out.append(dict(meta, papel=r["papel"], tipo=r["tipo"], texto=r["texto"]))
+    return out
+
+
+def _passo(chave, d):
+    fin = d.get("finalidade") or "venda"
+    if chave == "finalidade":
+        return {"chave": chave, "texto": "Você quer comprar ou alugar?", "opcoes": [{"v": "venda", "r": "Comprar"}, {"v": "aluguel", "r": "Alugar"}]}
+    if chave == "tipo":
+        return {"chave": chave, "texto": "Que tipo de imóvel você procura?",
+                "opcoes": [{"v": k, "r": v} for k, v in TIPOS_IMOVEL.items()] + [{"v": "qualquer", "r": "Tanto faz"}]}
+    if chave == "local":
+        where, params = ["i.status = 'publicado'", "t.status = 'ativo'", "i.finalidade = %s"], [fin]
+        if d.get("tipo"):
+            where.append("i.tipo = %s"); params.append(d["tipo"])
+        linhas = query_all("SELECT MIN(i.bairro) AS bairro, MIN(i.cidade) AS cidade, i.bairro_slug, i.cidade_slug, COUNT(*) AS n "
+                           "FROM imoveis i JOIN tenants t ON t.id = i.tenant_id WHERE " + " AND ".join(where) +
+                           " GROUP BY i.bairro_slug, i.cidade_slug ORDER BY n DESC LIMIT 8", params)
+        ops = [{"v": f"loc:{r['cidade_slug']}|{r['bairro_slug']}", "r": f"{r['bairro']} · {r['cidade']}"} for r in linhas]
+        return {"chave": chave, "texto": "Em qual região você quer morar? Pode escolher ou digitar um bairro/cidade.",
+                "opcoes": ops + [{"v": "qualquer", "r": "Tanto faz"}], "texto_livre": True}
+    if chave == "orcamento":
+        return {"chave": chave, "texto": "Até quanto você pretende investir?" if fin == "venda" else "Qual o valor máximo de aluguel por mês?",
+                "opcoes": [{"v": v, "r": r} for v, r in ORCAMENTOS[fin]]}
+    if chave == "quartos":
+        return {"chave": chave, "texto": "Quantos quartos você precisa?",
+                "opcoes": [{"v": "1", "r": "1+"}, {"v": "2", "r": "2+"}, {"v": "3", "r": "3+"}, {"v": "4", "r": "4+"}, {"v": "0", "r": "Tanto faz"}]}
+    if chave == "vagas":
+        return {"chave": chave, "texto": "E vagas de garagem?",
+                "opcoes": [{"v": "0", "r": "Não preciso"}, {"v": "1", "r": "1+"}, {"v": "2", "r": "2+"}]}
+    return {"chave": "extras", "texto": "O que não pode faltar? Escolha quantos quiser.", "multi": True,
+            "opcoes": [{"v": e, "r": e} for e in EXTRAS_CHAT]}
+
+
+def _aplicar_resposta(chave, valor, d):
+    """Valida a resposta de um passo e atualiza o perfil. Devolve o rótulo (ou None se inválida)."""
+    if chave == "finalidade" and valor in ("venda", "aluguel"):
+        d["finalidade"] = valor
+        return "Comprar" if valor == "venda" else "Alugar"
+    if chave == "tipo" and (valor in TIPOS_IMOVEL or valor == "qualquer"):
+        if valor != "qualquer":
+            d["tipo"] = valor
+        return TIPOS_IMOVEL.get(valor, "Tanto faz")
+    if chave == "local" and isinstance(valor, str):
+        if valor == "qualquer":
+            return "Tanto faz"
+        if valor.startswith("loc:") and "|" in valor:
+            cs, bs = valor[4:].split("|", 1)
+            r = query_one("SELECT MIN(bairro) AS bairro, MIN(cidade) AS cidade FROM imoveis WHERE cidade_slug = %s AND bairro_slug = %s", (cs, bs))
+            if r and r["bairro"]:
+                d["bairro"], d["cidade"] = r["bairro"], r["cidade"]
+                return f"{r['bairro']} · {r['cidade']}"
+            return None
+        if valor.startswith("txt:"):
+            txt = sanitize_input(valor[4:])[:80]
+            if len(txt) < 2:
+                return None
+            primeiro = txt.split(",")[0].strip()
+            c = query_one("SELECT MIN(cidade) AS cidade FROM imoveis WHERE cidade_slug = %s", (gerar_slug(primeiro),))
+            if c and c["cidade"]:
+                d["cidade"] = c["cidade"]
+            else:
+                d["bairro"] = primeiro
+            return txt
+        return None
+    if chave == "orcamento":
+        rot = dict(ORCAMENTOS.get(d.get("finalidade"), ORCAMENTOS["venda"])).get(str(valor))
+        if rot is None:
+            return None
+        if float(valor) > 0:
+            d["preco_max"] = float(valor)
+        return rot
+    if chave in ("quartos", "vagas") and str(valor) in ("0", "1", "2", "3", "4"):
+        if int(valor) > 0:
+            d[chave] = int(valor)
+        return "Tanto faz" if str(valor) == "0" else f"{valor}+"
+    if chave == "extras" and isinstance(valor, list):
+        ex = normalizar_perfil({"extras": valor}).get("extras", [])
+        if ex:
+            d["extras"] = ex
+        return ", ".join(ex) if ex else "Nenhum em especial"
+    return None
+
+
+def _chat_resultado(sid, sess, cfg, texto=None, busca=None):
+    """Grava as recomendações e devolve a mensagem de resultado (com os cards)."""
+    d = sess["p"]["dados"]
+    cards, exatos = busca or chat_buscar(d, cfg["qtd"])
+    if texto is None or not cards:
+        texto = (f"Achei {len(cards)} opç{'ões' if len(cards) != 1 else 'ão'} que combinam com você 🎉" if cards else
+                 "Ainda não temos um imóvel que combine direitinho, mas veja o que tem na busca do site 👇")
+    for c in cards:
+        execute("INSERT INTO chat_recomendacoes (sessao_id, imovel_id, imovel_slug, titulo, preco, score) VALUES (%s,%s,%s,%s,%s,%s)",
+                (sid, c["id"], c["slug"], c["titulo"], c["preco_num"], c["match"]))
+    execute("UPDATE chat_sessoes SET finalizada = TRUE, atualizado_em = NOW() WHERE id = %s", (sid,))
+    return _msg(sid, "bot", "resultado", texto, cards=cards, link_busca=link_busca(d), resumo=resumo_perfil(d))
+
+
+# ---------- rotas do widget ----------
+
+@app.route("/chat/api/estado")
+def chat_api_estado():
+    cfg = chat_cfg()
+    if cfg["ativo"] != "1":
+        return jsonify({"ativo": False})
+    j = {"ativo": True, "nome": cfg["nome"], "ia": bool(_groq_chaves()), "boas_vindas": _tpl(cfg["boas_vindas"], cfg)}
+    s = _chat_sessao()
+    if s:
+        ms = _msgs_sessao(s["id"])
+        if ms:
+            j.update(mensagens=ms, modo=s["modo"], finalizada=s["finalizada"])
+    return jsonify(j)
+
+
+@app.route("/chat/api/iniciar", methods=["POST"])
+def chat_api_iniciar():
+    cfg = chat_cfg()
+    if cfg["ativo"] != "1":
+        return _erro_json("Chat indisponível.", 404)
+    if _chat_limite_ip("iniciar", 30):
+        return _erro_json("Muitas tentativas. Aguarde um pouco.", 429)
+    corpo = request.get_json(silent=True) or {}
+    modo = "ia" if corpo.get("modo") == "ia" else "formulario"
+    if modo == "ia" and not _groq_chaves():
+        return _erro_json("A conversa com IA não está disponível agora. Use o formulário rápido.", 400)
+    sid = uuid.uuid4().hex[:16]
+    ip_hash = hashlib.sha256((_chat_ip() + str(app.secret_key)).encode()).hexdigest()[:16]
+    execute("INSERT INTO chat_sessoes (id, modo, usuario_id, perfil, ip_hash, user_agent, origem) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (sid, modo, g.usuario["id"] if g.usuario else None, json.dumps({"dados": {}, "ok": []}), ip_hash,
+             (request.headers.get("User-Agent") or "")[:200], sanitize_input(corpo.get("origem") or "")[:200] or None))
+    session["chat_sid"] = sid
+    if modo == "ia":
+        return jsonify({"mensagens": [_msg(sid, "bot", "texto", _tpl(cfg["ia_abertura"], cfg))]})
+    p = _passo("finalidade", {})
+    return jsonify({"mensagens": [_msg(sid, "bot", "pergunta", p["texto"], passo=p)]})
+
+
+@app.route("/chat/api/reiniciar", methods=["POST"])
+def chat_api_reiniciar():
+    session.pop("chat_sid", None)       # a conversa antiga continua salva no banco
+    return jsonify({"ok": True})
+
+
+@app.route("/chat/api/formulario", methods=["POST"])
+def chat_api_formulario():
+    cfg = chat_cfg()
+    if cfg["ativo"] != "1":
+        return _erro_json("Chat indisponível.", 404)
+    if _chat_limite_ip("form", 120):
+        return _erro_json("Muitas mensagens seguidas. Aguarde um pouco.", 429)
+    s = _chat_sessao()
+    if not s or s["modo"] != "formulario":
+        return _erro_json("Conversa não encontrada. Comece de novo.", 404)
+    corpo = request.get_json(silent=True) or {}
+    esperado = next((x for x in PASSOS if x not in s["p"]["ok"]), None)
+    if esperado is None or corpo.get("passo") != esperado:
+        return _erro_json("Essa pergunta já foi respondida.", 409)
+    d = s["p"]["dados"]
+    rotulo = _aplicar_resposta(esperado, corpo.get("valor"), d)
+    if rotulo is None:
+        return _erro_json("Resposta inválida. Escolha uma das opções.", 400)
+    s["p"]["ok"].append(esperado)
+    valor = corpo.get("valor")
+    execute("INSERT INTO chat_respostas (sessao_id, campo, valor, rotulo) VALUES (%s,%s,%s,%s)",
+            (s["id"], esperado, json.dumps(valor, ensure_ascii=False) if isinstance(valor, list) else str(valor), rotulo))
+    _msg(s["id"], "user", "texto", rotulo)
+    prox = next((x for x in PASSOS if x not in s["p"]["ok"]), None)
+    if prox:
+        _perfil_salvar(s["id"], s["p"])
+        p = _passo(prox, d)
+        return jsonify({"mensagens": [_msg(s["id"], "bot", "pergunta", p["texto"], passo=p)]})
+    _perfil_salvar(s["id"], s["p"])
+    return jsonify({"mensagens": [_chat_resultado(s["id"], s, cfg)]})
+
+
+def _system_ia(cfg, dados):
+    persona = _tpl(cfg["persona"], cfg)
+    regras = (
+        "\n\nREGRAS FIXAS (valem sempre):\n"
+        "- Responda SOMENTE com um objeto JSON, sem texto fora dele, neste formato: "
+        '{"resposta": "texto curto para a pessoa", "perfil": {"finalidade": "venda|aluguel|null", "tipo": "apartamento|casa|cobertura|comercial|terreno|null", '
+        '"bairro": "texto|null", "cidade": "texto|null", "preco_max": numero_em_reais_ou_null, "quartos": numero_ou_null, "vagas": numero_ou_null, '
+        '"extras": ["Piscina","Sacada","Churrasqueira","Elevador","Aceita pets","Mobiliado"]}, "pronto": true|false}.\n'
+        "- Em \"perfil\" coloque tudo o que já sabe da pessoa (acumulado), usando null no que ainda não sabe.\n"
+        "- \"pronto\" = true só quando já souber finalidade, tipo e (região ou orçamento), ou quando a pessoa pedir para ver as opções. "
+        "Quando pronto for true, a resposta deve ser só um aviso curto de que vai buscar.\n"
+        "- NUNCA invente imóveis, preços, endereços ou links. Quem mostra os imóveis é o sistema, depois que você marcar pronto = true.\n"
+        "- Se a pessoa falar de outro assunto, responda em uma frase e volte para a busca do imóvel.\n"
+        f"- Hoje é {_saudacao().lower()} no horário da pessoa.\n"
+        f"- O que já se sabe do perfil: {json.dumps(dados, ensure_ascii=False) if dados else 'nada ainda'}")
+    return persona + regras
+
+
+def _fechamento_ia(cfg, dados, cards):
+    """Frase final humana apresentando as opções (a lista em si vem do banco, nunca da IA)."""
+    padrao = "Separei essas opções pra você, olha só 🏡"
+    if not cards:
+        return ""
+    try:
+        lista = "\n".join(f"- {c['titulo']} ({c['preco']}), {c['local']}, {c['match']}% de compatibilidade" for c in cards)
+        txt, _, _ = groq_chat([
+            {"role": "system", "content": _tpl(cfg["persona"], cfg) + "\n\nAgora apresente, em 1 ou 2 frases curtas e sem listas, as opções que o sistema encontrou. "
+             "Cite só o que está na lista abaixo, sem inventar nada. Não repita os preços."},
+            {"role": "user", "content": f"Perfil: {resumo_perfil(dados)}\nOpções encontradas:\n{lista}"}], cfg["temp"])
+        return sanitize_input(txt)[:400] or padrao
+    except Exception as e:
+        log.warning("fechamento IA: %s", e)
+        return padrao
+
+
+@app.route("/chat/api/ia", methods=["POST"])
+def chat_api_ia():
+    cfg = chat_cfg()
+    if cfg["ativo"] != "1":
+        return _erro_json("Chat indisponível.", 404)
+    if _chat_limite_ip("ia", 60):
+        return _erro_json("Muitas mensagens seguidas. Aguarde um pouco.", 429)
+    s = _chat_sessao()
+    if not s or s["modo"] != "ia":
+        return _erro_json("Conversa não encontrada. Comece de novo.", 404)
+    texto = sanitize_input((request.get_json(silent=True) or {}).get("texto", ""))[:500]
+    if not texto:
+        return _erro_json("Escreva alguma coisa.", 400)
+    sid = s["id"]
+    n_user = query_one("SELECT COUNT(*) AS n FROM chat_mensagens WHERE sessao_id = %s AND papel = 'user'", (sid,))["n"]
+    _msg(sid, "user", "texto", texto)
+    if n_user >= cfg["max_msgs_n"]:
+        return jsonify({"mensagens": [_msg(sid, "bot", "erro", "Chegamos ao limite desta conversa. Que tal ver as opções pelo formulário rápido?", acao="formulario")]})
+    hist = query_all("SELECT papel, texto FROM chat_mensagens WHERE sessao_id = %s AND tipo IN ('texto','resultado') ORDER BY id DESC LIMIT 14", (sid,))[::-1]
+    msgs = [{"role": "system", "content": _system_ia(cfg, s["p"]["dados"])}] + \
+           [{"role": "user" if h["papel"] == "user" else "assistant", "content": h["texto"] or ""} for h in hist]
+    try:
+        bruto, tokens, chave = groq_chat(msgs, cfg["temp"], json_mode=True)
+    except Exception as e:
+        log.error("chat IA indisponível: %s", e)
+        return jsonify({"mensagens": [_msg(sid, "bot", "erro", "Eita, fiquei sem sinal por um instante 😅 Tenta de novo ou responde as perguntas rápidas.",
+                                           acao="formulario", erro=str(e)[:300])]})
+    try:
+        j = _json_da_ia(bruto)
+    except ValueError:
+        j = {"resposta": sanitize_input(re.sub(r"[{}\[\]\"]", "", bruto))[:300], "perfil": {}, "pronto": False}
+    resposta = sanitize_input(j.get("resposta") if isinstance(j.get("resposta"), str) else "")[:500] or "Me conta mais sobre o que você procura?"
+    d = s["p"]["dados"]
+    novo = normalizar_perfil(j.get("perfil"))
+    d.update(novo)
+    _perfil_salvar(sid, s["p"])
+    saida = [_msg(sid, "bot", "texto", resposta, tokens=tokens, chave=chave)]
+    if j.get("pronto") is True and (d.get("finalidade") or d.get("tipo") or d.get("bairro") or d.get("cidade")):
+        busca = chat_buscar(d, cfg["qtd"])
+        saida.append(_chat_resultado(sid, s, cfg, _fechamento_ia(cfg, d, busca[0]) or None, busca))
+    return jsonify({"mensagens": saida})
+
+
+# ---------- admin do chatbot ----------
+
+def _chaves_mascaradas():
+    return ["…" + k[-4:] for k in _groq_chaves()]
+
+
+@app.route("/admin/chatbot")
+@admin_required
+def admin_chatbot():
+    aba = "conversas" if request.args.get("aba") == "conversas" else "config"
+    ctx = dict(pagina_ativa="chatbot", chat_aba=aba)
+    if aba == "conversas":
+        modo = request.args.get("modo") if request.args.get("modo") in ("formulario", "ia") else ""
+        so_conc = request.args.get("so_concluidas") == "1"
+        where, params = ["TRUE"], []
+        if modo:
+            where.append("s.modo = %s"); params.append(modo)
+        if so_conc:
+            where.append("s.finalizada")
+        lista = query_all(
+            "SELECT s.id, s.modo, s.criado_em, s.perfil, u.nome AS usuario_nome, "
+            "(SELECT COUNT(*) FROM chat_mensagens m WHERE m.sessao_id = s.id) AS n_msgs, "
+            "(SELECT COUNT(*) FROM chat_recomendacoes r WHERE r.sessao_id = s.id) AS n_rec "
+            "FROM chat_sessoes s LEFT JOIN usuarios u ON u.id = s.usuario_id WHERE " + " AND ".join(where) +
+            " ORDER BY s.criado_em DESC LIMIT 100", params)
+        for s in lista:
+            try:
+                s["resumo"] = resumo_perfil((json.loads(s["perfil"] or "{}")).get("dados") or {})
+            except ValueError:
+                s["resumo"] = ""
+        stats = query_one("SELECT (SELECT COUNT(*) FROM chat_sessoes) AS total, (SELECT COUNT(*) FROM chat_mensagens) AS msgs, "
+                          "(SELECT COUNT(*) FROM chat_sessoes WHERE finalizada) AS concluidas, "
+                          "(SELECT COUNT(*) FROM chat_sessoes WHERE modo = 'formulario') AS form, "
+                          "(SELECT COUNT(*) FROM chat_sessoes WHERE modo = 'ia') AS ia")
+        ctx.update(chat_lista=lista, chat_stats=stats, chat_modo=modo, chat_so_concluidas=so_conc)
+    else:
+        hist = query_all("SELECT h.id, h.valor, h.criado_em, u.nome AS quem FROM chatbot_config_historico h "
+                         "LEFT JOIN usuarios u ON u.id = h.usuario_id WHERE h.chave = 'persona' ORDER BY h.id DESC LIMIT 15")
+        ctx.update(cfg=chat_cfg(forcar=True), chat_chaves=_chaves_mascaradas(),
+                   chat_modelo=GROQ_MODELO, chat_hist=hist)
+    return render_template("admin.html", **ctx)
+
+
+@app.route("/admin/chatbot/conversa/<sid>")
+@admin_required
+def admin_chatbot_conversa(sid):
+    s = query_one("SELECT * FROM chat_sessoes WHERE id = %s", (sid,))
+    if not s:
+        abort(404)
+    msgs = query_all("SELECT * FROM chat_mensagens WHERE sessao_id = %s ORDER BY id", (sid,))
+    for m in msgs:
+        try:
+            m["m"] = json.loads(m["meta"]) if m["meta"] else {}
+        except ValueError:
+            m["m"] = {}
+    try:
+        dados = (json.loads(s["perfil"] or "{}")).get("dados") or {}
+    except ValueError:
+        dados = {}
+    return render_template("admin.html", pagina_ativa="chatbot", chat_aba="conversa", chat_s=s, chat_msgs=msgs, chat_resumo=resumo_perfil(dados),
+                           chat_resp=query_all("SELECT campo, rotulo FROM chat_respostas WHERE sessao_id = %s ORDER BY id", (sid,)),
+                           chat_rec=query_all("SELECT imovel_slug, titulo, preco, score FROM chat_recomendacoes WHERE sessao_id = %s ORDER BY id", (sid,)))
+
+
+@app.route("/admin/chatbot/salvar", methods=["POST"])
+@admin_required
+def admin_chatbot_salvar():
+    f = request.form
+    uid = g.usuario["id"]
+    try:
+        temp = min(1.5, max(0.0, float(f.get("temperatura", "0.6").replace(",", "."))))
+    except ValueError:
+        temp = 0.6
+    def _n(nome, mn, mx, pad):
+        try:
+            return str(min(mx, max(mn, int(f.get(nome, pad)))))
+        except ValueError:
+            return str(pad)
+    chat_cfg_set("ativo", "1" if f.get("ativo") else "0")
+    chat_cfg_set("nome", sanitize_input(f.get("nome", ""))[:30] or "Duda")
+    chat_cfg_set("temperatura", f"{temp:g}")
+    chat_cfg_set("qtd_resultados", _n("qtd_resultados", 1, 5, 3))
+    chat_cfg_set("max_msgs", _n("max_msgs", 6, 200, 40))
+    for chave, lim in (("boas_vindas", 400), ("ia_abertura", 400)):
+        if f.get(chave) is not None:
+            chat_cfg_set(chave, sanitize_input(f[chave])[:lim] or CHAT_PADRAO[chave])
+    persona = (f.get("persona") or "").replace("\x00", "").strip()[:4000]
+    chat_cfg_set("persona", persona or PERSONA_PADRAO, uid)
+    _chat_cfg_cache["v"] = None
+    flash("Configurações do chatbot salvas.", "success")
+    return redirect(url_for("admin_chatbot"))
+
+
+@app.route("/admin/chatbot/restaurar", methods=["POST"])
+@admin_required
+def admin_chatbot_restaurar():
+    hid = request.form.get("hist_id", type=int)
+    if hid:
+        h = query_one("SELECT valor FROM chatbot_config_historico WHERE id = %s AND chave = 'persona'", (hid,))
+        if not h:
+            flash("Versão não encontrada.", "error")
+            return redirect(url_for("admin_chatbot"))
+        chat_cfg_set("persona", h["valor"], g.usuario["id"])
+    else:
+        chat_cfg_set("persona", PERSONA_PADRAO, g.usuario["id"])
+    _chat_cfg_cache["v"] = None
+    flash("Persona restaurada. A versão anterior continua no histórico.", "success")
+    return redirect(url_for("admin_chatbot"))
+
+
+@app.route("/admin/chatbot/testar", methods=["POST"])
+@admin_required
+def admin_chatbot_testar():
+    chaves = _groq_chaves()
+    if not chaves:
+        flash("Nenhuma chave Groq no .env (GROQ_API_KEY).", "error")
+    for n, k in enumerate(chaves, 1):
+        t0 = time.time()
+        try:
+            r = _groq_post(k, _groq_payload([{"role": "user", "content": "Responda apenas: ok"}], 0, False, 200))
+            if r.status_code == 200:
+                flash(f"Chave {n} (…{k[-4:]}): funcionando — {time.time() - t0:.1f}s com {GROQ_MODELO}.", "success")
+            else:
+                try:
+                    det = (r.json().get("error") or {}).get("message", "")
+                except Exception:
+                    det = ""
+                flash(f"Chave {n} (…{k[-4:]}): HTTP {r.status_code}: {det[:120]}", "error")
+        except Exception as e:
+            flash(f"Chave {n} (…{k[-4:]}): {type(e).__name__}", "error")
+    return redirect(url_for("admin_chatbot"))
 
 
 # ═══════════════════════════════════════════════════════════════
