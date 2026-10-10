@@ -18,6 +18,7 @@
 {% if i.dormitorios %}{% set _x = _about.update({'numberOfBedrooms': i.dormitorios}) %}{% endif %}
 {% if i.banheiros %}{% set _x = _about.update({'numberOfBathroomsTotal': i.banheiros}) %}{% endif %}
 {% if i.area %}{% set _x = _about.update({'floorSize': {'@type': 'QuantitativeValue', 'value': i.area|float, 'unitCode': 'MTK'}}) %}{% endif %}
+{% if i.rua %}{% set _x = _about.address.update({'streetAddress': i.rua}) %}{% endif %}
 {% if i.lat is not none and i.lng is not none %}{% set _x = _about.update({'geo': {'@type': 'GeoCoordinates', 'latitude': i.lat|float, 'longitude': i.lng|float}}) %}{% endif %}
 {% set _ld = {'@context': 'https://schema.org', '@type': 'RealEstateListing', 'name': i.titulo, 'url': canonical_url(), 'description': seo_desc,
    'offers': {'@type': 'Offer', 'price': i.preco|float, 'priceCurrency': 'BRL', 'availability': 'https://schema.org/InStock'}, 'about': _about} %}
@@ -59,17 +60,49 @@ form.inline{display:inline;margin:0}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
 .gallery img{width:100%;height:100%;object-fit:cover;display:block}.gallery .g1,.gallery .g2,.gallery .g3,.gallery .g4,.gallery .g5{background-image:none}.gallery div[style]{background-size:cover;background-position:center}
 .card-img{background-color:#e9eef0}
+
+/* ---- carrossel 1:1 (foto inteira, sem cortar; sobra vira borda branca) ---- */
+.layout>section{min-width:0}
+.car{position:relative;width:100%;max-width:640px;aspect-ratio:1/1;background:#fff;border:1px solid var(--l);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.car-track{display:flex;height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;outline:none}
+.car-track::-webkit-scrollbar{display:none}
+.car-slide{flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always;background:#fff;cursor:zoom-in}
+.car-slide img{width:100%;height:100%;object-fit:contain;display:block;background:#fff;-webkit-user-select:none;user-select:none}
+.car-b{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;padding:0 0 3px;border-radius:50%;border:1px solid var(--l);background:#fffe;color:#111e27;font-size:26px;line-height:1;display:grid;place-items:center;box-shadow:0 2px 10px #0002;z-index:2}
+.car-b:hover{background:#fff}.car-p{left:10px}.car-n{right:10px}
+.car-count{position:absolute;right:10px;bottom:10px;background:#000a;color:#fff;font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px;z-index:2}
+.car-thumbs{display:flex;gap:8px;overflow-x:auto;max-width:640px;padding:2px 2px 8px;margin-bottom:16px;scrollbar-width:thin}
+.car-t{flex:0 0 64px;width:64px;height:64px;padding:0;border:2px solid transparent;border-radius:9px;background:#fff;overflow:hidden;opacity:.65;transition:opacity .15s,border-color .15s}
+.car-t img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
+.car-t.on{border-color:var(--g);opacity:1}
+/* ---- menu hambúrguer ---- */
+header{position:relative;z-index:60}
+.burger{display:none;margin-left:auto;width:46px;height:46px;padding:0;border:0;background:transparent;border-radius:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.burger span{display:block;width:26px;height:2.5px;background:#fff;border-radius:2px;transition:transform .2s,opacity .2s}
+.burger[aria-expanded=true] span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+.burger[aria-expanded=true] span:nth-child(2){opacity:0}
+.burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+.mnav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--d);border-top:1px solid #ffffff1f;box-shadow:0 16px 30px #0007;padding:8px 0 14px}
+.mnav.on{display:block}
+.mnav a{display:block;padding:15px 22px;font-size:16px;font-weight:650;color:#fff}
+.mnav a:active{background:#ffffff14}
+.mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
+@media(max-width:900px){.burger{display:flex}.actions{display:none}}
+@media(min-width:901px){.mnav{display:none!important}}
+@media(max-width:600px){.car{max-width:none;border-radius:10px}.car-thumbs{max-width:none}.car-b{width:36px;height:36px;font-size:22px}.car-t{flex-basis:56px;width:56px;height:56px}.title h1{font-size:22px}}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
 <header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}<i>⌂</i>Imovel<span>Onde</span>{% endif %}</a>
 <nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
-<div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
+<div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
+<nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
 {% if preview %}<div class="preview">Pré-visualização — este anúncio ainda não está público ({{ STATUS_IMOVEL[i.status] }}){% if i.motivo_rejeicao %}: {{ i.motivo_rejeicao }}{% endif %}</div>{% endif %}
 <main class="c"><div class="crumb"><a href="{{ url_for('home') }}">Início</a> › <a href="{{ url_for('buscar', q=i.cidade) }}">{{ i.cidade }}</a> › <a href="{{ url_for('buscar', q=i.bairro) }}">{{ i.bairro }}</a> › <span>{{ i.titulo }}</span></div>
-<div class="gallery">{% for n in range(5) %}{% if n < fotos|length %}<div class="g{{ n + 1 }}" onclick="openLb({{ n }})"><img src="{{ fotos[n] }}" alt="{{ i.titulo }} — foto {{ n + 1 }} de {{ fotos|length }}" {{ 'fetchpriority=high' if n == 0 else 'loading=lazy' }} decoding="async">{% if n == 4 and fotos|length > 5 %}<span class="more">▧ Ver todas as {{ fotos|length }} fotos</span>{% endif %}</div>{% else %}<div class="g{{ n + 1 }}" style="background-image:url('{{ url_for('placeholder') }}')"></div>{% endif %}{% endfor %}</div>
-<div class="layout"><section><div class="title-row"><div class="title"><span class="tag">{{ FINALIDADES[i.finalidade] }}</span><h1>{{ i.titulo }}</h1><div class="location">⌖ {{ i.bairro }} — {{ i.cidade }}/{{ i.uf }}</div></div>
+<div class="layout"><section><div class="car" id="car" role="group" aria-roledescription="carrossel" aria-label="Fotos do imóvel"><div class="car-track" id="cartrack" tabindex="0">{% for f in (fotos or [url_for('placeholder')]) %}<div class="car-slide"{% if fotos %} onclick="openLb({{ loop.index0 }})"{% endif %}><img src="{{ f }}" alt="{{ i.titulo }} — foto {{ loop.index }} de {{ (fotos|length) or 1 }}" {{ 'fetchpriority=high' if loop.first else 'loading=lazy' }} decoding="async" draggable="false"></div>{% endfor %}</div>{% if fotos|length > 1 %}<button class="car-b car-p" type="button" onclick="carGo(-1)" aria-label="Foto anterior">‹</button><button class="car-b car-n" type="button" onclick="carGo(1)" aria-label="Próxima foto">›</button>{% endif %}{% if fotos %}<span class="car-count" id="carcount">1 / {{ fotos|length }}</span>{% endif %}</div>
+{% if fotos|length > 1 %}<div class="car-thumbs" id="carthumbs">{% for f in fotos %}<button type="button" class="car-t{{ ' on' if loop.first }}" onclick="carTo({{ loop.index0 }})" aria-label="Ver foto {{ loop.index }}"><img src="{{ f }}" alt="" loading="lazy" draggable="false"></button>{% endfor %}</div>{% endif %}
+<div class="title-row"><div class="title"><span class="tag">{{ FINALIDADES[i.finalidade] }}</span><h1>{{ i.titulo }}</h1><div class="location">⌖ {% if i.rua %}{{ i.rua }}, {% endif %}{{ i.bairro }} — {{ i.cidade }}/{{ i.uf }}</div></div>
 <div class="actions2"><form class="inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="heart round{{ ' on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form><button class="round" type="button" onclick="share()" title="Compartilhar">↗</button></div></div>
 <div class="price">{{ i|preco }}</div>{% if i.condominio or i.iptu %}<div class="condo">{% if i.condominio %}Condomínio: R$ {{ i.condominio|num }}/mês{% endif %}{% if i.condominio and i.iptu %} • {% endif %}{% if i.iptu %}IPTU: R$ {{ i.iptu|num }}/mês{% endif %}</div>{% endif %}
 <div class="specs"><div class="spec"><strong>{{ i.area|num if i.area else '—' }}{{ ' m²' if i.area }}</strong>Área útil</div><div class="spec"><strong>{{ i.dormitorios }}</strong>Quartos</div><div class="spec"><strong>{{ i.vagas }}</strong>Vagas</div><div class="spec"><strong>{{ i.banheiros }}</strong>Banheiros</div><div class="spec"><strong>{{ i.suites }}</strong>Suíte{{ 's' if i.suites != 1 }}</div></div>
@@ -77,8 +110,8 @@ form.inline{display:inline;margin:0}
 <div class="content"><h2 id="desc">Sobre este imóvel</h2><p class="desc">{{ i.descricao or 'O anunciante ainda não adicionou uma descrição.' }}</p>
 {% if carac %}<h2 id="carac">Destaques do imóvel</h2><div class="amenities">{% for c in carac %}<div class="amenity">✓ {{ c }}</div>{% endfor %}</div>{% endif %}
 {% if proximos %}<h2>O que tem por perto</h2><ul class="proxlist">{% for p in proximos %}<li>{{ ICONES_PROXIMO[p.categoria] }} <b>{% if p.link %}<a href="{{ p.link }}" target="_blank" rel="noopener nofollow">{{ p.nome }}</a>{% else %}{{ p.nome }}{% endif %}</b><br><small>{{ CATEGORIAS_PROXIMO[p.categoria] }}{% if p.distancia_m %} · {{ (p.distancia_m / 1000)|num(1) ~ ' km' if p.distancia_m >= 1000 else p.distancia_m ~ ' m' }}{% endif %}</small></li>{% endfor %}</ul>{% endif %}
-<h2 id="local">Localização</h2><p>Localização aproximada do imóvel. O endereço exato pode ser informado diretamente pelo anunciante.</p>
-{% if mapa %}<div class="map"><iframe src="{{ mapa }}" loading="lazy" title="Mapa"></iframe></div><a class="maplink" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query={{ i.lat }},{{ i.lng }}">Abrir no Google Maps ↗</a>{% else %}<p><b>{{ i.bairro }}</b> — {{ i.cidade }}/{{ i.uf }}</p>{% endif %}</div></section>
+<h2 id="local">Localização</h2><p>Localização aproximada do imóvel. O número e o endereço exato podem ser informados diretamente pelo anunciante.</p>
+{% if mapa %}<div class="map"><iframe src="{{ mapa }}" loading="lazy" title="Mapa"></iframe></div><a class="maplink" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query={{ i.lat }},{{ i.lng }}">Abrir no Google Maps ↗</a>{% else %}<p><b>{% if i.rua %}{{ i.rua }}, {% endif %}{{ i.bairro }}</b> — {{ i.cidade }}/{{ i.uf }}</p>{% endif %}</div></section>
 <aside class="side"><h3>Fale com o anunciante</h3><small>Responsável pelo imóvel</small>
 <div class="agency"><div class="agency-logo">{% if logo %}<img src="{{ logo }}" alt="">{% else %}⌂{% endif %}</div><div><strong><a href="{{ url_for('imobiliaria', slug=i.anunciante_slug) }}">{{ i.anunciante_nome }}</a>{% if i.anunciante_verificada %} <span style="color:#1cae32" title="Verificada">✓</span>{% endif %}</strong>{% if i.anunciante_creci %}<span>CRECI {{ i.anunciante_creci }}</span>{% endif %}</div></div>
 {% if tem_whatsapp and i.status == 'publicado' %}<a class="whats" href="{{ url_for('imovel_whatsapp', slug=i.slug) }}" target="_blank" rel="noopener nofollow">◉ Falar no WhatsApp</a>
@@ -94,8 +127,22 @@ var FOTOS={{ fotos|tojson }},cur=0,lb=document.getElementById('lb');
 function openLb(n){if(!FOTOS.length)return;cur=n;showLb();lb.classList.add('on')}
 function closeLb(){lb.classList.remove('on')}
 function stepLb(d){cur=(cur+d+FOTOS.length)%FOTOS.length;showLb()}
-function showLb(){document.getElementById('lbimg').src=FOTOS[cur];document.getElementById('lbcount').textContent=(cur+1)+' / '+FOTOS.length}
+function showLb(){document.getElementById('lbimg').src=FOTOS[cur];document.getElementById('lbcount').textContent=(cur+1)+' / '+FOTOS.length;if(carT)carT.scrollTo({left:cur*carT.clientWidth})}
 document.addEventListener('keydown',function(e){if(!lb.classList.contains('on'))return;if(e.key==='Escape')closeLb();if(e.key==='ArrowRight')stepLb(1);if(e.key==='ArrowLeft')stepLb(-1)});
+
+var carT=document.getElementById('cartrack'),carC=document.getElementById('carcount'),carTb=document.getElementById('carthumbs'),carThumbs=document.querySelectorAll('.car-t'),carRaf=0;
+function carIdx(){return carT?Math.round(carT.scrollLeft/(carT.clientWidth||1)):0}
+function carTo(n){if(!carT||!FOTOS.length)return;n=Math.max(0,Math.min(FOTOS.length-1,n));carT.scrollTo({left:n*carT.clientWidth,behavior:'smooth'})}
+function carGo(d){var n=carIdx()+d;if(n<0)n=FOTOS.length-1;if(n>=FOTOS.length)n=0;carTo(n)}
+function carSync(){var n=carIdx();if(carC)carC.textContent=(n+1)+' / '+FOTOS.length;carThumbs.forEach(function(b,k){b.classList.toggle('on',k===n)});var on=carThumbs[n];if(on&&carTb)carTb.scrollTo({left:on.offsetLeft-(carTb.clientWidth-on.clientWidth)/2,behavior:'smooth'})}
+if(carT){carT.addEventListener('scroll',function(){cancelAnimationFrame(carRaf);carRaf=requestAnimationFrame(carSync)},{passive:true});carT.addEventListener('keydown',function(e){if(e.key==='ArrowRight'){e.preventDefault();carGo(1)}if(e.key==='ArrowLeft'){e.preventDefault();carGo(-1)}})}
+(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
+function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
+b.onclick=function(){set(!m.classList.contains('on'))};
+m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
+document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
+window.addEventListener('resize',function(){if(window.innerWidth>900)set(false)})})();
 function share(){var u=location.href;if(navigator.share){navigator.share({title:document.title,url:u})}else if(navigator.clipboard){navigator.clipboard.writeText(u).then(function(){alert('Link copiado!')})}}
 </script>
 </body>
