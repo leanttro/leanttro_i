@@ -88,6 +88,25 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 @media(max-width:700px){.burger{display:flex;margin-left:0}.nav{gap:10px}.actions a:not(.anunciar){display:none}}
 @media(min-width:701px){.mnav{display:none!important}}
+/* seção "Onde você quiser" */
+.ond{padding:58px 0 18px}
+.ond-seg{display:inline-flex;background:#eef2f3;border-radius:999px;padding:5px;margin:18px 0 30px}
+.ond-seg button{border:0;background:transparent;padding:11px 24px;border-radius:999px;font:inherit;font-weight:800;font-size:14px;color:var(--ink);cursor:pointer}
+.ond-seg button.on{background:var(--ink);color:#fff}
+.ond-panel[hidden],.ond-arrows[hidden]{display:none}
+.ond-track{display:flex;gap:44px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:6px}
+.ond-track::-webkit-scrollbar{display:none}
+.ond-col{flex:0 0 clamp(210px,22%,250px);scroll-snap-align:start}
+.ond-col h3{margin:0 0 24px;font-size:26px;line-height:1.15;letter-spacing:-.6px}
+.ond-col h3 a{color:#1eac31}
+.ond-col ul{list-style:none;margin:0;padding:0;display:grid;gap:18px}
+.ond-col li{font-size:14px;line-height:1.45}
+.ond-col li a:hover{text-decoration:underline}
+.ond-col small{color:var(--muted);font-size:12px}
+.ond-arrows{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.ond-arrows button{width:44px;height:44px;border-radius:50%;border:1px solid #dfe6e9;background:#fff;color:var(--ink);font-size:24px;line-height:1;padding:0 0 3px;cursor:pointer}
+.ond-arrows button:hover{background:#f3f6f4}
+@media(max-width:700px){.ond{padding-top:40px}.ond-track{gap:30px}.ond-col{flex-basis:76%}.ond-col h3{font-size:22px;margin-bottom:18px}}
 </style>
 </head>
 <body>
@@ -140,6 +159,12 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 <section aria-labelledby="categorias"><div class="container"><h2 class="title" id="categorias">Explore por categoria</h2><div style="height:22px"></div>
 <div class="cats"><a class="cat" href="{{ url_for('buscar', tipo='apartamento') }}"><div class="ci">▥</div>Apartamentos</a><a class="cat" href="{{ url_for('buscar', tipo='casa') }}"><div class="ci">⌂</div>Casas</a><a class="cat" href="{{ url_for('buscar', tipo='cobertura') }}"><div class="ci">◇</div>Coberturas</a><a class="cat" href="{{ url_for('buscar', tipo='comercial') }}"><div class="ci">▦</div>Comerciais</a><a class="cat" href="{{ url_for('buscar', tipo='terreno') }}"><div class="ci">♢</div>Terrenos</a><a class="cat" href="{{ url_for('guia') }}"><div class="ci">☆</div>Guia de bairros</a></div></div></section>
 
+{% if cidades %}{% set _fins = [('venda', 'Comprar'), ('aluguel', 'Alugar')] %}{% set _ativas = [] %}{% for fin, _r in _fins %}{% if cidades|selectattr(fin)|list %}{% set _x = _ativas.append(fin) %}{% endif %}{% endfor %}
+<section class="ond" aria-labelledby="onde"><div class="container"><h2 class="title" id="onde">Onde você quiser, tem um {{ SITE.nome }}</h2>
+<div class="ond-seg" role="tablist">{% for fin, rot in _fins %}{% if fin in _ativas %}<button type="button" role="tab" data-f="{{ fin }}" class="{{ 'on' if fin == _ativas[0] }}">{{ rot }}</button>{% endif %}{% endfor %}</div>
+{% for fin in _ativas %}<div class="ond-panel" data-f="{{ fin }}"{% if fin != _ativas[0] %} hidden{% endif %}><div class="ond-track">{% for c in cidades if c[fin] %}<div class="ond-col"><h3><a href="{{ c[fin ~ '_url'] }}">{{ c.nome }}</a></h3><ul>{% for l in c[fin] %}<li><a href="{{ l.url }}">{{ l.rotulo }}</a> <small>({{ l.n }})</small></li>{% endfor %}</ul></div>{% endfor %}</div></div>{% endfor %}
+<div class="ond-arrows" hidden><button type="button" class="ond-p" aria-label="Anterior">‹</button><button type="button" class="ond-n" aria-label="Próximo">›</button></div></div></section>
+{% endif %}
 <section class="cta"{% if SITE.cta or SITE.hero %} style="--cta-img:url('{{ SITE.cta or SITE.hero }}')"{% endif %}><div class="container cta-row"><div><div class="logo" style="font-size:21px">{{ marca(60) }}</div><h3>Tem um imóvel? Anuncie grátis.</h3></div><a class="btn" href="{{ url_for('anuncie') }}">Anunciar meu imóvel</a></div></section>
 </main>
 <footer><div class="container"><div class="foot"><span>© {{ ano }} {{ SITE.nome }}</span><nav class="links" aria-label="Rodapé"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('anuncie') }}">Anunciar imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></nav></div>
@@ -151,5 +176,12 @@ m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
 document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
 window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
+<script>(function(){var s=document.querySelector('.ond');if(!s)return;var tabs=s.querySelectorAll('.ond-seg button'),panels=s.querySelectorAll('.ond-panel'),ar=s.querySelector('.ond-arrows');
+function cur(){return s.querySelector('.ond-panel:not([hidden]) .ond-track')}
+function setas(){var t=cur();if(ar&&t)ar.hidden=!(t.scrollWidth>t.clientWidth+4)}
+tabs.forEach(function(b){b.onclick=function(){tabs.forEach(function(x){x.classList.toggle('on',x===b)});panels.forEach(function(p){p.hidden=p.dataset.f!==b.dataset.f});var t=cur();if(t)t.scrollLeft=0;setas()}});
+s.querySelector('.ond-p').onclick=function(){var t=cur();t.scrollBy({left:-t.clientWidth*.8,behavior:'smooth'})};
+s.querySelector('.ond-n').onclick=function(){var t=cur();t.scrollBy({left:t.clientWidth*.8,behavior:'smooth'})};
+window.addEventListener('resize',setas);setas()})();</script>
 </body>
 </html>
