@@ -61,17 +61,19 @@ form.inline{display:inline;margin:0}
 .gallery img{width:100%;height:100%;object-fit:cover;display:block}.gallery .g1,.gallery .g2,.gallery .g3,.gallery .g4,.gallery .g5{background-image:none}.gallery div[style]{background-size:cover;background-position:center}
 .card-img{background-color:#e9eef0}
 
-/* ---- carrossel 1:1 (foto inteira, sem cortar; sobra vira borda branca) ---- */
+/* ---- carrossel 1:1 (foto inteira, sem cortar; sobra vira borda branca). Setas FORA da foto ---- */
 .layout>section{min-width:0}
-.car{position:relative;width:100%;max-width:640px;aspect-ratio:1/1;background:#fff;border:1px solid var(--l);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.car-wrap{display:grid;grid-template-columns:44px minmax(0,640px) 44px;grid-template-areas:"p car n" ". cnt ." ". th .";column-gap:12px;align-items:center;margin-bottom:18px}
+.car{grid-area:car;position:relative;width:100%;aspect-ratio:1/1;background:#fff;border:1px solid var(--l);border-radius:12px;overflow:hidden}
 .car-track{display:flex;height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;outline:none}
 .car-track::-webkit-scrollbar{display:none}
 .car-slide{flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always;background:#fff;cursor:zoom-in}
 .car-slide img{width:100%;height:100%;object-fit:contain;display:block;background:#fff;-webkit-user-select:none;user-select:none}
-.car-b{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;padding:0 0 3px;border-radius:50%;border:1px solid var(--l);background:#fffe;color:#111e27;font-size:26px;line-height:1;display:grid;place-items:center;box-shadow:0 2px 10px #0002;z-index:2}
-.car-b:hover{background:#fff}.car-p{left:10px}.car-n{right:10px}
-.car-count{position:absolute;right:10px;bottom:10px;background:#000a;color:#fff;font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px;z-index:2}
-.car-thumbs{display:flex;gap:8px;overflow-x:auto;max-width:640px;padding:2px 2px 8px;margin-bottom:16px;scrollbar-width:thin}
+.car-b{width:44px;height:44px;padding:0 0 3px;border-radius:50%;border:1px solid var(--l);background:#fff;color:#111e27;font-size:26px;line-height:1;display:grid;place-items:center;box-shadow:0 2px 8px #0000001a}
+.car-b:hover{background:#f3f6f4}.car-b:active{background:#e8eeea}
+.car-p{grid-area:p;justify-self:start}.car-n{grid-area:n;justify-self:end}
+.car-count{grid-area:cnt;justify-self:center;margin-top:10px;font-size:12px;font-weight:700;color:var(--m)}
+.car-thumbs{grid-area:th;display:flex;gap:8px;overflow-x:auto;width:100%;padding:2px 2px 8px;margin-top:6px;scrollbar-width:thin;justify-self:start}
 .car-t{flex:0 0 64px;width:64px;height:64px;padding:0;border:2px solid transparent;border-radius:9px;background:#fff;overflow:hidden;opacity:.65;transition:opacity .15s,border-color .15s}
 .car-t img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
 .car-t.on{border-color:var(--g);opacity:1}
@@ -89,7 +91,7 @@ header{position:relative;z-index:60}
 .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 @media(max-width:900px){.burger{display:flex}.actions{display:none}}
 @media(min-width:901px){.mnav{display:none!important}}
-@media(max-width:600px){.car{max-width:none;border-radius:10px}.car-thumbs{max-width:none}.car-b{width:36px;height:36px;font-size:22px}.car-t{flex-basis:56px;width:56px;height:56px}.title h1{font-size:22px}}
+@media(max-width:600px){.car-wrap{grid-template-columns:48px 1fr 48px;grid-template-areas:"car car car" "p cnt n" "th th th";column-gap:0;row-gap:0}.car{border-radius:10px}.car-b{width:48px;height:48px;font-size:28px}.car-count{margin-top:0;font-size:13px}.car-thumbs{margin-top:10px}.car-t{flex-basis:56px;width:56px;height:56px}.car-p,.car-n{margin-top:12px}.car-count{margin-top:12px}.title h1{font-size:22px}}
 </style>
 </head>
 <body>
@@ -100,8 +102,7 @@ header{position:relative;z-index:60}
 <nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
 {% if preview %}<div class="preview">Pré-visualização — este anúncio ainda não está público ({{ STATUS_IMOVEL[i.status] }}){% if i.motivo_rejeicao %}: {{ i.motivo_rejeicao }}{% endif %}</div>{% endif %}
 <main class="c"><div class="crumb"><a href="{{ url_for('home') }}">Início</a> › <a href="{{ url_for('buscar', q=i.cidade) }}">{{ i.cidade }}</a> › <a href="{{ url_for('buscar', q=i.bairro) }}">{{ i.bairro }}</a> › <span>{{ i.titulo }}</span></div>
-<div class="layout"><section><div class="car" id="car" role="group" aria-roledescription="carrossel" aria-label="Fotos do imóvel"><div class="car-track" id="cartrack" tabindex="0">{% for f in (fotos or [url_for('placeholder')]) %}<div class="car-slide"{% if fotos %} onclick="openLb({{ loop.index0 }})"{% endif %}><img src="{{ f }}" alt="{{ i.titulo }} — foto {{ loop.index }} de {{ (fotos|length) or 1 }}" {{ 'fetchpriority=high' if loop.first else 'loading=lazy' }} decoding="async" draggable="false"></div>{% endfor %}</div>{% if fotos|length > 1 %}<button class="car-b car-p" type="button" onclick="carGo(-1)" aria-label="Foto anterior">‹</button><button class="car-b car-n" type="button" onclick="carGo(1)" aria-label="Próxima foto">›</button>{% endif %}{% if fotos %}<span class="car-count" id="carcount">1 / {{ fotos|length }}</span>{% endif %}</div>
-{% if fotos|length > 1 %}<div class="car-thumbs" id="carthumbs">{% for f in fotos %}<button type="button" class="car-t{{ ' on' if loop.first }}" onclick="carTo({{ loop.index0 }})" aria-label="Ver foto {{ loop.index }}"><img src="{{ f }}" alt="" loading="lazy" draggable="false"></button>{% endfor %}</div>{% endif %}
+<div class="layout"><section><div class="car-wrap">{% if fotos|length > 1 %}<button class="car-b car-p" type="button" onclick="carGo(-1)" aria-label="Foto anterior">‹</button>{% endif %}<div class="car" id="car" role="group" aria-roledescription="carrossel" aria-label="Fotos do imóvel"><div class="car-track" id="cartrack" tabindex="0">{% for f in (fotos or [url_for('placeholder')]) %}<div class="car-slide"{% if fotos %} onclick="openLb({{ loop.index0 }})"{% endif %}><img src="{{ f }}" alt="{{ i.titulo }} — foto {{ loop.index }} de {{ (fotos|length) or 1 }}" {{ 'fetchpriority=high' if loop.first else 'loading=lazy' }} decoding="async" draggable="false"></div>{% endfor %}</div></div>{% if fotos|length > 1 %}<button class="car-b car-n" type="button" onclick="carGo(1)" aria-label="Próxima foto">›</button><span class="car-count" id="carcount">1 / {{ fotos|length }}</span><div class="car-thumbs" id="carthumbs">{% for f in fotos %}<button type="button" class="car-t{{ ' on' if loop.first }}" onclick="carTo({{ loop.index0 }})" aria-label="Ver foto {{ loop.index }}"><img src="{{ f }}" alt="" loading="lazy" draggable="false"></button>{% endfor %}</div>{% endif %}</div>
 <div class="title-row"><div class="title"><span class="tag">{{ FINALIDADES[i.finalidade] }}</span><h1>{{ i.titulo }}</h1><div class="location">⌖ {% if i.rua %}{{ i.rua }}, {% endif %}{{ i.bairro }} — {{ i.cidade }}/{{ i.uf }}</div></div>
 <div class="actions2"><form class="inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="heart round{{ ' on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form><button class="round" type="button" onclick="share()" title="Compartilhar">↗</button></div></div>
 <div class="price">{{ i|preco }}</div>{% if i.condominio or i.iptu %}<div class="condo">{% if i.condominio %}Condomínio: R$ {{ i.condominio|num }}/mês{% endif %}{% if i.condominio and i.iptu %} • {% endif %}{% if i.iptu %}IPTU: R$ {{ i.iptu|num }}/mês{% endif %}</div>{% endif %}
