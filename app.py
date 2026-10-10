@@ -1052,7 +1052,7 @@ def _faixa_paginas(pagina, paginas):
 def home():
     destaques = query_all(
         f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
-        "WHERE i.status = 'publicado' AND t.status = 'ativo' ORDER BY i.destaque DESC, i.criado_em DESC LIMIT 4")
+        "WHERE i.status = 'publicado' AND t.status = 'ativo' AND i.destaque ORDER BY i.criado_em DESC LIMIT 4")
     total = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE status = 'publicado'")["n"]
     return render_template("home.html", destaques=preparar_imoveis(destaques, 640), total=total)
 
