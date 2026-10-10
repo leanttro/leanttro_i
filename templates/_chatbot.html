@@ -11,6 +11,7 @@
 #ioc .ioc-tip[hidden],#ioc .ioc-panel[hidden],#ioc .ioc-foot[hidden]{display:none}
 #ioc .ioc-tip button{position:absolute;top:4px;right:6px;border:0;background:none;font-size:16px;color:#68757d}
 #ioc .ioc-panel{position:fixed;right:20px;bottom:92px;z-index:9991;width:380px;max-width:calc(100vw - 24px);height:600px;max-height:calc(100vh - 110px);background:#fff;border-radius:18px;box-shadow:0 24px 70px #0006;display:flex;flex-direction:column;overflow:hidden}
+#ioc .ioc-panel{top:auto;overscroll-behavior:contain}#ioc .ioc-head,#ioc .ioc-foot{flex:none}#ioc .ioc-body{min-height:0}
 #ioc .ioc-head{background:#071421;color:#fff;padding:13px 14px;display:flex;align-items:center;gap:10px}
 #ioc .ioc-av{width:36px;height:36px;border-radius:50%;background:#39dc4b;color:#06150c;display:grid;place-items:center;font-weight:800}
 #ioc .ioc-head b{display:block;font-size:14px}#ioc .ioc-head small{font-size:11px;color:#9fb0b8}
@@ -69,7 +70,7 @@ var tokEl=root.querySelector('input[name=_csrf]'),NOME=root.dataset.nome,TEM_IA=
 var fab=root.querySelector('.ioc-fab'),panel=root.querySelector('.ioc-panel'),body=root.querySelector('.ioc-body'),foot=root.querySelector('.ioc-foot'),inp=foot.querySelector('input'),sendBtn=foot.querySelector('button'),tip=root.querySelector('.ioc-tip');
 var st={carregado:false,modo:null,busy:false,typing:null};
 function h(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
-function descer(){body.scrollTop=body.scrollHeight}
+function descer(){body.scrollTop=body.scrollHeight;panel.scrollTop=0}
 function api(url,corpo){return fetch(url,{method:corpo===undefined?'GET':'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':tokEl?tokEl.value:''},body:corpo===undefined?undefined:JSON.stringify(corpo),credentials:'same-origin'}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.erro||'Algo deu errado. Tente de novo.');e.status=r.status;throw e}return j})})}
 function fala(txt,quem){var m=h('div','ioc-m '+quem,txt);body.appendChild(m);descer();return m}
 function digitando(on){if(on&&!st.typing){st.typing=h('div','ioc-typing-w');st.typing.appendChild(h('i'));st.typing.appendChild(h('i'));st.typing.appendChild(h('i'));body.appendChild(st.typing);descer()}else if(!on&&st.typing){st.typing.remove();st.typing=null}}
@@ -134,7 +135,7 @@ function carregar(){
     else escolha(j.boas_vindas||('Oi! Eu sou a '+NOME+'. Como você prefere?'))})
   .catch(function(){escolha('Oi! Como você prefere?')})}
 function reiniciar(){api('/chat/api/reiniciar',{}).then(function(){st.carregado=false;carregar()}).catch(function(){st.carregado=false;carregar()})}
-function abrir(){panel.hidden=false;fab.setAttribute('aria-expanded','true');tip.hidden=true;try{sessionStorage.setItem('ioc_tip','1')}catch(e){}if(!st.carregado)carregar();else if(!foot.hidden)inp.focus()}
+function abrir(){panel.hidden=false;panel.scrollTop=0;fab.setAttribute('aria-expanded','true');tip.hidden=true;try{sessionStorage.setItem('ioc_tip','1')}catch(e){}if(!st.carregado)carregar();else if(!foot.hidden)inp.focus()}
 function fechar(){panel.hidden=true;fab.setAttribute('aria-expanded','false');fab.focus()}
 fab.onclick=function(){panel.hidden?abrir():fechar()};
 root.querySelector('.ioc-x').onclick=fechar;
