@@ -183,5 +183,6 @@ tabs.forEach(function(b){b.onclick=function(){tabs.forEach(function(x){x.classLi
 s.querySelector('.ond-p').onclick=function(){var t=cur();t.scrollBy({left:-t.clientWidth*.8,behavior:'smooth'})};
 s.querySelector('.ond-n').onclick=function(){var t=cur();t.scrollBy({left:t.clientWidth*.8,behavior:'smooth'})};
 window.addEventListener('resize',setas);setas()})();</script>
+{% include '_chatbot.html' %}
 </body>
 </html>
