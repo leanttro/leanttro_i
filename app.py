@@ -1036,6 +1036,7 @@ def consulta_imoveis(args, extra_where="", extra_params=(), por_pagina=POR_PAGIN
          "quartos": args.get("quartos", type=int), "vagas": args.get("vagas", type=int),
          "bairro": sanitize_input(args.get("bairro", "").strip())[:80],
          "cidade": sanitize_input(args.get("cidade", "").strip())[:80],
+         "uf": re.sub(r"[^A-Za-z]", "", args.get("uf", ""))[:2].upper(),
          "ordem": args.get("ordem", "relevantes") if args.get("ordem") in ORDENS else "relevantes"}
     if f["finalidade"] in FINALIDADES:
         where.append("i.finalidade = %s"); params.append(f["finalidade"])
@@ -1053,6 +1054,8 @@ def consulta_imoveis(args, extra_where="", extra_params=(), por_pagina=POR_PAGIN
         where.append("i.vagas >= %s"); params.append(f["vagas"])
     if f["bairro"]:
         where.append("i.bairro_slug LIKE %s"); params.append(f"%{gerar_slug(f['bairro'])}%")
+    if f["uf"]:
+        where.append("UPPER(i.uf) = %s"); params.append(f["uf"])
     if f["cidade"]:
         where.append("i.cidade_slug = %s"); params.append(gerar_slug(f["cidade"]))
     if f["q"]:
@@ -1129,11 +1132,44 @@ def home():
     return render_template("home.html", destaques=preparar_imoveis(destaques, 640), total=total, cidades=cidades_home())
 
 
+def rotulo_local(f):
+    """Texto do campo 'Cidade ou bairro' quando há um local escolhido (ex.: 'Pinheiros, São Paulo - SP')."""
+    if not f["cidade"]:
+        return ""  # só UF: o rótulo ('São Paulo (SP)') é montado no navegador
+    r = query_one("SELECT MIN(cidade) AS cidade, MIN(uf) AS uf FROM imoveis WHERE cidade_slug = %s",
+                  (gerar_slug(f["cidade"]),)) or {}
+    if not r.get("cidade"):
+        return ""
+    cidade = r["cidade"] + (f" - {r['uf'].upper()}" if r.get("uf") else "")
+    return f"{f['bairro']}, {cidade}" if f["bairro"] else cidade
+
+
 @app.route("/buscar")
 def buscar():
     lista, total, pagina, paginas, f = consulta_imoveis(request.args)
     return render_template("resultados.html", imoveis=lista, total=total, pagina=pagina, paginas=paginas,
-                           faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args))
+                           faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args),
+                           loc_label=rotulo_local(f))
+
+
+@app.route("/api/locais")
+def api_locais():
+    """Estados, cidades e bairros que têm imóvel publicado (alimenta o campo 'Cidade ou bairro')."""
+    where = ["i.status = 'publicado'", "t.status = 'ativo'"]
+    params = []
+    if request.args.get("finalidade") in FINALIDADES:
+        where.append("i.finalidade = %s"); params.append(request.args["finalidade"])
+    tipos = [x for x in request.args.getlist("tipo") if x in TIPOS_IMOVEL]
+    if tipos:
+        where.append("i.tipo = ANY(%s)"); params.append(tipos)
+    linhas = query_all(
+        "SELECT UPPER(COALESCE(i.uf, '')) AS uf, MIN(i.cidade) AS cidade, i.cidade_slug, MIN(i.bairro) AS bairro, "
+        "i.bairro_slug, COUNT(*) AS n FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
+        f"WHERE {' AND '.join(where)} GROUP BY UPPER(COALESCE(i.uf, '')), i.cidade_slug, i.bairro_slug "
+        "ORDER BY n DESC LIMIT 5000", params)
+    resp = jsonify([[r["uf"], r["cidade"], r["cidade_slug"], r["bairro"], r["bairro_slug"], r["n"]] for r in linhas])
+    resp.headers["Cache-Control"] = "public, max-age=60"
+    return resp
 
 
 @app.route("/imovel/<slug>")
