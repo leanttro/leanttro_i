@@ -2863,6 +2863,8 @@ def _system_ia(cfg, dados):
         "- \"pronto\" = true só quando já souber finalidade, tipo e (região ou orçamento), ou quando a pessoa pedir para ver as opções. "
         "Quando pronto for true, a resposta deve ser só um aviso curto de que vai buscar.\n"
         "- NUNCA invente imóveis, preços, endereços ou links. Quem mostra os imóveis é o sistema, depois que você marcar pronto = true.\n"
+        "- TODA resposta (enquanto pronto for false) TERMINA com UMA pergunta curta sobre o próximo dado que falta, nesta ordem: "
+        "finalidade, tipo, bairro/cidade, orçamento, quartos, vagas. Nunca responda só com uma confirmação.\n"
         "- Se a pessoa falar de outro assunto, responda em uma frase e volte para a busca do imóvel.\n"
         f"- Hoje é {_saudacao().lower()} no horário da pessoa.\n"
         f"- O que já se sabe do perfil: {json.dumps(dados, ensure_ascii=False) if dados else 'nada ainda'}")
@@ -2922,6 +2924,13 @@ def chat_api_ia():
     novo = normalizar_perfil(j.get("perfil"))
     d.update(novo)
     _perfil_salvar(sid, s["p"])
+    if j.get("pronto") is not True and "?" not in resposta:      # a IA esqueceu de perguntar: o sistema pergunta o que falta
+        falta = next((q for k, q in (("finalidade", "Você quer comprar ou alugar?"), ("tipo", "Que tipo de imóvel você procura?"),
+                                     ("local", "Em qual bairro ou cidade?"), ("preco_max", "Até quanto você pretende investir?"),
+                                     ("quartos", "Quantos quartos você precisa?")) if not (d.get("bairro") or d.get("cidade")) and k == "local"
+                      or k not in ("local",) and not d.get(k)), None)
+        if falta:
+            resposta = (resposta + " " + falta)[:600]
     saida = [_msg(sid, "bot", "texto", resposta, tokens=tokens, chave=chave)]
     if j.get("pronto") is True and (d.get("finalidade") or d.get("tipo") or d.get("bairro") or d.get("cidade")):
         busca = chat_buscar(d, cfg["qtd"])
