@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Imóveis perto de você</title>
+{% set seo_title = 'Imóveis perto de você | ImovelOnde' %}
+{% set seo_desc = 'Veja no mapa casas e apartamentos para comprar ou alugar perto da sua localização. Fale direto com o anunciante.' %}
+{% include '_seo.html' %}
 <style>
 
 :root{--green:#39dc4b;--green2:#20bd38;--dark:#071521;--text:#101d26;--muted:#68757d;--line:#e4eaed;--soft:#f5f8f9}
@@ -44,8 +46,8 @@ form.inline{display:inline;margin:0}
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-<header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}"><i>⌂</i>Imove<span>Londe</span></a>
-<nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a></nav>
+<header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}<i>⌂</i>Imovel<span>Onde</span>{% endif %}</a>
+<nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
 <div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
 <div class="searchbar"><div class="container"><form class="search" id="filtros" onsubmit="return false" style="grid-template-columns:2.3fr 1fr 1.15fr 1fr 78px">
 <label class="field">⌖ <input id="onde" value="Minha localização" readonly aria-label="Localização"></label>
