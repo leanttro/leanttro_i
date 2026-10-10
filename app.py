@@ -84,7 +84,7 @@ app.config.update(
 )
 os.makedirs(os.path.join(UPLOAD_DIR, "originais"), exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "cache"), exist_ok=True)
-# atrás do Traefik/Dokploy: respeita X-Forwarded-Proto/Host (https correto em sitemap, canonical e redirects)
+# atrás do Traefik/Dokploy: respeita X-Forwarded-Proto/Host (URLs https corretas no sitemap, canonical e redirects)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 
@@ -500,18 +500,19 @@ SITE_NOME = "ImovelOnde"
 SITE_TITULO = "ImovelOnde — Casas e apartamentos para comprar ou alugar"
 SITE_DESCRICAO = ("Encontre casas e apartamentos para comprar ou alugar perto de você. "
                   "Fale direto com o anunciante pelo WhatsApp.")
+SITE_WHATSAPP = re.sub(r"\D", "", os.environ.get("PORTAL_WHATSAPP", ""))   # ex.: 5511999999999 (opcional)
 SITE_DIR = os.path.join(UPLOAD_DIR, "site")
 os.makedirs(SITE_DIR, exist_ok=True)
 SITE_SLOTS = {
-    "logo": {"nome": "Logo", "max": 1200, "svg": True, "escuro": True,
+    "logo": {"nome": "Logo", "max": 1200, "svg": True, "escuro": True, "capa": False,
              "dica": "Versão para fundo ESCURO (aparece sobre a foto da home, no rodapé e no admin). PNG transparente ou SVG."},
-    "hero": {"nome": "Fundo da home (hero)", "max": 2400, "svg": False, "escuro": False,
+    "hero": {"nome": "Fundo da home (hero)", "max": 2400, "svg": False, "escuro": False, "capa": True,
              "dica": "Foto horizontal, ideal 2200×1100 px. A esquerda fica escurecida para o texto aparecer."},
-    "cta": {"nome": "Fundo da faixa final", "max": 2400, "svg": False, "escuro": False,
-            "dica": "Foto horizontal, ideal 2200×700 px. Se vazio, usa a mesma foto da home."},
-    "og": {"nome": "Imagem de compartilhamento", "max": 1200, "svg": False, "escuro": False,
-           "dica": "Aparece no preview do WhatsApp, Facebook e Google. Ideal 1200×630 px, JPG ou PNG."},
-    "favicon": {"nome": "Favicon (ícone da aba)", "max": 512, "svg": True, "escuro": False,
+    "cta": {"nome": "Fundo da faixa final", "max": 2400, "svg": False, "escuro": False, "capa": True,
+            "dica": "Foto horizontal, ideal 2200×700 px. Pode ser a mesma da home."},
+    "og": {"nome": "Imagem de compartilhamento", "max": 1200, "svg": False, "escuro": False, "capa": True,
+           "dica": "Aparece no preview do WhatsApp, Facebook e Google. Exatamente 1200×630 px, JPG ou PNG."},
+    "favicon": {"nome": "Favicon (ícone da aba)", "max": 512, "svg": True, "escuro": False, "capa": False,
                 "dica": "PNG quadrado 512×512 px (ou SVG), só o símbolo, sem texto."},
 }
 SITE_NOME_RE = re.compile(r"^[a-z0-9_-]{1,90}\.(png|jpg|webp|svg)$")
@@ -555,8 +556,10 @@ def site_salvar_imagem(arquivo, slot=None):
         raise ValueError("arquivo maior que 15 MB")
     cfg = SITE_SLOTS.get(slot, {})
     if b"<svg" in dados[:2048].lower():
-        if slot is None or not cfg.get("svg"):
-            raise ValueError("SVG só é aceito no logo e no favicon")
+        if slot is not None and not cfg.get("svg"):
+            raise ValueError("este campo não aceita SVG (use PNG, JPG ou WEBP)")
+        if slot is None:
+            raise ValueError("SVG só pode ser usado no logo e no favicon")
         txt = dados.decode("utf-8", "ignore")
         if re.search(r"<script|javascript:|\son\w+\s*=|<foreignobject|<iframe|<image", txt, re.I):
             raise ValueError("SVG com conteúdo não permitido (scripts/imagens embutidas)")
@@ -568,7 +571,8 @@ def site_salvar_imagem(arquivo, slot=None):
         if fmt not in MIME_OK:
             raise ValueError("use PNG, JPG ou WEBP")
         im = ImageOps.exif_transpose(im)
-        im.thumbnail((cfg.get("max", 2400),) * 2, Image.LANCZOS)
+        lim = cfg.get("max", 2400)
+        im.thumbnail((lim, lim), Image.LANCZOS)
         buf = io.BytesIO()
         if fmt == "PNG":
             im = im.convert("RGBA" if im.mode in ("P", "LA", "RGBA") else "RGB")
@@ -724,10 +728,10 @@ def _checar_csrf():
 def _site_ctx():
     base = base_url()
     og = site_url("og") or site_url("hero")
-    logo = site_url("logo")
-    return dict(nome=SITE_NOME, base=base, titulo=SITE_TITULO, descricao=SITE_DESCRICAO,
-                logo=logo, hero=site_url("hero"), cta=site_url("cta"), favicon=site_url("favicon"),
-                og=(base + og) if og else None, logo_abs=(base + logo) if logo else None)
+    return dict(nome=SITE_NOME, base=base, whatsapp=SITE_WHATSAPP, titulo=SITE_TITULO, descricao=SITE_DESCRICAO,
+                logo=site_url("logo"), hero=site_url("hero"), cta=site_url("cta"), favicon=site_url("favicon"),
+                og=(base + og) if og else None,
+                logo_abs=(base + site_url("logo")) if site_url("logo") else None)
 
 
 @app.context_processor
@@ -735,7 +739,8 @@ def _contexto():
     ctx = dict(usuario=g.get("usuario"), TIPOS_IMOVEL=TIPOS_IMOVEL, FINALIDADES=FINALIDADES, STATUS_IMOVEL=STATUS_IMOVEL,
                CATEGORIAS_PROXIMO=CATEGORIAS_PROXIMO, ICONES_PROXIMO=ICONES_PROXIMO, CARACTERISTICAS=CARACTERISTICAS,
                PLANOS=PLANOS, PRECO_PROFISSIONAL=PRECO_PROFISSIONAL, wa_link=wa_link, url_foto=url_foto,
-               SITE=_site_ctx(), canonical_url=canonical_url, ano=datetime.now(TZ).year,
+               SITE=_site_ctx(), canonical_url=canonical_url, tem_rota=lambda n: n in app.view_functions,
+               ano=datetime.now(TZ).year,
                csrf=lambda: Markup(f'<input type="hidden" name="_csrf" value="{_token_csrf()}">'))
     if g.get("usuario") and g.usuario["tipo"] == "admin" and request.endpoint and request.endpoint.startswith("admin_"):
         n = query_one("SELECT (SELECT COUNT(*) FROM imoveis WHERE status = 'pendente') + "
@@ -843,8 +848,8 @@ def cadastrar():
     nxt = nxt if seguro_next(nxt) else ""
     tipo = request.values.get("tipo", "visitante")
     tipo = tipo if tipo in TIPOS_CONTA else "visitante"
-    f = {"tipo": tipo, "nome": request.form.get("nome", ""), "email": request.form.get("email", ""),
-         "telefone": request.form.get("telefone", "")}
+    f = {"tipo": tipo, "nome": request.values.get("nome", "")[:120], "email": request.form.get("email", ""),
+         "telefone": request.values.get("telefone", "")[:30]}      # nome/telefone podem vir pré-preenchidos da home
     if request.method == "POST":
         nome, email, senha = sanitize_input(f["nome"]), f["email"].strip().lower(), request.form.get("senha", "")
         erro = None
@@ -1218,10 +1223,11 @@ def robots():
 def sitemap():
     base = base_url()
     itens = [(base + "/", None)]
-    for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia"):
-        itens.append((base + url_for(ep), None))
-    for r in query_all("SELECT slug, atualizado_em FROM imoveis i WHERE i.status = 'publicado' AND EXISTS "
-                       "(SELECT 1 FROM tenants t WHERE t.id = i.tenant_id AND t.status = 'ativo') ORDER BY i.id DESC LIMIT 5000"):
+    for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia", "para_empresas"):
+        if ep in app.view_functions:
+            itens.append((base + url_for(ep), None))
+    for r in query_all("SELECT slug, atualizado_em FROM imoveis i WHERE status = 'publicado' AND EXISTS "
+                       "(SELECT 1 FROM tenants t WHERE t.id = i.tenant_id AND t.status = 'ativo') ORDER BY id DESC LIMIT 5000"):
         itens.append((base + url_for("imovel", slug=r["slug"]), r["atualizado_em"]))
     for r in query_all("SELECT slug FROM tenants WHERE status = 'ativo' AND tipo = 'imobiliaria'"):
         itens.append((base + url_for("imobiliaria", slug=r["slug"]), None))
@@ -1973,8 +1979,8 @@ def admin_midia():
     for k, cfg in SITE_SLOTS.items():
         f = idx.get(k)
         slots.append(dict(cfg, chave=k, url=url_for("site_media", nome=f[0], v=f[1]) if f else None))
-    av = sorted(((f, v) for b, (f, v) in idx.items() if b.startswith("img-")), key=lambda x: -x[1])
-    avulsas = [dict(nome=f, url=url_for("site_media", nome=f, v=v), completa=base + url_for("site_media", nome=f)) for f, v in av]
+    avulsas = sorted(((b, f, v) for b, (f, v) in idx.items() if b.startswith("img-")), key=lambda x: -x[2])
+    avulsas = [dict(nome=f, url=url_for("site_media", nome=f, v=v), completa=base + url_for("site_media", nome=f)) for _, f, v in avulsas]
     return render_template("admin.html", slots=slots, avulsas=avulsas, vol=volume_info(), pagina_ativa="midia")
 
 
