@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 {% set _verbo = 'Alugar' if f.finalidade == 'aluguel' else 'Comprar' if f.finalidade == 'venda' else 'Comprar ou alugar' %}
 {% set _tipo = (TIPOS_IMOVEL[f.tipo[0]]|lower) if f.tipo|length == 1 else 'imóvel' %}
-{% set _filtrado = f.preco_min or f.preco_max or f.quartos or f.vagas or f.bairro or f.ordem != 'relevantes' or f.tipo|length > 1 or pagina > 1 %}
-{% set seo_title = _verbo ~ ' ' ~ _tipo ~ (' em ' ~ f.q if f.q else '') ~ ' | ' ~ SITE.nome %}
-{% set seo_desc = (total|num) ~ ' anúncios: ' ~ _verbo|lower ~ ' ' ~ _tipo ~ (' em ' ~ f.q if f.q else ' perto de você') ~ '. Veja fotos e preços e fale direto com o anunciante pelo WhatsApp.' %}
-{% if _filtrado or total == 0 %}{% set seo_robots = 'noindex,follow' %}{% set seo_canonical = 'none' %}{% else %}{% set seo_canonical = SITE.base ~ url_for('buscar', finalidade=(f.finalidade or none), tipo=(f.tipo[0] if f.tipo|length == 1 else none), q=(f.q or none)) %}{% endif %}
+{% set _filtrado = f.preco_min or f.preco_max or f.quartos or f.vagas or f.bairro or f.ordem != 'relevantes' or f.tipo|length > 1 or f.cidade or pagina > 1 %}
+{% if local %}{% set seo_title = local.titulo ~ ' | ' ~ SITE.nome %}{% set seo_desc = (total|num) ~ ' anúncios — ' ~ local.titulo ~ '. Veja fotos e preços e fale direto com o anunciante pelo WhatsApp.' %}{% else %}{% set seo_title = _verbo ~ ' ' ~ _tipo ~ (' em ' ~ f.q if f.q else '') ~ ' | ' ~ SITE.nome %}
+{% set seo_desc = (total|num) ~ ' anúncios: ' ~ _verbo|lower ~ ' ' ~ _tipo ~ (' em ' ~ f.q if f.q else ' perto de você') ~ '. Veja fotos e preços e fale direto com o anunciante pelo WhatsApp.' %}{% endif %}
+{% if local %}{% set _jl = [] %}{% for n, u in local.migalhas %}{% set _x = _jl.append({'@type': 'ListItem', 'position': loop.index, 'name': n, 'item': SITE.base ~ u}) %}{% endfor %}{% set seo_jsonld = [{'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': _jl}] %}{% endif %}
+{% if _filtrado or total == 0 %}{% set seo_robots = 'noindex,follow' %}{% set seo_canonical = 'none' %}{% elif local %}{% set seo_canonical = SITE.base ~ local.url %}{% else %}{% set seo_canonical = SITE.base ~ url_for('buscar', finalidade=(f.finalidade or none), tipo=(f.tipo[0] if f.tipo|length == 1 else none), q=(f.q or none)) %}{% endif %}
 {% include '_seo.html' %}
 <style>
 
@@ -39,16 +40,21 @@ form.inline{display:inline;margin:0}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
 .photo{background-color:#e9eef0;overflow:hidden}.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--g);outline-offset:2px}
+.crumb{font-size:11px;color:#748087;margin:0 0 12px}.crumb a:hover{color:#1eac31}.crumb span{color:#159c2d}
+.explore{margin-top:30px;background:#fff;border:1px solid var(--l);border-radius:10px;padding:20px}.explore h2{font-size:15px;margin:0 0 12px}.explore h2:not(:first-child){margin-top:22px}
+.explore ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px}.explore li{font-size:12px}.explore li a{color:#16a930}.explore li a:hover{text-decoration:underline}.explore small{color:var(--m)}
+@media(max-width:650px){.explore ul{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
 <form id="filtros" method="get" action="{{ url_for('buscar') }}"></form>
+{% if local %}<input form="filtros" type="hidden" name="cidade" id="hcidade" value="{{ local.cidade_slug }}">{% endif %}
 <header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}<i>⌂</i>Imovel<span>Onde</span>{% endif %}</a>
 <nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
 <div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
 <div class="top"><div class="c"><div class="search">
-<label class="f">⌖ <input form="filtros" name="q" value="{{ f.q }}" placeholder="Cidade ou bairro"></label>
+<label class="f">⌖ <input form="filtros" name="q" value="{{ f.q or (local.cidade if local else '') }}" placeholder="Cidade ou bairro"{% if local %} oninput="var h=document.getElementById('hcidade');if(h)h.disabled=true"{% endif %}></label>
 <label class="f">◉ <select form="filtros" name="finalidade"><option value="">Comprar ou alugar</option><option value="venda" {{ 'selected' if f.finalidade == 'venda' }}>Comprar</option><option value="aluguel" {{ 'selected' if f.finalidade == 'aluguel' }}>Alugar</option></select></label>
 <label class="f">⌂ <select form="filtros" name="tipo"><option value="">Tipo de imóvel</option>{% for k, v in TIPOS_IMOVEL.items() %}<option value="{{ k }}" {{ 'selected' if f.tipo and f.tipo[0] == k }}>{{ v }}</option>{% endfor %}</select></label>
 <label class="f">R$ <select form="filtros" name="preco_max"><option value="">Preço máximo</option>{% for v, r in [(3000, 'R$ 3 mil'), (5000, 'R$ 5 mil'), (300000, 'R$ 300 mil'), (500000, 'R$ 500 mil'), (800000, 'R$ 800 mil'), (1000000, 'R$ 1 milhão'), (2000000, 'R$ 2 milhões')] %}<option value="{{ v }}" {{ 'selected' if f.preco_max == v }}>Até {{ r }}</option>{% endfor %}</select></label>
@@ -57,9 +63,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 <div class="filter"><div class="ft">Preço mínimo (R$)</div><input form="filtros" class="small" name="preco_min" inputmode="numeric" placeholder="Ex.: 300.000" value="{{ f.preco_min|num if f.preco_min }}"></div>
 <div class="filter"><div class="ft">Quartos</div>{% for n in [1, 2, 3, 4] %}<label class="check"><input form="filtros" type="radio" name="quartos" value="{{ n }}" {{ 'checked' if f.quartos == n }}> {{ n }}+</label>{% endfor %}</div>
 <div class="filter"><div class="ft">Vagas</div>{% for n in [1, 2, 3] %}<label class="check"><input form="filtros" type="radio" name="vagas" value="{{ n }}" {{ 'checked' if f.vagas == n }}> {{ n }}+</label>{% endfor %}</div>
-<div class="filter"><div class="ft">Bairro</div><input form="filtros" class="small" name="bairro" placeholder="⌕ Digite um bairro" value="{{ f.bairro }}"></div>
+<div class="filter"><div class="ft">Bairro</div><input form="filtros" class="small" name="bairro" placeholder="⌕ Digite um bairro" value="{{ f.bairro or (local.bairro if local and local.bairro else '') }}"></div>
 <button class="apply" form="filtros">Aplicar filtros</button><a class="clear" href="{{ url_for('buscar') }}">Limpar filtros</a></aside>
-<section><div class="rh"><div><h1>{{ total|num }} imóve{{ 'l' if total == 1 else 'is' }} encontrado{{ '' if total == 1 else 's' }}</h1><p>Imóveis {{ 'para alugar' if f.finalidade == 'aluguel' else 'para comprar' if f.finalidade == 'venda' else 'à venda e para alugar' }}{% if f.q %} em {{ f.q }}{% endif %}</p></div>
+<section>{% if local %}<nav class="crumb" aria-label="Você está em">{% for n, u in local.migalhas %}{% if not loop.last %}<a href="{{ u }}">{{ n }}</a> › {% else %}<span>{{ n }}</span>{% endif %}{% endfor %}</nav>{% endif %}<div class="rh"><div>{% if local %}<h1>{{ local.titulo }}</h1><p>{{ total|num }} imóve{{ 'l' if total == 1 else 'is' }} encontrado{{ '' if total == 1 else 's' }}</p>{% else %}<h1>{{ total|num }} imóve{{ 'l' if total == 1 else 'is' }} encontrado{{ '' if total == 1 else 's' }}</h1><p>Imóveis {{ 'para alugar' if f.finalidade == 'aluguel' else 'para comprar' if f.finalidade == 'venda' else 'à venda e para alugar' }}{% if f.q %} em {{ f.q }}{% endif %}</p>{% endif %}</div>
 <div style="display:flex;gap:10px;align-items:center"><div class="sort">Ordenar por:<select form="filtros" name="ordem" onchange="this.form.submit()"><option value="relevantes">Mais relevantes</option><option value="menor" {{ 'selected' if f.ordem == 'menor' }}>Menor preço</option><option value="maior" {{ 'selected' if f.ordem == 'maior' }}>Maior preço</option><option value="recentes" {{ 'selected' if f.ordem == 'recentes' }}>Mais recentes</option></select></div>
 <div class="views"><a class="active" href="{{ url_for('buscar') }}?{{ qs() }}">☷ Lista</a><a href="{{ url_for('perto_de_mim') }}">⌖ Mapa</a></div></div></div>
 <div class="results">
@@ -68,7 +74,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 <div class="pricecol"><div class="price">{{ i|preco }}</div><form class="inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="heart{{ ' on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form><a class="details" href="{{ url_for('imovel', slug=i.slug) }}">Ver detalhes</a></div></article>
 {% else %}<div class="empty"><b>Nenhum imóvel encontrado.</b><br>Tente ampliar os filtros ou <a href="{{ url_for('buscar') }}" style="color:#16a930">limpar a busca</a>.</div>{% endfor %}
 </div>
-{% if paginas > 1 %}<div class="pages pagination">{% if pagina > 1 %}<a class="page" href="?{{ qs(pagina=pagina - 1) }}">‹</a>{% endif %}{% for p in faixa %}<a class="page{{ ' active' if p == pagina }}" href="?{{ qs(pagina=p) }}">{{ p }}</a>{% endfor %}{% if pagina < paginas %}<a class="page" href="?{{ qs(pagina=pagina + 1) }}">›</a>{% endif %}</div>{% endif %}</section></main>
+{% if paginas > 1 %}<div class="pages pagination">{% if pagina > 1 %}<a class="page" href="?{{ qs(pagina=pagina - 1) }}">‹</a>{% endif %}{% for p in faixa %}<a class="page{{ ' active' if p == pagina }}" href="?{{ qs(pagina=p) }}">{{ p }}</a>{% endfor %}{% if pagina < paginas %}<a class="page" href="?{{ qs(pagina=pagina + 1) }}">›</a>{% endif %}</div>{% endif %}{% if local and (local.explora_tipos or local.explora_bairros) %}<div class="explore">
+{% if local.explora_tipos %}<h2>Outros tipos de imóvel em {{ local.bairro or local.cidade }}</h2><ul>{% for l in local.explora_tipos %}<li><a href="{{ l.url }}">{{ l.rotulo }}</a> <small>({{ l.n }})</small></li>{% endfor %}</ul>{% endif %}
+{% if local.explora_bairros %}<h2>Bairros em {{ local.cidade }}</h2><ul>{% for l in local.explora_bairros %}<li><a href="{{ l.url }}">{{ l.rotulo }}</a> <small>({{ l.n }})</small></li>{% endfor %}</ul>{% endif %}
+</div>{% endif %}</section></main>
 <footer><div class="container c foot"><span>© {{ ano }} {{ SITE.nome }}</span><div class="links"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></div></div></footer>
 </body>
 </html>
