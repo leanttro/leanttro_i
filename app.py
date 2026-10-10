@@ -4,10 +4,12 @@ ImóvelOnde — portal imobiliário (Flask + PostgreSQL).
 Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
   PAGBANK_TOKEN, PAGBANK_SANDBOX, PAGBANK_WEBHOOK_TOKEN, PRECO_PROFISSIONAL, DEBUG, PORT
+  Avisos por e-mail (opcional): SMTP_USER, SMTP_SENHA, EMAIL_AVISOS, SMTP_HOST, SMTP_PORT
 Fotos: ficam num volume (UPLOAD_DIR) e são servidas por /assets/<id>?w=640 (redimensiona e guarda em cache).
 Os templates (templates/*.html) são HTML único, com CSS e JS no mesmo arquivo.
 """
-import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging, unicodedata
+import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging, unicodedata, smtplib, ssl, threading
+from email.message import EmailMessage
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import quote, urlparse
@@ -54,6 +56,12 @@ PAGBANK_SANDBOX = _bool("PAGBANK_SANDBOX", True)
 PAGBANK_WEBHOOK_TOKEN = os.environ.get("PAGBANK_WEBHOOK_TOKEN", "").strip()
 PRECO_PROFISSIONAL = float(os.environ.get("PRECO_PROFISSIONAL", "149.90"))
 TZ = ZoneInfo(os.environ.get("TZ_PORTAL", "America/Sao_Paulo"))
+# Avisos por e-mail (Gmail + senha de app de 16 dígitos). Sem SMTP_USER/SMTP_SENHA, os avisos ficam desligados.
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip()
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "").strip()
+SMTP_SENHA = os.environ.get("SMTP_SENHA", "").replace(" ", "")
+EMAIL_AVISOS = os.environ.get("EMAIL_AVISOS", "").strip() or ADMIN_EMAIL
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("imovelonde")
@@ -799,6 +807,42 @@ def admin_required(f):
     return w
 
 
+def _enviar_email(assunto, corpo):
+    """Envia um e-mail de aviso em segundo plano (nunca trava nem derruba a requisição)."""
+    if not (SMTP_USER and SMTP_SENHA and EMAIL_AVISOS):
+        return
+
+    def _job():
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = " ".join(assunto.split())[:150]
+            msg["From"] = f"{SITE_NOME} <{SMTP_USER}>"
+            msg["To"] = EMAIL_AVISOS
+            msg.set_content(corpo)
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as srv:
+                srv.starttls(context=ssl.create_default_context())
+                srv.login(SMTP_USER, SMTP_SENHA)
+                srv.send_message(msg)
+        except Exception:
+            log.exception("Falha ao enviar e-mail de aviso")
+
+    threading.Thread(target=_job, daemon=True).start()
+
+
+def avisar_novo_anuncio(imovel_id, editado=False):
+    """Avisa o admin que há um anúncio esperando aprovação."""
+    i = query_one("SELECT i.titulo, i.cidade, i.bairro, t.nome AS anunciante FROM imoveis i "
+                  "JOIN tenants t ON t.id = i.tenant_id WHERE i.id = %s", (imovel_id,))
+    if not i:
+        return
+    link = (BASE_URL or request.url_root.rstrip("/")) + "/admin/aprovacoes"
+    quando = "editado e voltou para análise" if editado else "novo anúncio aguardando aprovação"
+    _enviar_email(
+        f"[{SITE_NOME}] Anúncio {quando}: {i['titulo']}",
+        f"Anúncio {quando}.\n\nTítulo: {i['titulo']}\nAnunciante: {i['anunciante']}\n"
+        f"Local: {i['bairro']}, {i['cidade']}\n\nRevisar agora: {link}\n")
+
+
 def criar_usuario(nome, email, senha, tipo="visitante", telefone=None, cidade=None):
     """Cria o usuário (e o 'tenant' se for anunciante). Devolve o id do usuário."""
     nome = sanitize_input(nome)[:120]
@@ -1536,6 +1580,7 @@ def anunciante_imovel_novo():
              val["whatsapp"], val["lat"], val["lng"]))
         _gravar_proximos(iid, prox)
         _salvar_fotos(iid, t)
+        avisar_novo_anuncio(iid)
         flash("Imóvel enviado! Ele entra no ar assim que for aprovado.", "success")
         return redirect(url_for("anunciante_imoveis"))
     return _render_form_imovel(None, {}, [], [], [])
@@ -1551,7 +1596,8 @@ def anunciante_imovel_editar(imovel_id):
             for e in erros:
                 flash(e, "error")
             return _render_form_imovel(im, val, sel, prox, _fotos_do_imovel(imovel_id))
-        status = "pendente" if im["status"] == "rejeitado" else im["status"]
+        # Qualquer edição volta o anúncio para análise (evita aprovar um anúncio limpo e trocar o conteúdo depois).
+        status = "pendente"
         execute(
             "UPDATE imoveis SET titulo=%s, finalidade=%s, tipo=%s, preco=%s, condominio=%s, iptu=%s, cidade=%s, cidade_slug=%s, uf=%s, "
             "bairro=%s, bairro_slug=%s, dormitorios=%s, suites=%s, banheiros=%s, vagas=%s, area=%s, descricao=%s, caracteristicas=%s, "
@@ -1562,7 +1608,9 @@ def anunciante_imovel_editar(imovel_id):
              status, imovel_id))
         _gravar_proximos(imovel_id, prox)
         _salvar_fotos(imovel_id, t)
-        flash("Alterações salvas." + (" O anúncio voltou para análise." if status == "pendente" else ""), "success")
+        if im["status"] != "pendente":      # já estava na fila? não manda aviso repetido
+            avisar_novo_anuncio(imovel_id, editado=True)
+        flash("Alterações salvas. O anúncio voltou para análise e só reaparece no site depois de aprovado.", "success")
         return redirect(url_for("anunciante_imovel_editar", imovel_id=imovel_id))
     proximos = query_all("SELECT * FROM imovel_proximos WHERE imovel_id = %s ORDER BY id", (imovel_id,))
     return _render_form_imovel(im, im, [c for c in (im["caracteristicas"] or "").split("|") if c], proximos, _fotos_do_imovel(imovel_id))
