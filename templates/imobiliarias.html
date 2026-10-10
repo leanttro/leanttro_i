@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Encontre sua imobiliária</title>
+{% set seo_title = ('Imobiliárias e corretores' ~ (' — ' ~ q if q else '')) ~ ' | ImovelOnde' %}
+{% set seo_desc = 'Conheça imobiliárias e corretores que anunciam no ImovelOnde, veja os imóveis de cada um e fale direto pelo WhatsApp.' %}
+{% if q %}{% set seo_robots = 'noindex,follow' %}{% set seo_canonical = 'none' %}{% endif %}
+{% include '_seo.html' %}
 <style>
 
 :root{--g:#39dc4b;--g2:#20bd38;--d:#071521;--t:#101d26;--m:#68757d;--l:#e4eaed}
@@ -36,19 +39,19 @@ form.inline{display:inline;margin:0}
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-<header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}"><i>⌂</i>Imove<span>Londe</span></a>
-<nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a></nav>
+<header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}<i>⌂</i>Imovel<span>Onde</span>{% endif %}</a>
+<nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
 <div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
-<section class="hero"><div class="container"><h1>Encontre uma imobiliária</h1><p>Conheça imobiliárias e corretores cadastrados no ImoveLonde e encontre o profissional ideal para você.</p>
+<section class="hero"><div class="container"><h1>Encontre uma imobiliária</h1><p>Conheça imobiliárias e corretores cadastrados no ImovelOnde e encontre o profissional ideal para você.</p>
 <form class="search" method="get" action="{{ url_for('imobiliarias') }}" style="grid-template-columns:1fr 80px"><label class="field">⌕ <input name="q" value="{{ q }}" placeholder="Nome da imobiliária ou cidade"></label><button>Buscar</button></form></div></section>
-<main class="container content"><div class="top"><div><h2>{{ 'Resultados da busca' if q else 'Imobiliárias em destaque' }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no ImoveLonde</p></div></div>
+<main class="container content"><div class="top"><div><h2>{{ 'Resultados da busca' if q else 'Imobiliárias em destaque' }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no ImovelOnde</p></div></div>
 <div class="grid">
-{% for t in lista %}<article class="card"><div class="head"><div class="avatar">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="">{% else %}{{ t.nome|iniciais }}{% endif %}</div><div><div class="name">{{ t.nome }}</div>{% if t.verificada %}<div class="verified">✓ VERIFICAD{{ 'A' if t.tipo == 'imobiliaria' else 'O' }}</div>{% endif %}<div class="city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
-<div class="desc">{{ (t.descricao or 'Confira os imóveis anunciados no ImoveLonde.')[:140] }}</div>
+{% for t in lista %}<article class="card"><div class="head"><div class="avatar">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.nome }}" loading="lazy">{% else %}{{ t.nome|iniciais }}{% endif %}</div><div><div class="name">{{ t.nome }}</div>{% if t.verificada %}<div class="verified">✓ VERIFICAD{{ 'A' if t.tipo == 'imobiliaria' else 'O' }}</div>{% endif %}<div class="city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
+<div class="desc">{{ (t.descricao or 'Confira os imóveis anunciados no ImovelOnde.')[:140] }}</div>
 <div class="stats"><div class="stat"><strong>{{ t.n_imoveis }}</strong>imóve{{ 'l' if t.n_imoveis == 1 else 'is' }}</div><div class="stat"><strong>{{ t.anos_mercado if t.anos_mercado is not none else '—' }}</strong>anos</div><div class="stat"><strong>{{ 'Pro' if t.plano_efetivo == 'profissional' else 'Grátis' }}</strong>plano</div></div>
-<div class="card-actions"><a class="view" href="{{ url_for('imobiliaria', slug=t.slug) }}">Ver página</a>{% if t.whatsapp %}<a class="wa" href="{{ wa_link(t.whatsapp, 'Olá! Vi sua página no ImoveLonde.') }}" target="_blank" rel="noopener">◉</a>{% endif %}</div></article>
+<div class="card-actions"><a class="view" href="{{ url_for('imobiliaria', slug=t.slug) }}">Ver página</a>{% if t.whatsapp %}<a class="wa" href="{{ wa_link(t.whatsapp, 'Olá! Vi sua página no ImovelOnde.') }}" target="_blank" rel="noopener">◉</a>{% endif %}</div></article>
 {% else %}<div class="empty">Nenhuma imobiliária encontrada.</div>{% endfor %}</div>
-<section class="cta"><div><h3>Você é corretor ou imobiliária?</h3><p>Cadastre seus imóveis gratuitamente e comece a receber contatos pelo ImoveLonde.</p></div><a href="{{ url_for('cadastrar', tipo='imobiliaria') }}"><button>Quero anunciar meus imóveis</button></a></section></main>
-<footer><div class="container c foot"><span>© 2026 ImoveLonde</span><div class="links"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></div></div></footer>
+<section class="cta"><div><h3>Você é corretor ou imobiliária?</h3><p>Cadastre seus imóveis gratuitamente e comece a receber contatos pelo ImovelOnde.</p></div><a href="{{ url_for('cadastrar', tipo='imobiliaria') }}"><button>Quero anunciar meus imóveis</button></a></section></main>
+<footer><div class="container c foot"><span>© {{ ano }} {{ SITE.nome }}</span><div class="links"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></div></div></footer>
 </body>
 </html>
