@@ -11,20 +11,16 @@
 {% if local %}{% set _jl = [] %}{% for n, u in local.migalhas %}{% set _x = _jl.append({'@type': 'ListItem', 'position': loop.index, 'name': n, 'item': SITE.base ~ u}) %}{% endfor %}{% set seo_jsonld = [{'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': _jl}] %}{% endif %}
 {% if _filtrado or total == 0 %}{% set seo_robots = 'noindex,follow' %}{% set seo_canonical = 'none' %}{% elif local %}{% set seo_canonical = SITE.base ~ local.url %}{% else %}{% set seo_canonical = SITE.base ~ url_for('buscar', finalidade=(f.finalidade or none), tipo=(f.tipo[0] if f.tipo|length == 1 else none), q=(f.q or none)) %}{% endif %}
 {% include '_seo.html' %}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 
-:root{--g:#39dc4b;--d:#06141f;--t:#17232c;--m:#68757d;--l:#e3e9ec;--bg:#f7f9fa}*{box-sizing:border-box}body{margin:0;background:var(--bg);font:13px Arial,sans-serif;color:var(--t)}.c{width:min(1180px,calc(100% - 44px));margin:auto}header{height:70px;background:var(--d);color:#fff}.nav{height:100%;display:flex;align-items:center;gap:38px}.logo{font-size:25px;font-weight:800;letter-spacing:-1px}.logo b{color:var(--g)}.menu{display:flex;gap:28px;font-size:12px;font-weight:bold}.menu a{color:#fff}.actions{margin-left:auto;display:flex;gap:18px;font-size:12px}.top{background:#fff;border-bottom:1px solid var(--l);padding:15px 0}.search{height:48px;display:grid;grid-template-columns:2.2fr 1fr 1.15fr 1.05fr 78px;border:1px solid #dbe3e7;border-radius:10px;overflow:hidden;background:#fff}.f{display:flex;align-items:center;gap:9px;padding:0 14px;border-right:1px solid #e8edef;color:#67747c}.f input,.f select{width:100%;border:0;outline:0;background:transparent;font-size:12px;color:#34424a}.go{border:0;background:var(--g);color:#fff;font-weight:bold}.main{display:grid;grid-template-columns:255px 1fr;gap:24px;padding:24px 0 55px}.side{background:#fff;border:1px solid var(--l);border-radius:10px;padding:20px;height:max-content}.side h3{margin:0 0 18px;font-size:14px}.filter{border-top:1px solid #edf0f2;padding:15px 0}.filter:first-of-type{border-top:0;padding-top:0}.ft{display:flex;justify-content:space-between;font-weight:bold;font-size:12px;margin-bottom:11px}.check{display:block;color:#5c6870;font-size:11px;margin:9px 0}.check input{accent-color:var(--g)}.range{height:4px;background:#dce4e7;border-radius:4px;margin:19px 4px;position:relative}.range:before{content:"";position:absolute;left:15%;right:25%;height:4px;background:var(--g);border-radius:4px}.range:after{content:"";position:absolute;left:15%;top:-5px;width:14px;height:14px;background:#fff;border:3px solid var(--g);border-radius:50%;box-shadow:150px 0 0 -1px #fff,150px 0 0 2px var(--g)}.labs{display:flex;justify-content:space-between;color:#78848b;font-size:10px}.small{width:100%;height:34px;border:1px solid #dce3e7;border-radius:7px;padding:0 8px}.rh{display:flex;justify-content:space-between;align-items:end;margin-bottom:16px}.rh h1{font-size:21px;margin:0 0 5px}.rh p{font-size:11px;color:var(--m);margin:0}.sort{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--m)}.sort select{height:35px;border:1px solid var(--l);border-radius:7px;background:#fff;padding:0 10px;font-size:11px}.views button{height:35px;border:1px solid var(--l);background:#fff;padding:0 10px;font-size:10px}.views .active{background:#effbf1;color:#149c2b;font-weight:bold}.results{display:grid;gap:13px}.card{background:#fff;border:1px solid var(--l);border-radius:10px;padding:10px;display:grid;grid-template-columns:205px 1fr 100px;gap:16px;min-height:170px}.photo{height:150px;border-radius:7px;background-size:cover;background-position:center;position:relative}.badge{position:absolute;top:8px;left:8px;background:#188f43;color:#fff;padding:4px 7px;border-radius:4px;font-size:9px;font-weight:bold}.info{padding:4px 0}.type{color:#20a53a;font-size:10px;font-weight:bold;margin-bottom:5px}.info h2{font-size:17px;margin:0 0 6px}.spec,.loc{font-size:11px;color:#59666e;margin-bottom:9px}.desc{font-size:10px;color:#7a858b;line-height:1.45}.pricecol{text-align:right}.price{font-size:17px;font-weight:800;white-space:nowrap}.heart{margin:10px 0 16px auto;width:29px;height:29px;border:1px solid var(--l);border-radius:50%;display:grid;place-items:center;color:#65727a}.details{display:inline-block;border:1px solid #2bc541;color:#16a930;border-radius:7px;padding:7px 9px;font-size:9px;font-weight:bold}.pages{display:flex;justify-content:center;gap:5px;padding:22px}.page{width:29px;height:29px;border:1px solid var(--l);background:#fff;border-radius:6px;color:#68747b}.page.active{background:var(--g);color:#fff;border-color:var(--g)}@media(max-width:900px){.menu{display:none}.main{grid-template-columns:1fr}.side{display:none}.search{grid-template-columns:2fr 1fr 1fr 80px}.f:nth-child(4){display:none}}@media(max-width:650px){.c{width:calc(100% - 24px)}.actions{display:none}.search{display:block;height:auto;padding:5px}.f{height:42px;border-right:0;border-bottom:1px solid #edf0f2}.go{width:100%;height:42px;margin-top:5px}.rh{display:block}.sort{margin-top:12px}.card{grid-template-columns:120px 1fr;gap:10px}.photo{height:135px}.pricecol{grid-column:2;text-align:left}.heart{display:none}.desc{display:none}}
+:root{--g:#39dc4b;--d:#06141f;--t:#17232c;--m:#68757d;--l:#e3e9ec;--bg:#f7f9fa}*{box-sizing:border-box}body{margin:0;background:var(--bg);font:13px Arial,sans-serif;color:var(--t)}.c{width:min(1180px,calc(100% - 44px));margin:auto}.top{background:#fff;border-bottom:1px solid var(--l);padding:15px 0}.search{height:48px;display:grid;grid-template-columns:2.2fr 1fr 1.15fr 1.05fr 78px;border:1px solid #dbe3e7;border-radius:10px;overflow:hidden;background:#fff}.f{display:flex;align-items:center;gap:9px;padding:0 14px;border-right:1px solid #e8edef;color:#67747c}.f input,.f select{width:100%;border:0;outline:0;background:transparent;font-size:12px;color:#34424a}.go{border:0;background:var(--g);color:#fff;font-weight:bold}.main{display:grid;grid-template-columns:255px 1fr;gap:24px;padding:24px 0 55px}.side{background:#fff;border:1px solid var(--l);border-radius:10px;padding:20px;height:max-content}.side h3{margin:0 0 18px;font-size:14px}.filter{border-top:1px solid #edf0f2;padding:15px 0}.filter:first-of-type{border-top:0;padding-top:0}.ft{display:flex;justify-content:space-between;font-weight:bold;font-size:12px;margin-bottom:11px}.check{display:block;color:#5c6870;font-size:11px;margin:9px 0}.check input{accent-color:var(--g)}.range{height:4px;background:#dce4e7;border-radius:4px;margin:19px 4px;position:relative}.range:before{content:"";position:absolute;left:15%;right:25%;height:4px;background:var(--g);border-radius:4px}.range:after{content:"";position:absolute;left:15%;top:-5px;width:14px;height:14px;background:#fff;border:3px solid var(--g);border-radius:50%;box-shadow:150px 0 0 -1px #fff,150px 0 0 2px var(--g)}.labs{display:flex;justify-content:space-between;color:#78848b;font-size:10px}.small{width:100%;height:34px;border:1px solid #dce3e7;border-radius:7px;padding:0 8px}.rh{display:flex;justify-content:space-between;align-items:end;margin-bottom:16px}.rh h1{font-size:21px;margin:0 0 5px}.rh p{font-size:11px;color:var(--m);margin:0}.sort{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--m)}.sort select{height:35px;border:1px solid var(--l);border-radius:7px;background:#fff;padding:0 10px;font-size:11px}.views button{height:35px;border:1px solid var(--l);background:#fff;padding:0 10px;font-size:10px}.views .active{background:#effbf1;color:#149c2b;font-weight:bold}.pages{display:flex;justify-content:center;gap:5px;padding:22px}.page{width:29px;height:29px;border:1px solid var(--l);background:#fff;border-radius:6px;color:#68747b}.page.active{background:var(--g);color:#fff;border-color:var(--g)}@media(max-width:900px){.main{grid-template-columns:1fr}.side{display:none}.search{grid-template-columns:2fr 1fr 1fr 80px}.f:nth-child(4){display:none}}@media(max-width:650px){.c{width:calc(100% - 24px)}.search{display:block;height:auto;padding:5px}.f{height:42px;border-right:0;border-bottom:1px solid #edf0f2}.go{width:100%;height:42px;margin-top:5px}.rh{display:block}.sort{margin-top:12px}}
 
-a{color:inherit;text-decoration:none}header a{color:inherit}.actions a{color:inherit}
-.logo i{display:inline-grid;place-items:center;width:25px;height:25px;border:2px solid var(--g,var(--green));border-radius:6px;color:var(--g,var(--green));font-style:normal;font-size:14px;margin-right:7px}
+a{color:inherit;text-decoration:none}
 
-footer{background:#06121b;color:#aebbc2;padding:26px 0;font-size:11px}.foot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}.links{display:flex;gap:22px;flex-wrap:wrap}
 a.page{display:inline-grid;place-items:center}
 
-.logo span{color:#39dc4b}.logo i{margin-right:7px}
-.pricecol form.inline{display:block}.heart{margin:10px 0 16px auto;background:#fff}
-.photo a.cover{position:absolute;inset:0}
-.info h2 a:hover{color:#1eac31}
 .go{cursor:pointer}.apply{width:100%;height:38px;border:0;border-radius:8px;background:#39dc4b;color:#06150c;font-weight:bold;cursor:pointer;margin-top:6px}
 .clear{display:block;text-align:center;margin-top:10px;font-size:11px;color:#68757d}
 .empty{background:#fff;border:1px dashed #d4dde1;border-radius:10px;padding:50px 20px;text-align:center;color:#68757d}
@@ -38,21 +34,99 @@ form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
-.photo{background-color:#e9eef0;overflow:hidden}.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--g);outline-offset:2px}
 .crumb{font-size:11px;color:#748087;margin:0 0 12px}.crumb a:hover{color:#1eac31}.crumb span{color:#159c2d}
 .explore{margin-top:30px;background:#fff;border:1px solid var(--l);border-radius:10px;padding:20px}.explore h2{font-size:15px;margin:0 0 12px}.explore h2:not(:first-child){margin-top:22px}
 .explore ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px}.explore li{font-size:12px}.explore li a{color:#16a930}.explore li a:hover{text-decoration:underline}.explore small{color:var(--m)}
 @media(max-width:650px){.explore ul{grid-template-columns:1fr}}
+
+/* cabeçalho e rodapé: cópia exata dos da home */
+header,footer{--g:#39e44b;--ink:#071421;font-family:Inter,Arial,sans-serif}
+header .container,footer .container{width:min(1110px,calc(100% - 48px));margin:auto}
+header{position:relative;z-index:5;top:0;width:100%;background:var(--g);color:var(--ink);box-shadow:0 2px 14px #0002}
+header a{color:inherit}
+.nav{height:88px;display:flex;align-items:center;gap:40px}
+.logo{font-size:28px;font-weight:800;letter-spacing:-1.5px;display:inline-flex;align-items:center}
+.logo img{display:block;width:auto}header .logo img{filter:brightness(0)}
+.accent{color:var(--g)}header .accent{color:#fff}
+.mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--g);border-radius:7px;color:var(--g);margin-right:7px}header .mark{border-color:var(--ink);color:var(--ink)}
+.menu{display:flex;gap:30px;margin-left:auto;font-size:14px;font-weight:600}
+.actions{display:flex;gap:20px;margin-left:12px;font-size:14px}.actions a{white-space:nowrap}.actions .anunciar{display:none}
+.menu a:hover,.actions a:hover{color:#fff}
+.actions .anunciar{background:var(--ink)!important;color:#fff!important}
+.burger{display:none;width:44px;height:44px;margin-left:6px;padding:0;border:0;background:transparent;border-radius:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+.burger span{display:block;width:25px;height:2.5px;background:var(--ink);border-radius:2px;transition:transform .2s,opacity .2s}
+.burger[aria-expanded=true] span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+.burger[aria-expanded=true] span:nth-child(2){opacity:0}
+.burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+.mnav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);border-top:1px solid #ffffff1f;box-shadow:0 16px 30px #0007;padding:8px 0 14px}
+.mnav.on{display:block}
+.mnav a{display:block;padding:15px 22px;font-size:16px;font-weight:650;color:#fff}
+.mnav a:active{background:#ffffff14}
+.mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
+@media(max-width:1000px){.menu{gap:15px}}
+@media(max-width:700px){header .container,footer .container{width:calc(100% - 28px)}.nav{height:76px;gap:10px}.nav .logo img{height:52px!important}.menu,.actions .near{display:none}.actions{margin-left:auto}.actions .anunciar{display:inline-block;background:var(--g);color:#06150c;font-weight:800;padding:9px 15px;border-radius:20px}.actions a:not(.anunciar){display:none}.burger{display:flex;margin-left:0}}
+@media(min-width:701px){.mnav{display:none!important}}
+footer{background:#eef3f4;color:#56636b;padding:26px 0;font-size:11px}footer a:hover{color:#15993a}
+.foot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}.links{display:flex;gap:22px;flex-wrap:wrap}
+.legal{margin:16px 0 0;font-size:11px;line-height:1.65;color:#6b7a83;max-width:780px}
+@media(max-width:700px){.foot{display:block}.links{margin-top:15px}}
+
+/* card de resultado */
+.results{display:grid;gap:20px}
+.card{position:relative;font-family:Inter,Arial,sans-serif;background:#fff;border:1px solid #e1e8eb;border-radius:20px;padding:12px;display:grid;grid-template-columns:272px minmax(0,1fr) auto;gap:24px;box-shadow:0 4px 18px #07142112;transition:box-shadow .2s,border-color .2s,transform .2s}
+@media(hover:hover){.card:hover{box-shadow:0 14px 34px #07142124;border-color:var(--g);transform:translateY(-2px)}}
+.photo{position:relative;width:100%;aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f6;border:1px solid #e6ecee}
+.slides{display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.slides::-webkit-scrollbar{display:none}
+.slide{flex:0 0 100%;height:100%;scroll-snap-align:center;display:block}
+.slide img{display:block;width:100%;height:100%;object-fit:contain;background:#f1f5f6}
+.badge{position:absolute;top:12px;left:12px;z-index:2;background:#188f43;color:#fff;padding:7px 13px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;box-shadow:0 2px 8px #0003}
+.favform{position:absolute;top:10px;right:10px;z-index:3;margin:0}
+.heart{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:#fffffff2;box-shadow:0 2px 10px #0003;font-size:20px;line-height:1;color:#56636b;cursor:pointer;padding:0}
+.heart.on{color:#e0384a}
+.cnt{position:absolute;right:12px;bottom:12px;z-index:2;background:#071421cc;color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;pointer-events:none}
+.nv{display:none;position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:36px;height:36px;place-items:center;border:0;border-radius:50%;background:#fffffff2;box-shadow:0 2px 10px #0003;font-size:24px;line-height:1;padding:0 0 3px;color:#071421;cursor:pointer}
+.nv.p{left:10px}.nv.n{right:10px}
+@media(hover:hover){.photo:hover .nv{display:grid}}
+.info{display:flex;flex-direction:column;min-width:0;padding:8px 0}
+.type{color:#15993a;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px}
+.info h2{font-size:23px;line-height:1.2;font-weight:800;letter-spacing:-.5px;margin:0 0 14px}
+.info h2 a:hover{color:#15993a}
+.spec{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.spec span{display:inline-flex;align-items:center;gap:7px;background:#eaf8ec;color:#0c3a18;font-size:13px;font-weight:700;padding:8px 13px;border-radius:999px}
+.spec svg{width:17px;height:17px;flex:none}
+.loc{font-size:15px;font-weight:600;color:#33424b;margin-bottom:12px}
+.desc{font-size:13px;line-height:1.55;color:#6a7780;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pricecol{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:16px;text-align:right;padding:8px 8px 8px 0}
+.price{font-size:28px;line-height:1.05;font-weight:800;letter-spacing:-1.2px;color:var(--d);white-space:nowrap}
+.details{display:inline-block;background:var(--g);color:#06150c;border-radius:13px;padding:14px 22px;font-size:14px;font-weight:800;white-space:nowrap;transition:filter .15s}
+.details:hover{filter:brightness(.93)}
+@media(max-width:900px){.card{grid-template-columns:240px minmax(0,1fr);gap:20px}.pricecol{grid-column:1/-1;flex-direction:row;align-items:center;padding:0 6px 4px}}
+@media(max-width:650px){
+.results{gap:18px}
+.card{display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden;border-radius:18px}
+.photo{border-radius:0;border:0;border-bottom:1px solid #e6ecee}
+.pricecol{order:2;flex-direction:row;align-items:center;justify-content:space-between;padding:14px 16px 0}
+.info{order:3;padding:10px 16px 18px}
+.price{font-size:26px}
+.details{padding:11px 16px;font-size:13px}
+.info h2{font-size:20px;margin-bottom:12px}
+.desc{-webkit-line-clamp:2}
+}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
 <form id="filtros" method="get" action="{{ url_for('buscar') }}"></form>
 {% if local %}<input form="filtros" type="hidden" name="cidade" id="hcidade" value="{{ local.cidade_slug }}">{% endif %}
-<header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}<i>⌂</i>Imovel<span>Onde</span>{% endif %}</a>
-<nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
-<div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Imóvel<span class="accent">Onde</span>{%- endif -%}
+{%- endmacro %}
+<header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
+<nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
+<div class="actions"><a class="anunciar" href="{{ url_for('anuncie') }}">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
+<nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
 <div class="top"><div class="c"><div class="search">
 <label class="f">⌖ <input form="filtros" name="q" value="{{ f.q or (local.cidade if local else '') }}" placeholder="Cidade ou bairro"{% if local %} oninput="var h=document.getElementById('hcidade');if(h)h.disabled=true"{% endif %}></label>
 <label class="f">◉ <select form="filtros" name="finalidade"><option value="">Comprar ou alugar</option><option value="venda" {{ 'selected' if f.finalidade == 'venda' }}>Comprar</option><option value="aluguel" {{ 'selected' if f.finalidade == 'aluguel' }}>Alugar</option></select></label>
@@ -69,15 +143,26 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 <div style="display:flex;gap:10px;align-items:center"><div class="sort">Ordenar por:<select form="filtros" name="ordem" onchange="this.form.submit()"><option value="relevantes">Mais relevantes</option><option value="menor" {{ 'selected' if f.ordem == 'menor' }}>Menor preço</option><option value="maior" {{ 'selected' if f.ordem == 'maior' }}>Maior preço</option><option value="recentes" {{ 'selected' if f.ordem == 'recentes' }}>Mais recentes</option></select></div>
 <div class="views"><a class="active" href="{{ url_for('buscar') }}?{{ qs() }}">☷ Lista</a><a href="{{ url_for('perto_de_mim') }}">⌖ Mapa</a></div></div></div>
 <div class="results">
-{% for i in imoveis %}<article class="card"><div class="photo"><img src="{{ i.foto }}"{% if i.capa %} srcset="{{ url_foto(i.capa, 240) }} 240w, {{ url_foto(i.capa, 320) }} 320w, {{ url_foto(i.capa, 480) }} 480w" sizes="(max-width:650px) 120px, 205px"{% endif %} alt="{{ TIPOS_IMOVEL[i.tipo] }} {{ 'à venda' if i.finalidade == 'venda' else 'para alugar' }} em {{ i.bairro }}, {{ i.cidade }} — {{ i.titulo }}" width="480" height="320" {{ 'fetchpriority=high' if loop.first else 'loading=lazy' }} decoding="async"><a class="cover" href="{{ url_for('imovel', slug=i.slug) }}" aria-label="{{ i.titulo }}"></a><span class="badge">{{ FINALIDADES[i.finalidade] }}</span></div>
-<div class="info"><div class="type">{{ TIPOS_IMOVEL[i.tipo] }}</div><h2><a href="{{ url_for('imovel', slug=i.slug) }}">{{ i.titulo }}</a></h2><div class="spec">{{ i.dormitorios }} quarto{{ 's' if i.dormitorios != 1 }}　|　{{ i.vagas }} vaga{{ 's' if i.vagas != 1 }}　|　{{ i.area|num if i.area else '—' }} m²</div><div class="loc">⌖ {{ i.bairro }} - {{ i.cidade }}/{{ i.uf }}</div><div class="desc">{{ (i.descricao or '')[:140] }}{{ '…' if (i.descricao or '')|length > 140 }}</div></div>
-<div class="pricecol"><div class="price">{{ i|preco }}</div><form class="inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="heart{{ ' on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form><a class="details" href="{{ url_for('imovel', slug=i.slug) }}">Ver detalhes</a></div></article>
+{% for i in imoveis %}{% set pri = loop.first %}{% set fs = i.fotos or ([i.capa] if i.capa else []) %}{% set alt = TIPOS_IMOVEL[i.tipo] ~ (' à venda' if i.finalidade == 'venda' else ' para alugar') ~ ' em ' ~ i.bairro ~ ', ' ~ i.cidade ~ ' — ' ~ i.titulo %}<article class="card"><div class="photo"><div class="slides">{% for fid in fs %}<a class="slide" href="{{ url_for('imovel', slug=i.slug) }}"{% if not loop.first %} tabindex="-1" aria-hidden="true"{% else %} aria-label="{{ i.titulo }}"{% endif %}><img src="{{ url_foto(fid, 480) }}" srcset="{{ url_foto(fid, 320) }} 320w, {{ url_foto(fid, 480) }} 480w, {{ url_foto(fid, 640) }} 640w, {{ url_foto(fid, 960) }} 960w" sizes="(max-width:650px) 100vw, 272px" alt="{{ alt }}{{ ' — foto ' ~ loop.index if not loop.first }}" width="480" height="480" {{ 'fetchpriority=high' if pri and loop.first else 'loading=lazy' }} decoding="async"></a>{% else %}<a class="slide" href="{{ url_for('imovel', slug=i.slug) }}" aria-label="{{ i.titulo }}"><img src="{{ i.foto }}" alt="{{ alt }}" width="480" height="480" {{ 'fetchpriority=high' if pri else 'loading=lazy' }} decoding="async"></a>{% endfor %}</div><span class="badge">{{ FINALIDADES[i.finalidade] }}</span>{% if fs|length > 1 %}<button class="nv p" type="button" aria-label="Foto anterior">‹</button><button class="nv n" type="button" aria-label="Próxima foto">›</button><span class="cnt">1/{{ fs|length }}</span>{% endif %}<form class="inline favform" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="heart{{ ' on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form></div>
+<div class="info"><div class="type">{{ TIPOS_IMOVEL[i.tipo] }}</div><h2><a href="{{ url_for('imovel', slug=i.slug) }}">{{ i.titulo }}</a></h2><div class="spec"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11" r="1.6"/></svg>{{ i.dormitorios }} quarto{{ 's' if i.dormitorios != 1 }}</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 16l1.6-5.2A2 2 0 0 1 8.5 9.4h7a2 2 0 0 1 1.9 1.4L19 16M4 16h16v3h-2.5v-1.5h-11V19H4zM8 13h.01M16 13h.01"/></svg>{{ i.vagas }} vaga{{ 's' if i.vagas != 1 }}</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4zM4 9h5M4 14h3M9 4v5"/></svg>{{ i.area|num if i.area else '—' }} m²</span></div><div class="loc">⌖ {{ i.bairro }} - {{ i.cidade }}/{{ i.uf }}</div><div class="desc">{{ (i.descricao or '')[:140] }}{{ '…' if (i.descricao or '')|length > 140 }}</div></div>
+<div class="pricecol"><div class="price">{{ i|preco }}</div><a class="details" href="{{ url_for('imovel', slug=i.slug) }}">Ver detalhes</a></div></article>
 {% else %}<div class="empty"><b>Nenhum imóvel encontrado.</b><br>Tente ampliar os filtros ou <a href="{{ url_for('buscar') }}" style="color:#16a930">limpar a busca</a>.</div>{% endfor %}
 </div>
 {% if paginas > 1 %}<div class="pages pagination">{% if pagina > 1 %}<a class="page" href="?{{ qs(pagina=pagina - 1) }}">‹</a>{% endif %}{% for p in faixa %}<a class="page{{ ' active' if p == pagina }}" href="?{{ qs(pagina=p) }}">{{ p }}</a>{% endfor %}{% if pagina < paginas %}<a class="page" href="?{{ qs(pagina=pagina + 1) }}">›</a>{% endif %}</div>{% endif %}{% if local and (local.explora_tipos or local.explora_bairros) %}<div class="explore">
 {% if local.explora_tipos %}<h2>Outros tipos de imóvel em {{ local.bairro or local.cidade }}</h2><ul>{% for l in local.explora_tipos %}<li><a href="{{ l.url }}">{{ l.rotulo }}</a> <small>({{ l.n }})</small></li>{% endfor %}</ul>{% endif %}
 {% if local.explora_bairros %}<h2>Bairros em {{ local.cidade }}</h2><ul>{% for l in local.explora_bairros %}<li><a href="{{ l.url }}">{{ l.rotulo }}</a> <small>({{ l.n }})</small></li>{% endfor %}</ul>{% endif %}
 </div>{% endif %}</section></main>
-<footer><div class="container c foot"><span>© {{ ano }} {{ SITE.nome }}</span><div class="links"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></div></div></footer>
+<footer><div class="container"><div class="foot"><span>© {{ ano }} {{ SITE.nome }}</span><nav class="links" aria-label="Rodapé"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('anuncie') }}">Anunciar imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></nav></div>
+<p class="legal">Portal de divulgação de anúncios, sem intermediação: a negociação é feita diretamente entre anunciante e interessado.</p></div></footer>
+<script>(function(){function upd(s){var p=s.parentNode,t=s.children.length,n=Math.round(s.scrollLeft/(s.clientWidth||1)),c=p.querySelector('.cnt'),a=p.querySelector('.nv.p'),z=p.querySelector('.nv.n');if(c)c.textContent=(n+1)+'/'+t;if(a)a.style.visibility=n<=0?'hidden':'';if(z)z.style.visibility=n>=t-1?'hidden':''}
+document.querySelectorAll('.slides').forEach(function(s){s.addEventListener('scroll',function(){upd(s)},{passive:true});upd(s)});
+document.addEventListener('click',function(e){var b=e.target.closest('.nv');if(!b)return;var s=b.parentNode.querySelector('.slides');s.scrollBy({left:(b.classList.contains('n')?1:-1)*s.clientWidth,behavior:'smooth'})})})();</script>
+<script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
+function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
+b.onclick=function(){set(!m.classList.contains('on'))};
+m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
+document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
+window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
 </body>
 </html>
