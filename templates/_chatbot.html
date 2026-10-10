@@ -1,0 +1,149 @@
+{% if chat_ativo() %}{% set CP = chat_pub() %}
+<div id="ioc" data-nome="{{ CP.nome }}" data-ia="{{ '1' if CP.ia else '0' }}">{{ csrf() }}
+<style>
+#ioc,#ioc *{box-sizing:border-box}
+#ioc{font-family:Inter,Arial,sans-serif;font-size:14px;color:#071421}
+#ioc button{font-family:inherit;cursor:pointer}
+#ioc .ioc-fab{position:fixed;right:20px;bottom:20px;z-index:9990;width:60px;height:60px;border:0;border-radius:50%;background:#39dc4b;color:#06150c;box-shadow:0 10px 28px #0005;display:grid;place-items:center;transition:transform .2s}
+#ioc .ioc-fab:hover{transform:scale(1.07)}
+#ioc .ioc-fab svg{width:28px;height:28px}
+#ioc .ioc-tip{position:fixed;right:90px;bottom:30px;z-index:9990;background:#fff;color:#071421;border-radius:14px 14px 4px 14px;padding:11px 32px 11px 14px;box-shadow:0 8px 26px #0003;font-size:13px;font-weight:600;max-width:220px;line-height:1.35}
+#ioc .ioc-tip[hidden],#ioc .ioc-panel[hidden],#ioc .ioc-foot[hidden]{display:none}
+#ioc .ioc-tip button{position:absolute;top:4px;right:6px;border:0;background:none;font-size:16px;color:#68757d}
+#ioc .ioc-panel{position:fixed;right:20px;bottom:92px;z-index:9991;width:380px;max-width:calc(100vw - 24px);height:600px;max-height:calc(100vh - 110px);background:#fff;border-radius:18px;box-shadow:0 24px 70px #0006;display:flex;flex-direction:column;overflow:hidden}
+#ioc .ioc-head{background:#071421;color:#fff;padding:13px 14px;display:flex;align-items:center;gap:10px}
+#ioc .ioc-av{width:36px;height:36px;border-radius:50%;background:#39dc4b;color:#06150c;display:grid;place-items:center;font-weight:800}
+#ioc .ioc-head b{display:block;font-size:14px}#ioc .ioc-head small{font-size:11px;color:#9fb0b8}
+#ioc .ioc-head .sp{flex:1}
+#ioc .ioc-head button{border:0;background:#ffffff1a;color:#fff;border-radius:8px;height:32px;min-width:32px;padding:0 9px;font-size:12px;font-weight:700}
+#ioc .ioc-head button:hover{background:#ffffff33}
+#ioc .ioc-body{position:relative;flex:1;overflow-y:auto;padding:16px 14px;background:#f4f7f8;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+#ioc .ioc-m{max-width:88%;padding:10px 13px;border-radius:15px;line-height:1.45;word-wrap:break-word;white-space:pre-wrap}
+#ioc .ioc-m.a{background:#fff;border:1px solid #e3e9ec;border-bottom-left-radius:4px;align-self:flex-start}
+#ioc .ioc-m.u{background:#071421;color:#fff;border-bottom-right-radius:4px;align-self:flex-end}
+#ioc .ioc-ops{display:flex;flex-wrap:wrap;gap:7px;margin-top:2px}
+#ioc .ioc-op{border:1.5px solid #39dc4b;background:#fff;color:#071421;border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700}
+#ioc .ioc-op:hover{background:#eaf9ec}
+#ioc .ioc-op.on{background:#39dc4b;color:#06150c}
+#ioc .ioc-op.go{background:#071421;border-color:#071421;color:#fff}
+#ioc .ioc-op:disabled{opacity:.45;cursor:default}
+#ioc .ioc-free{display:flex;gap:6px;margin-top:8px;width:100%}
+#ioc .ioc-free input{flex:1;min-width:0;border:1.5px solid #d9dfe2;border-radius:20px;padding:8px 13px;font:inherit;font-size:13px;outline:0}
+#ioc .ioc-free input:focus{border-color:#071421}
+#ioc .ioc-typing-w{align-self:flex-start;background:#fff;border:1px solid #e3e9ec;border-radius:15px;padding:12px 14px;display:flex;gap:4px}
+#ioc .ioc-typing-w i{width:7px;height:7px;border-radius:50%;background:#9aa8af;animation:iocb 1s infinite}
+#ioc .ioc-typing-w i:nth-child(2){animation-delay:.15s}#ioc .ioc-typing-w i:nth-child(3){animation-delay:.3s}
+@keyframes iocb{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+#ioc .ioc-cards{display:grid;gap:10px;width:100%}
+#ioc a.ioc-card{display:block;background:#fff;border:1px solid #e3e9ec;border-radius:13px;overflow:hidden;color:inherit;text-decoration:none;box-shadow:0 2px 10px #0714210d}
+#ioc a.ioc-card:hover{box-shadow:0 6px 18px #07142120}
+#ioc .ioc-pic{position:relative;aspect-ratio:16/9;background:#e9eef0 center/cover no-repeat}
+#ioc .ioc-mt{position:absolute;top:8px;left:8px;background:#188e43;color:#fff;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:800}
+#ioc .ioc-b{padding:10px 12px 12px}
+#ioc .ioc-pr{font-weight:800;font-size:16px}
+#ioc .ioc-t{font-size:13px;font-weight:600;margin-top:3px}
+#ioc .ioc-l,#ioc .ioc-s{font-size:12px;color:#56636b;margin-top:3px}
+#ioc .ioc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+#ioc .ioc-tags span{font-size:10.5px;padding:3px 7px;border-radius:10px;background:#eaf9ec;color:#168e29;font-weight:700}
+#ioc .ioc-tags span.f{background:#fff4d8;color:#9b6900}
+#ioc a.ioc-all{display:block;text-align:center;background:#39dc4b;color:#06150c;border-radius:22px;padding:11px;font-weight:800;text-decoration:none;margin-top:2px}
+#ioc .ioc-again{border:0;background:none;color:#56636b;font-size:12px;font-weight:700;text-decoration:underline;margin-top:6px;align-self:center}
+#ioc .ioc-foot{border-top:1px solid #e3e9ec;background:#fff;padding:10px;display:flex;gap:8px}
+#ioc .ioc-foot input{flex:1;min-width:0;border:1.5px solid #d9dfe2;border-radius:22px;padding:11px 15px;font:inherit;font-size:14px;outline:0}
+#ioc .ioc-foot input:focus{border-color:#071421}
+#ioc .ioc-foot button{border:0;background:#39dc4b;color:#06150c;border-radius:50%;width:44px;height:44px;font-size:18px;font-weight:800}
+#ioc .ioc-foot button:disabled{opacity:.5}
+@media(max-width:600px){ #ioc .ioc-panel{right:0;left:0;bottom:0;top:0;width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0}#ioc .ioc-fab{right:14px;bottom:14px}#ioc .ioc-tip{right:82px;bottom:22px}}
+</style>
+<div class="ioc-tip" hidden role="status"><span>Posso te ajudar a achar o imóvel ideal? 🏡</span><button type="button" aria-label="Fechar">×</button></div>
+<button type="button" class="ioc-fab" aria-label="Abrir chat com {{ CP.nome }}" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg></button>
+<section class="ioc-panel" hidden role="dialog" aria-label="Chat com {{ CP.nome }}">
+<div class="ioc-head"><div class="ioc-av">{{ CP.nome[:1]|upper }}</div><div><b>{{ CP.nome }}</b><small>Assistente de imóveis</small></div><div class="sp"></div><button type="button" class="ioc-rs" title="Recomeçar a conversa">Recomeçar</button><button type="button" class="ioc-x" aria-label="Fechar">×</button></div>
+<div class="ioc-body" aria-live="polite"></div>
+<form class="ioc-foot" hidden autocomplete="off"><input type="text" maxlength="500" placeholder="Escreva sua mensagem…" aria-label="Mensagem"><button type="submit" aria-label="Enviar">➤</button></form>
+</section>
+<script>
+(function(){
+var root=document.getElementById('ioc');if(!root)return;
+var tokEl=root.querySelector('input[name=_csrf]'),NOME=root.dataset.nome,TEM_IA=root.dataset.ia==='1';
+var fab=root.querySelector('.ioc-fab'),panel=root.querySelector('.ioc-panel'),body=root.querySelector('.ioc-body'),foot=root.querySelector('.ioc-foot'),inp=foot.querySelector('input'),sendBtn=foot.querySelector('button'),tip=root.querySelector('.ioc-tip');
+var st={carregado:false,modo:null,busy:false,typing:null};
+function h(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function descer(){body.scrollTop=body.scrollHeight}
+function api(url,corpo){return fetch(url,{method:corpo===undefined?'GET':'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':tokEl?tokEl.value:''},body:corpo===undefined?undefined:JSON.stringify(corpo),credentials:'same-origin'}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.erro||'Algo deu errado. Tente de novo.');e.status=r.status;throw e}return j})})}
+function fala(txt,quem){var m=h('div','ioc-m '+quem,txt);body.appendChild(m);descer();return m}
+function digitando(on){if(on&&!st.typing){st.typing=h('div','ioc-typing-w');st.typing.appendChild(h('i'));st.typing.appendChild(h('i'));st.typing.appendChild(h('i'));body.appendChild(st.typing);descer()}else if(!on&&st.typing){st.typing.remove();st.typing=null}}
+function travar(on){st.busy=on;inp.disabled=on;sendBtn.disabled=on}
+function travarOpcoes(box,escolhido){box.querySelectorAll('button,input').forEach(function(b){b.disabled=true});if(escolhido)escolhido.classList.add('on')}
+function recomecarBtn(){var b=h('button','ioc-again','Recomeçar a conversa');b.type='button';b.onclick=reiniciar;body.appendChild(b)}
+
+function opcoesPasso(passo,wrap){
+  var box=h('div','ioc-ops');wrap.appendChild(box);var sel=[];
+  passo.opcoes.forEach(function(o){var b=h('button','ioc-op',o.r);b.type='button';
+    b.onclick=function(){
+      if(passo.multi){var i=sel.indexOf(o.v);if(i>=0){sel.splice(i,1);b.classList.remove('on')}else{sel.push(o.v);b.classList.add('on')}return}
+      travarOpcoes(box,b);if(fr)fr.querySelectorAll('input,button').forEach(function(x){x.disabled=true});responder(passo.chave,o.v,o.r)};
+    box.appendChild(b)});
+  var fr=null;
+  if(passo.multi){var go=h('button','ioc-op go','Continuar');go.type='button';go.onclick=function(){travarOpcoes(box);responder(passo.chave,sel.slice(),sel.length?sel.join(', '):'Nenhum em especial')};box.appendChild(go)}
+  if(passo.texto_livre){fr=h('div','ioc-free');var i=h('input');i.type='text';i.maxLength=80;i.placeholder='Ou digite um bairro/cidade';i.setAttribute('aria-label','Digitar região');
+    var ok=h('button','ioc-op go','OK');ok.type='button';
+    function enviarLivre(){var v=i.value.trim();if(v.length<2)return;travarOpcoes(box);fr.querySelectorAll('input,button').forEach(function(x){x.disabled=true});responder(passo.chave,'txt:'+v,v)}
+    ok.onclick=enviarLivre;i.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();enviarLivre()}};fr.appendChild(i);fr.appendChild(ok);wrap.appendChild(fr)}
+}
+function desenhar(m,interativo){
+  digitando(false);
+  if(m.papel==='user'){fala(m.texto,'u');return}
+  var wrap=h('div','ioc-m a');wrap.textContent=m.texto||'';body.appendChild(wrap);
+  if(m.tipo==='pergunta'&&m.passo&&interativo)opcoesPasso(m.passo,wrap);
+  if(m.tipo==='erro'&&m.acao==='formulario'){var b=h('button','ioc-op','Responder perguntas rápidas');b.type='button';var bx=h('div','ioc-ops');bx.appendChild(b);wrap.appendChild(bx);b.onclick=function(){b.disabled=true;iniciar('formulario')}}
+  if(m.tipo==='resultado'){
+    if(m.cards&&m.cards.length){var cs=h('div','ioc-cards');
+      m.cards.forEach(function(c){var a=h('a','ioc-card');a.href=c.url;a.target='_blank';a.rel='noopener';
+        var p=h('div','ioc-pic');if(c.foto)p.style.backgroundImage="url('"+String(c.foto).replace(/'/g,'%27')+"')";p.appendChild(h('span','ioc-mt',c.match+'% compatível'));
+        var bb=h('div','ioc-b');bb.appendChild(h('div','ioc-pr',c.preco));bb.appendChild(h('div','ioc-t',c.titulo));bb.appendChild(h('div','ioc-l',c.local));if(c.specs)bb.appendChild(h('div','ioc-s',c.specs));
+        var tg=h('div','ioc-tags');(c.ok||[]).forEach(function(x){tg.appendChild(h('span','',x))});(c.falta||[]).forEach(function(x){tg.appendChild(h('span','f',x))});bb.appendChild(tg);
+        a.appendChild(p);a.appendChild(bb);cs.appendChild(a)});
+      body.appendChild(cs)}
+    if(m.link_busca){var all=h('a','ioc-all','Ver todos no site →');all.href=m.link_busca;all.target='_blank';all.rel='noopener';body.appendChild(all)}
+    if(interativo)recomecarBtn()}
+  descer();
+}
+function desenharLista(ms,ativo){ms.forEach(function(m,i){desenhar(m,ativo&&i===ms.length-1)})}
+function escolha(texto){
+  var w=h('div','ioc-m a');w.textContent=texto;body.appendChild(w);var box=h('div','ioc-ops');
+  var b1=h('button','ioc-op','Responder perguntas rápidas');b1.type='button';b1.onclick=function(){travarOpcoes(box,b1);fala('Perguntas rápidas','u');iniciar('formulario')};box.appendChild(b1);
+  if(TEM_IA){var b2=h('button','ioc-op','Conversar com '+NOME);b2.type='button';b2.onclick=function(){travarOpcoes(box,b2);fala('Conversar com '+NOME,'u');iniciar('ia')};box.appendChild(b2)}
+  w.appendChild(box);descer()}
+function iniciar(modo){
+  digitando(true);
+  api('/chat/api/iniciar',{modo:modo,origem:location.pathname}).then(function(j){st.modo=modo;foot.hidden=modo!=='ia';desenharLista(j.mensagens,true);if(modo==='ia')inp.focus()})
+  .catch(function(e){digitando(false);fala(e.message,'a');escolha('Como você prefere?')})}
+function responder(passo,valor,rotulo){
+  fala(rotulo,'u');digitando(true);
+  api('/chat/api/formulario',{passo:passo,valor:valor}).then(function(j){desenharLista(j.mensagens,true)})
+  .catch(function(e){digitando(false);if(e.status===409||e.status===404){st.carregado=false;carregar();return}fala(e.message,'a')})}
+function enviar(ev){
+  ev.preventDefault();var t=inp.value.trim();if(!t||st.busy)return;inp.value='';fala(t,'u');travar(true);digitando(true);
+  api('/chat/api/ia',{texto:t}).then(function(j){travar(false);desenharLista(j.mensagens,false);inp.focus()})
+  .catch(function(e){digitando(false);travar(false);if(e.status===404){st.carregado=false;carregar();return}fala(e.message,'a')})}
+function carregar(){
+  body.textContent='';foot.hidden=true;
+  api('/chat/api/estado').then(function(j){st.carregado=true;
+    if(j.mensagens&&j.mensagens.length){st.modo=j.modo;foot.hidden=j.modo!=='ia';desenharLista(j.mensagens,j.modo==='formulario');if(j.modo==='ia')inp.focus()}
+    else escolha(j.boas_vindas||('Oi! Eu sou a '+NOME+'. Como você prefere?'))})
+  .catch(function(){escolha('Oi! Como você prefere?')})}
+function reiniciar(){api('/chat/api/reiniciar',{}).then(function(){st.carregado=false;carregar()}).catch(function(){st.carregado=false;carregar()})}
+function abrir(){panel.hidden=false;fab.setAttribute('aria-expanded','true');tip.hidden=true;try{sessionStorage.setItem('ioc_tip','1')}catch(e){}if(!st.carregado)carregar();else if(!foot.hidden)inp.focus()}
+function fechar(){panel.hidden=true;fab.setAttribute('aria-expanded','false');fab.focus()}
+fab.onclick=function(){panel.hidden?abrir():fechar()};
+root.querySelector('.ioc-x').onclick=fechar;
+root.querySelector('.ioc-rs').onclick=reiniciar;
+tip.querySelector('button').onclick=function(){tip.hidden=true;try{sessionStorage.setItem('ioc_tip','1')}catch(e){}};
+foot.addEventListener('submit',enviar);
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!panel.hidden)fechar()});
+try{if(!sessionStorage.getItem('ioc_tip'))setTimeout(function(){if(panel.hidden)tip.hidden=false},4000)}catch(e){}
+})();
+</script>
+</div>
+{% endif %}
