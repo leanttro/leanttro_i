@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{% set seo_title = 'ImovelOnde — Casas e apartamentos para comprar ou alugar' %}
+{% set seo_title = 'ImóvelOnde — Casas e apartamentos para comprar ou alugar' %}
 {% set seo_desc = 'Encontre casas e apartamentos para comprar ou alugar perto de você. Fale direto com o anunciante pelo WhatsApp. Anuncie seu imóvel grátis.' %}
 {% set org = {'@context': 'https://schema.org', '@type': 'Organization', 'name': SITE.nome, 'url': SITE.base + '/'} %}
 {% if SITE.logo_abs %}{% set _x = org.update({'logo': SITE.logo_abs}) %}{% endif %}
@@ -78,7 +78,7 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
 
 {% macro marca(tam=34) -%}
-{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Imovel<span class="accent">Onde</span>{%- endif -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Imóvel<span class="accent">Onde</span>{%- endif -%}
 {%- endmacro %}
 <header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
 <nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
@@ -101,7 +101,7 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 <label class="fld"><b>Nome</b><input name="nome" placeholder="Seu nome" autocomplete="name"></label>
 <label class="fld"><b>WhatsApp</b><input name="telefone" type="tel" inputmode="tel" placeholder="(11) 9 9900-0000" autocomplete="tel"></label>
 <button class="go" type="submit">Começar cadastro</button>
-{% if SITE.whatsapp %}<a class="geo" href="https://wa.me/{{ SITE.whatsapp }}?text={{ 'Olá! Quero anunciar meu imóvel no ImovelOnde.'|urlencode }}" rel="noopener">Cadastrar pelo WhatsApp</a>{% endif %}</form></div>
+{% if SITE.whatsapp %}<a class="geo" href="https://wa.me/{{ SITE.whatsapp }}?text={{ 'Olá! Quero anunciar meu imóvel no ImóvelOnde.'|urlencode }}" rel="noopener">Cadastrar pelo WhatsApp</a>{% endif %}</form></div>
 </div>
 <ul class="checks"><li>Contato direto no WhatsApp</li><li>Anúncio grátis</li><li>Sem intermediação</li></ul>
 </div>
