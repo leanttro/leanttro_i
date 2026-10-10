@@ -230,6 +230,7 @@ CREATE TABLE IF NOT EXISTS pagamentos (
   evento_id TEXT NOT NULL, referencia TEXT, status TEXT NOT NULL, valor NUMERIC(10,2), payload TEXT,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (provedor, evento_id));
 CREATE TABLE IF NOT EXISTS newsletter (email TEXT PRIMARY KEY, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS rua TEXT;
 """
 
 
@@ -1242,6 +1243,12 @@ def api_perto():
         "foto": url_foto(r["capa"], 320), "url": url_for("imovel", slug=r["slug"])} for r in linhas])
 
 
+def _rua_sem_numero(rua):
+    """'Rua das Flores, 120' -> 'Rua das Flores'. Mantém nomes como 'Rua 15' (só uma palavra antes do número)."""
+    base = re.sub(r"(,\s*|\s+)(n[ºo°.]*\s*)?\d+[a-zA-Z]?\s*$", "", rua or "").strip(" ,")
+    return base if " " in base else (rua or "").strip(" ,")
+
+
 _GEO_RUIM = {"city", "town", "village", "hamlet", "suburb", "neighbourhood", "quarter", "city_district", "borough",
              "state", "county", "region", "municipality", "country", "postcode", "district"}
 
@@ -1274,7 +1281,7 @@ def api_geocodificar():
         return jsonify(ok=False, erro="Calma, uma busca por vez. Tente de novo."), 429
     session["_geo_t"] = agora
 
-    sem_numero = re.sub(r"(,\s*|\s+)(n[ºo°.]*\s*)?\d+[a-zA-Z]?\s*$", "", rua).strip() if rua else ""
+    sem_numero = _rua_sem_numero(rua) if rua else ""
     cidade_uf = ", ".join(x for x in (cidade, uf) if x)
     tentativas = []                                             # (parâmetros, aproximado?)
     if rua:
@@ -1554,6 +1561,7 @@ def _ler_form_imovel():
     val["cidade"] = sanitize_input(f.get("cidade", ""))[:80]
     val["uf"] = sanitize_input(f.get("uf", "")).upper()[:2] or None
     val["bairro"] = sanitize_input(f.get("bairro", ""))[:80]
+    val["rua"] = _rua_sem_numero(sanitize_input(f.get("rua", ""))[:150]) or None   # só o nome da rua, nunca o número
     val["descricao"] = sanitize_input(f.get("descricao", ""))[:4000] or None
     val["whatsapp"] = so_digitos(f.get("whatsapp")) or None
     for k in ("lat", "lng"):
@@ -1631,6 +1639,7 @@ def anunciante_imovel_novo():
              val["condominio"], val["iptu"], val["cidade"], gerar_slug(val["cidade"]), val["uf"], val["bairro"], gerar_slug(val["bairro"]),
              val["dormitorios"], val["suites"], val["banheiros"], val["vagas"], val["area"], val["descricao"], "|".join(sel),
              val["whatsapp"], val["lat"], val["lng"]))
+        execute("UPDATE imoveis SET rua = %s WHERE id = %s", (val["rua"], iid))
         _gravar_proximos(iid, prox)
         _salvar_fotos(iid, t)
         avisar_novo_anuncio(iid)
@@ -1659,6 +1668,7 @@ def anunciante_imovel_editar(imovel_id):
              gerar_slug(val["cidade"]), val["uf"], val["bairro"], gerar_slug(val["bairro"]), val["dormitorios"], val["suites"],
              val["banheiros"], val["vagas"], val["area"], val["descricao"], "|".join(sel), val["whatsapp"], val["lat"], val["lng"],
              status, imovel_id))
+        execute("UPDATE imoveis SET rua = %s WHERE id = %s", (val["rua"], imovel_id))
         _gravar_proximos(imovel_id, prox)
         _salvar_fotos(imovel_id, t)
         if im["status"] != "pendente":      # já estava na fila? não manda aviso repetido
