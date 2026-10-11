@@ -25,7 +25,7 @@ form.inline{display:inline;margin:0}
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},6000)</script>{% endif %}{% endwith %}
 <main class="card">
-<a class="logo" href="{{ url_for('home') }}">Imóvel<span>Onde</span></a>
+<a class="logo" href="{{ url_for('home') }}">Onde<span>Imóveis</span></a>
 <h1>Confirme seu e-mail</h1>
 <p>Enviamos um código de 6 dígitos para <b>{{ email }}</b>. Digite abaixo para liberar os contatos. Se não achar, olhe o spam.</p>
 <form method="post" action="{{ url_for('verificar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}">
