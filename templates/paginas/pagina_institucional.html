@@ -1,0 +1,309 @@
+{# nome: Institucional | descricao: Visual escuro e editorial, com vitrine de imóveis em rolagem horizontal e animações suaves #}
+{#- Contrato: usa só tn, imoveis, total, pagina, paginas, faixa, f, qs, pro, tel_ok (+ globais usuario, SITE, csrf, url_for, filtros). Nenhum campo do anunciante é marcado como seguro. -#}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% set _local = (tn.cidade ~ ('/' ~ tn.uf if tn.uf else '')) if tn.cidade else '' %}
+{% set seo_title = tn.nome ~ (' — imóveis em ' ~ _local if _local else ' — imóveis') ~ ' | OndeImóveis' %}
+{% set seo_desc = ((tn.descricao or ('Veja os imóveis anunciados por ' ~ tn.nome ~ ' no OndeImóveis e fale direto pelo WhatsApp.'))|replace('\n', ' ')) | truncate(158, True, '…') %}
+{% if f.finalidade or f.tipo or f.ordem != 'relevantes' or pagina > 1 %}{% set seo_robots = 'noindex,follow' %}{% set seo_canonical = 'none' %}{% else %}{% set seo_canonical = SITE.base ~ url_for('imobiliaria', slug=tn.slug) %}{% endif %}
+{% set _ag = {'@context': 'https://schema.org', '@type': 'RealEstateAgent', 'name': tn.nome, 'url': SITE.base ~ url_for('imobiliaria', slug=tn.slug)} %}
+{% if tn.cidade %}{% set _x = _ag.update({'address': {'@type': 'PostalAddress', 'addressLocality': tn.cidade, 'addressRegion': tn.uf, 'addressCountry': 'BR'}}) %}{% endif %}
+{% if tn.logo_url %}{% set _x = _ag.update({'logo': SITE.base ~ tn.logo_url}) %}{% endif %}
+{% set seo_jsonld = [_ag] %}
+{% include '_seo.html' %}
+{# Cor: só tn.cor (Pro). Fallback fixo. O texto sobre a cor (_ink) é calculado pela luminosidade para manter contraste. #}
+{% set _cor = tn.cor or '#39dc4b' %}
+{% set _lum = ((_cor[1:3]|int(0, 16)) * 299 + (_cor[3:5]|int(0, 16)) * 587 + (_cor[5:7]|int(0, 16)) * 114) / 1000 %}
+{% set _ink = '#07140d' if _lum > 150 else '#ffffff' %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@300;400;500;600;700&display=swap">
+<style>
+:root{--pri:{{ _cor }};--ink:{{ _ink }};--bg:#f6f5f1;--tx:#0d1a24;--mut:#66737c;--dk:#071421;--line:rgba(13,26,36,.12)}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px;-webkit-text-size-adjust:100%}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--tx);background:var(--bg);overflow-x:hidden;line-height:1.5}
+a{color:inherit;text-decoration:none}img{display:block;max-width:100%}button{font:inherit;cursor:pointer}
+form.inline{display:inline;margin:0}
+.display{font-family:"Archivo Black","Arial Black",Impact,sans-serif;text-transform:uppercase;letter-spacing:-.02em;font-weight:400;overflow-wrap:break-word;hyphens:auto}
+.wrap{width:min(1160px,calc(100% - 40px));margin-inline:auto}
+.skip{position:absolute;left:-999px;top:8px;background:#fff;color:#000;padding:8px 12px;border-radius:8px;z-index:2000}.skip:focus{left:8px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--mut)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;padding:14px 26px;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;background:var(--pri);color:var(--ink);border:1px solid var(--pri);transition:transform .3s,box-shadow .3s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.28)}
+.btn.ghost{background:transparent;color:inherit;border-color:currentColor;opacity:.92}
+.btn.sm{padding:10px 16px;font-size:10px}
+
+/* Header translúcido */
+.top{position:fixed;inset:0 0 auto 0;z-index:1000;background:rgba(7,20,33,.62);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.08);color:#fff}
+.top-in{display:flex;align-items:center;justify-content:space-between;gap:14px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
+.brand img{height:40px;width:auto;max-width:150px;object-fit:contain}
+.brand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav{display:none;gap:30px;font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase}
+.nav a{opacity:.72;transition:opacity .25s}.nav a:hover{opacity:1}
+.nav-m{display:flex;gap:22px;overflow-x:auto;padding:0 0 12px;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;scrollbar-width:none}
+.nav-m::-webkit-scrollbar{display:none}.nav-m a{opacity:.8;white-space:nowrap}
+@media(min-width:800px){.nav{display:flex}.nav-m{display:none}.top-in{height:72px}}
+
+/* Hero */
+.hero{position:relative;overflow:hidden;background:var(--dk);color:#fff;min-height:88vh;display:flex;align-items:flex-end;padding:150px 0 56px}
+.hero-bg{position:absolute;left:0;right:0;top:-8%;height:116%;width:100%;object-fit:cover;opacity:.5}
+.hero-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,20,33,.55) 0%,rgba(7,20,33,.35) 40%,rgba(7,20,33,.92) 100%)}
+.hero-in{position:relative;z-index:2}
+.ver{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:6px 12px;font-size:10px;font-weight:800;letter-spacing:.16em;margin-bottom:18px}
+.ver i{font-style:normal;color:var(--pri)}
+.hero h1{margin:0 0 18px;font-size:clamp(2.1rem,8.4vw,5.6rem);line-height:.98;max-width:15ch}
+.hero p{margin:0 0 28px;max-width:56ch;font-size:clamp(15px,2.2vw,19px);font-weight:300;opacity:.88;white-space:pre-line}
+.acts{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.stats{display:flex;flex-wrap:wrap;gap:28px 44px;margin:44px 0 0;padding:26px 0 0;border-top:1px solid rgba(255,255,255,.18);list-style:none}
+.stats b{display:block;font-family:"Archivo Black","Arial Black",sans-serif;font-weight:400;font-size:clamp(1.3rem,3.4vw,2rem);line-height:1.1}
+.stats span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.66}
+
+/* Vitrine horizontal */
+.vitrine{padding:72px 0 56px}
+.vit-head{display:flex;flex-direction:column;gap:22px;margin-bottom:30px}
+.vit-head h2{margin:6px 0 4px;font-size:clamp(1.8rem,5.4vw,3.6rem);line-height:1}
+.count{margin:0;font-size:13px;color:var(--mut)}
+.tools{display:flex;flex-direction:column;gap:12px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);border-radius:999px;padding:9px 16px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;background:#fff;color:var(--tx);transition:.25s}
+.chip:hover{border-color:var(--tx)}.chip.on{background:var(--pri);border-color:var(--pri);color:var(--ink)}
+.sel{height:40px;border:1px solid var(--line);border-radius:999px;background:#fff;padding:0 16px;font-size:12px;color:var(--tx)}
+@media(min-width:900px){.vit-head{flex-direction:row;align-items:flex-end;justify-content:space-between}.tools{align-items:flex-end}}
+.rail{position:relative}
+.track{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px max(20px,calc((100vw - 1160px)/2)) 26px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--pri) rgba(13,26,36,.08)}
+.track::-webkit-scrollbar{height:8px}.track::-webkit-scrollbar-track{background:rgba(13,26,36,.06);border-radius:10px}.track::-webkit-scrollbar-thumb{background:var(--pri);border-radius:10px}
+.imv{position:relative;flex:0 0 min(78vw,330px);aspect-ratio:4/5;border-radius:18px;overflow:hidden;background:#1b2a36;color:#fff;scroll-snap-align:start;box-shadow:0 14px 34px rgba(7,20,33,.18)}
+.imv>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform 1.1s cubic-bezier(.16,1,.3,1)}
+.imv:hover>img{transform:scale(1.07)}
+.imv::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,20,33,.28) 0%,rgba(7,20,33,0) 32%,rgba(7,20,33,.9) 100%)}
+.tag{position:absolute;left:14px;top:14px;z-index:2;background:var(--pri);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.fav{position:absolute;right:12px;top:12px;z-index:4;margin:0}
+.fav button{width:38px;height:38px;border:0;border-radius:50%;background:rgba(255,255,255,.92);color:var(--tx);font-size:18px;line-height:1;display:grid;place-items:center}
+.fav button.on{color:#e11d48}
+.info{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:18px}
+.price{font-family:"Archivo Black","Arial Black",sans-serif;font-size:clamp(1.25rem,4.4vw,1.6rem);line-height:1.1}
+.kind{margin-top:4px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.75}
+.imv h3{margin:8px 0 4px;font-size:15px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.imv h3 a::after{content:"";position:absolute;inset:0;z-index:3}
+.loc{font-size:12px;opacity:.82}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.22);font-size:11px;font-weight:600;opacity:.92}
+.endcard{flex:0 0 min(70vw,280px);aspect-ratio:4/5;border:1.5px dashed rgba(13,26,36,.25);border-radius:18px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:16px;padding:26px;scroll-snap-align:start}
+.endcard p{margin:0;font-size:1.3rem;line-height:1.1}
+.arrows{display:none;gap:8px}
+.arrows button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--tx);font-size:18px}.arrows button:hover{background:var(--tx);color:#fff}
+@media(min-width:900px){.arrows.on{display:flex}}
+.vazio{border:1.5px dashed rgba(13,26,36,.25);border-radius:18px;padding:48px 24px;text-align:center;color:var(--mut)}
+.vazio p{margin:0 0 16px}
+.pages{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:26px}
+.page{min-width:40px;height:40px;display:grid;place-items:center;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;font-weight:700}
+.page.active{background:var(--pri);border-color:var(--pri);color:var(--ink)}
+
+/* Sobre */
+.sobre{padding:72px 0;background:#fff;border-top:1px solid var(--line)}
+.sobre-grid{display:grid;gap:40px}
+.sobre h2{margin:8px 0 22px;font-size:clamp(1.9rem,6vw,3.8rem);line-height:1;position:relative;padding-bottom:22px}
+.sobre h2::after{content:"";position:absolute;left:0;bottom:0;width:84px;height:4px;background:var(--pri)}
+.sobre .txt{font-size:clamp(16px,2vw,19px);font-weight:300;line-height:1.7;white-space:pre-line;color:#25343e;max-width:60ch}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:22px 18px;margin:34px 0 0}
+.facts dt{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut)}.facts dd{margin:4px 0 0;font-size:15px;font-weight:700}
+.panel{position:relative}
+.panel::before{content:"";position:absolute;inset:0;background:var(--pri);opacity:.14;transform:translate(14px,14px);border-radius:28px}
+.panel-in{position:relative;border-radius:28px;background:var(--dk);color:#fff;min-height:300px;padding:34px;display:flex;flex-direction:column;justify-content:space-between;gap:34px;overflow:hidden}
+.mono{width:120px;height:120px;border-radius:24px;background:#fff;color:var(--dk);display:grid;place-items:center;font-family:"Archivo Black","Arial Black",sans-serif;font-size:44px;overflow:hidden}
+.mono img{width:100%;height:100%;object-fit:contain;padding:10px}
+.soc{display:flex;flex-wrap:wrap;gap:10px}
+.soc a{border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:9px 16px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;transition:.25s}.soc a:hover{background:var(--pri);border-color:var(--pri);color:var(--ink)}
+@media(min-width:900px){.sobre-grid{grid-template-columns:1.1fr .9fr;align-items:center;gap:80px}.sobre{padding:104px 0}}
+
+/* Contato / rodapé */
+.contato{background:var(--dk);color:#fff;padding:84px 0 56px;text-align:center}
+.contato h2{margin:10px auto 18px;font-size:clamp(1.9rem,6vw,4rem);line-height:1;max-width:16ch}
+.contato .lead{margin:0 auto 30px;max-width:46ch;font-weight:300;opacity:.8}
+.tel{margin:30px auto 0;display:inline-flex;flex-direction:column;gap:6px;font-size:14px}
+.tel small{font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.6}
+.tel b{font-size:20px}
+.tel a{color:var(--pri);font-weight:700;text-decoration:underline}
+.tel .btn{margin-top:2px}
+.gate{display:block;margin-top:14px;font-size:12px;opacity:.7}.gate a{text-decoration:underline}
+.hor{margin-top:22px;font-size:13px;opacity:.75}
+.foot{margin-top:64px;padding-top:24px;border-top:1px solid rgba(255,255,255,.14);display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-between;font-size:11px;color:#aebbc2;text-align:left}
+.foot nav{display:flex;flex-wrap:wrap;gap:8px 22px}.foot a:hover{color:#fff}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.imv>img,.btn{transition:none}}
+</style>
+</head>
+<body>
+{#- Contato: mesma lógica da página padrão (gate de cadastro, rotas de WhatsApp e telefone, tel_ok) -#}
+{% macro cta_contato(cls, rotulo_gate) -%}
+{%- if tn.whatsapp or tn.telefone -%}
+{%- if usuario -%}
+{%- if tn.whatsapp -%}<a class="{{ cls }}" href="{{ url_for('imobiliaria_whatsapp', slug=tn.slug) }}" target="_blank" rel="noopener nofollow">◉ WhatsApp</a>{%- endif -%}
+{%- else -%}
+<a class="{{ cls }}" href="{{ url_for('cadastrar', next=request.path) }}">{{ rotulo_gate }}</a>
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+{% set _tipo_txt = 'a imobiliária' if tn.tipo == 'imobiliaria' else 'o anunciante' %}
+<a class="skip" href="#imoveis">Ir para os imóveis</a>
+
+<header class="top">
+<div class="wrap">
+<div class="top-in">
+<a class="brand" href="#topo" aria-label="{{ tn.nome }}">{% if tn.logo_url %}<img src="{{ tn.logo_url }}" alt="{{ tn.nome }}">{% else %}<span>{{ tn.nome }}</span>{% endif %}</a>
+<nav class="nav" aria-label="Seções"><a href="#imoveis">Imóveis</a><a href="#sobre">Sobre</a><a href="#contato">Contato</a><a href="{{ url_for('home') }}">Portal</a></nav>
+{{ cta_contato('btn sm', '🔒 Ver contato') }}
+</div>
+<nav class="nav-m" aria-label="Seções"><a href="#imoveis">Imóveis</a><a href="#sobre">Sobre</a><a href="#contato">Contato</a><a href="{{ url_for('home') }}">Portal</a></nav>
+</div>
+</header>
+
+<section class="hero" id="topo">
+{% if imoveis %}<img class="hero-bg" src="{{ imoveis[0].foto }}" alt="" fetchpriority="high" decoding="async">{% endif %}
+<div class="hero-shade"></div>
+<div class="wrap hero-in">
+{% if tn.verificada %}<div class="ver" data-in><i>✓</i> {{ 'IMOBILIÁRIA' if tn.tipo == 'imobiliaria' else 'ANUNCIANTE' }} VERIFICAD{{ 'A' if tn.tipo == 'imobiliaria' else 'O' }}</div>{% endif %}
+<h1 class="display" data-in>{{ tn.nome }}</h1>
+<p data-in>{{ tn.descricao or 'Confira os imóveis anunciados por ' ~ tn.nome ~ ' no OndeImóveis.' }}</p>
+<div class="acts" data-in>
+<a class="btn" href="#imoveis">Ver imóveis</a>
+{{ cta_contato('btn ghost', '🔒 Cadastre-se para ver o contato') }}
+</div>
+<ul class="stats" data-in>
+<li><b>{{ total|num }}</b><span>imóve{{ 'l' if total == 1 else 'is' }}</span></li>
+{% if tn.anos_mercado %}<li><b>{{ tn.anos_mercado }}</b><span>ano{{ 's' if tn.anos_mercado != 1 }} de mercado</span></li>{% endif %}
+{% if tn.creci %}<li><b>{{ tn.creci }}</b><span>CRECI</span></li>{% endif %}
+{% if tn.cidade %}<li><b>{{ tn.cidade }}{{ '/' ~ tn.uf if tn.uf }}</b><span>localização</span></li>{% endif %}
+</ul>
+</div>
+</section>
+
+<main>
+<section class="vitrine" id="imoveis">
+<div class="wrap vit-head">
+<div class="reveal">
+<div class="eyebrow">Vitrine</div>
+<h2 class="display">Imóveis anunciados</h2>
+<p class="count">{{ total|num }} imóve{{ 'l' if total == 1 else 'is' }} disponíve{{ 'l' if total == 1 else 'is' }} no OndeImóveis</p>
+</div>
+<div class="tools reveal">
+<nav class="chips" aria-label="Filtrar imóveis">
+<a class="chip {{ 'on' if not f.finalidade and not f.tipo }}" href="?{{ qs(finalidade='', tipo='') }}#imoveis">Todos</a>
+<a class="chip {{ 'on' if f.finalidade == 'venda' }}" href="?{{ qs(finalidade='venda') }}#imoveis">Comprar</a>
+<a class="chip {{ 'on' if f.finalidade == 'aluguel' }}" href="?{{ qs(finalidade='aluguel') }}#imoveis">Alugar</a>
+<a class="chip {{ 'on' if f.tipo == ['apartamento'] }}" href="?{{ qs(tipo='apartamento') }}#imoveis">Apartamento</a>
+<a class="chip {{ 'on' if f.tipo == ['casa'] }}" href="?{{ qs(tipo='casa') }}#imoveis">Casa</a>
+<a class="chip" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a>
+</nav>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+<select class="sel" aria-label="Ordenar" onchange="var u=new URL(location);u.searchParams.set('ordem',this.value);u.searchParams.delete('pagina');u.hash='imoveis';location=u"><option value="relevantes">Mais relevantes</option><option value="menor" {{ 'selected' if f.ordem == 'menor' }}>Menor preço</option><option value="maior" {{ 'selected' if f.ordem == 'maior' }}>Maior preço</option><option value="recentes" {{ 'selected' if f.ordem == 'recentes' }}>Mais recentes</option></select>
+<div class="arrows" id="arrows"><button type="button" data-dir="-1" aria-label="Anterior">←</button><button type="button" data-dir="1" aria-label="Próximo">→</button></div>
+</div>
+</div>
+</div>
+
+{% if imoveis %}
+<div class="rail"><div class="track" id="track" tabindex="0" aria-label="Imóveis, role para o lado">
+{% for i in imoveis %}
+<article class="imv">
+<img src="{{ i.foto }}"{% if i.capa %} srcset="{{ url_foto(i.capa, 320) }} 320w, {{ url_foto(i.capa, 480) }} 480w, {{ url_foto(i.capa, 640) }} 640w" sizes="(max-width:620px) 78vw, 330px"{% endif %} alt="{{ TIPOS_IMOVEL[i.tipo] }} {{ 'à venda' if i.finalidade == 'venda' else 'para alugar' }} em {{ i.bairro }}, {{ i.cidade }} — {{ i.titulo }}" width="640" height="428" loading="{{ 'eager' if loop.first else 'lazy' }}" decoding="async">
+<span class="tag">{{ FINALIDADES[i.finalidade] }}</span>
+<form class="fav inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="{{ 'on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form>
+<div class="info">
+<div class="price">{{ i|preco }}</div>
+<div class="kind">{{ TIPOS_IMOVEL[i.tipo] }}</div>
+<h3><a href="{{ url_for('imovel', slug=i.slug) }}">{{ i.titulo }}</a></h3>
+<div class="loc">⌖ {{ i.bairro }} — {{ i.cidade }}/{{ i.uf }}</div>
+<div class="meta"><span>{{ i.area|num if i.area else '—' }} m²</span><span>{{ i.dormitorios }} quarto{{ 's' if i.dormitorios != 1 }}</span><span>{{ i.vagas }} vaga{{ 's' if i.vagas != 1 }}</span></div>
+</div>
+</article>
+{% endfor %}
+<div class="endcard">
+{% if pagina < paginas %}<p class="display">Tem mais imóveis</p><a class="btn sm" href="?{{ qs(pagina=pagina + 1) }}#imoveis">Próxima página →</a>
+{% else %}<p class="display">Fale com {{ tn.nome }}</p><a class="btn sm" href="#contato">Ir para o contato</a>{% endif %}
+</div>
+</div></div>
+{% else %}
+<div class="wrap"><div class="vazio">
+{% if f.finalidade or f.tipo %}<p>Nenhum imóvel encontrado com esses filtros.</p><a class="btn sm" href="?{{ qs(finalidade='', tipo='') }}#imoveis">Limpar filtros</a>
+{% else %}<p>Ainda não há imóveis publicados por {{ tn.nome }}.</p><a class="btn sm" href="{{ url_for('buscar') }}">Buscar no portal</a>{% endif %}
+</div></div>
+{% endif %}
+
+{% if paginas > 1 %}<div class="wrap"><nav class="pages pagination" aria-label="Paginação">{% if pagina > 1 %}<a class="page" href="?{{ qs(pagina=pagina - 1) }}#imoveis" aria-label="Página anterior">‹</a>{% endif %}{% for p in faixa %}<a class="page{{ ' active' if p == pagina }}" href="?{{ qs(pagina=p) }}#imoveis">{{ p }}</a>{% endfor %}{% if pagina < paginas %}<a class="page" href="?{{ qs(pagina=pagina + 1) }}#imoveis" aria-label="Próxima página">›</a>{% endif %}</nav></div>{% endif %}
+</section>
+
+<section class="sobre" id="sobre">
+<div class="wrap sobre-grid">
+<div class="reveal">
+<div class="eyebrow">Quem somos</div>
+<h2 class="display">Sobre {{ _tipo_txt }}</h2>
+<div class="txt">{{ tn.descricao or tn.nome ~ ' anuncia imóveis no OndeImóveis. Veja a vitrine e fale direto com ' ~ _tipo_txt ~ '.' }}</div>
+<dl class="facts">
+<div><dt>Nome</dt><dd>{{ tn.nome }}</dd></div>
+{% if tn.creci %}<div><dt>CRECI</dt><dd>{{ tn.creci }}</dd></div>{% endif %}
+{% if tn.anos_mercado %}<div><dt>No mercado</dt><dd>{{ tn.anos_mercado }} ano{{ 's' if tn.anos_mercado != 1 }}</dd></div>{% endif %}
+{% if tn.cidade %}<div><dt>Localização</dt><dd>{{ tn.cidade }}{{ '/' ~ tn.uf if tn.uf }}</dd></div>{% endif %}
+{% if tn.horario %}<div><dt>Atendimento</dt><dd>{{ tn.horario }}</dd></div>{% endif %}
+</dl>
+</div>
+<div class="panel reveal"><div class="panel-in">
+<div class="mono">{% if tn.logo_url %}<img src="{{ tn.logo_url }}" alt="{{ tn.nome }}">{% else %}{{ tn.nome|iniciais }}{% endif %}</div>
+<div>
+<div class="eyebrow" style="color:#ffffff99;margin-bottom:12px">{% if tn.instagram or tn.facebook or tn.linkedin %}Redes sociais{% else %}OndeImóveis{% endif %}</div>
+{% if tn.instagram or tn.facebook or tn.linkedin %}<div class="soc">
+{% if tn.instagram %}<a href="{{ tn.instagram if tn.instagram.startswith('http') else 'https://instagram.com/' ~ tn.instagram.lstrip('@') }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
+{% if tn.facebook %}<a href="{{ tn.facebook if tn.facebook.startswith('http') else 'https://facebook.com/' ~ tn.facebook }}" target="_blank" rel="noopener">Facebook</a>{% endif %}
+{% if tn.linkedin %}<a href="{{ tn.linkedin if tn.linkedin.startswith('http') else 'https://linkedin.com/in/' ~ tn.linkedin }}" target="_blank" rel="noopener">LinkedIn</a>{% endif %}
+</div>{% else %}<p style="margin:0;font-weight:300;opacity:.8">Página oficial no portal. Conheça os imóveis e fale direto com {{ _tipo_txt }}.</p>{% endif %}
+</div>
+</div></div>
+</div>
+</section>
+</main>
+
+<footer class="contato" id="contato">
+<div class="wrap">
+<div class="reveal">
+<div class="eyebrow" style="color:#ffffff99">Contato</div>
+<h2 class="display">Fale com {{ tn.nome }}</h2>
+<p class="lead">Escolha seu imóvel e converse direto com {{ _tipo_txt }}.</p>
+<div class="acts" style="justify-content:center">{{ cta_contato('btn', '🔒 Cadastre-se para ver o contato') }}<a class="btn ghost" href="#imoveis">Ver imóveis</a></div>
+{% if tn.whatsapp or tn.telefone %}{% if not usuario %}<small class="gate">Grátis e rápido · <a href="{{ url_for('entrar', next=request.path) }}">já tenho conta</a></small>{% endif %}{% endif %}
+<div class="tel"><small>Telefone</small>
+{% if not tn.telefone %}<b>—</b>{% elif tel_ok %}<b>{{ tn.telefone|fone }}</b>{% elif usuario %}<form class="inline" method="post" action="{{ url_for('imobiliaria_telefone', slug=tn.slug) }}">{{ csrf() }}<button class="btn sm" type="submit">Ver telefone</button></form>{% else %}<span>🔒 <a href="{{ url_for('cadastrar', next=request.path) }}">Cadastre-se</a> para ver</span>{% endif %}
+</div>
+{% if tn.horario %}<div class="hor">{{ tn.horario }}</div>{% endif %}
+</div>
+<div class="foot"><span>© {{ ano }} {{ SITE.nome }}</span><nav aria-label="Rodapé"><a href="{{ url_for('home') }}">Voltar ao portal</a><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></nav></div>
+</div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+<script>
+(function(){
+  // Setas da vitrine: só aparecem se há o que rolar
+  var tr=document.getElementById('track'),ar=document.getElementById('arrows');
+  if(tr&&ar){
+    var chk=function(){ar.classList.toggle('on',tr.scrollWidth>tr.clientWidth+8)};
+    chk();window.addEventListener('resize',chk);
+    ar.querySelectorAll('[data-dir]').forEach(function(b){b.addEventListener('click',function(){tr.scrollBy({left:+b.dataset.dir*tr.clientWidth*.8,behavior:'smooth'})})});
+  }
+  // Animações (GSAP). Sem GSAP ou com "reduzir movimento", a página já está visível e funcional.
+  if(!window.gsap||(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches))return;
+  var st=!!window.ScrollTrigger;if(st)gsap.registerPlugin(ScrollTrigger);
+  gsap.from('[data-in]',{opacity:0,y:34,duration:1,ease:'power3.out',stagger:.12,delay:.1,clearProps:'all'});
+  if(!st)return;
+  if(document.querySelector('.hero-bg'))gsap.to('.hero-bg',{yPercent:10,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:true}});
+  gsap.utils.toArray('.reveal').forEach(function(el){
+    gsap.from(el,{opacity:0,y:36,duration:.9,ease:'power3.out',clearProps:'all',scrollTrigger:{trigger:el,start:'top 88%',once:true}});
+  });
+  if(tr)gsap.from('.track>*',{opacity:0,x:46,duration:.8,ease:'power3.out',stagger:.08,clearProps:'all',scrollTrigger:{trigger:tr,start:'top 88%',once:true}});
+})();
+</script>
+</body>
+</html>
