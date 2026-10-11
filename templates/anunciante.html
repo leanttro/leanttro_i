@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImóvelOnde — Painel do anunciante</title>
+<title>OndeImóveis — Painel do anunciante</title>
 <meta name="robots" content="noindex,nofollow"><link rel="icon" href="{{ SITE.favicon or url_for('favicon') }}">
 <style>
 
@@ -88,7 +88,7 @@ form.inline{display:inline;margin:0}
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-{% set sc = {'publicado':'published','pendente':'pending','pausado':'draft','rejeitado':'rejected'} %}<div class="layout"><aside class="sidebar"><div class="brand"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:30px;width:auto;display:block">{% else %}Imóvel<span>Onde</span>{% endif %}</a></div>
+{% set sc = {'publicado':'published','pendente':'pending','pausado':'draft','rejeitado':'rejected'} %}<div class="layout"><aside class="sidebar"><div class="brand"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:30px;width:auto;display:block">{% else %}Onde<span>Imóveis</span>{% endif %}</a></div>
 <div class="profile"><div class="avatar">{{ t.nome|iniciais }}</div><div><strong>{{ t.nome }}</strong><small>Plano {{ 'Profissional' if t.plano_efetivo == 'profissional' else 'Grátis' }}</small></div></div>
 <nav class="menu"><div class="label">Principal</div><a data-pane="geral" href="#geral" class="{{ 'active' if ativa == 'geral' }}"><span class="ico">⌂</span>Visão geral</a><a data-pane="imoveis" href="#imoveis" class="{{ 'active' if ativa == 'imoveis' }}"><span class="ico">▣</span>Meus imóveis</a><a data-pane="form" href="{{ url_for('anunciante_imovel_novo') }}" class="{{ 'active' if ativa == 'form' }}"><span class="ico">＋</span>Novo imóvel</a><a data-pane="interessados" href="#interessados" class="{{ 'active' if ativa == 'interessados' }}"><span class="ico">♥</span>Interessados</a><div class="label">Minha presença</div><a href="{{ url_for('imobiliaria', slug=t.slug) }}" target="_blank"><span class="ico">▤</span>Minha página pública</a><a data-pane="pagina" href="#pagina" class="{{ 'active' if ativa == 'pagina' }}"><span class="ico">✦</span>Personalizar página</a><div class="label">Conta</div><a data-pane="assinatura" href="#assinatura" class="{{ 'active' if ativa == 'assinatura' }}"><span class="ico">◷</span>Assinatura</a><a href="{{ url_for('home') }}"><span class="ico">⌕</span>Voltar ao portal</a><a href="{{ url_for('sair') }}"><span class="ico">↩</span>Sair</a></nav></aside>
 <main class="main"><header class="topbar"><div class="page-title"><strong id="pt">&nbsp;</strong><small id="ps"></small></div>
@@ -96,7 +96,7 @@ form.inline{display:inline;margin:0}
 <div class="container">
 <div class="pane" id="pane-geral" data-title="Visão geral" data-sub="Painel do anunciante" hidden>
 
-<div class="welcome"><div><h1>Olá, {{ t.nome }} 👋</h1><p>Acompanhe seus imóveis e os contatos recebidos pelo ImóvelOnde.</p></div><a class="primary" href="#novo">+ Cadastrar imóvel</a></div>
+<div class="welcome"><div><h1>Olá, {{ t.nome }} 👋</h1><p>Acompanhe seus imóveis e os contatos recebidos pelo OndeImóveis.</p></div><a class="primary" href="#novo">+ Cadastrar imóvel</a></div>
 {% if t.plano != 'gratis' and t.plano_efetivo == 'gratis' %}<div class="warn">⚠ Sua assinatura Profissional não está ativa — sua página voltou ao plano Grátis. <a class="link" href="#assinatura">Regularizar →</a></div>{% endif %}
 <section class="stats">
 <div class="stat"><div class="stat-top"><span>Imóveis publicados</span><div class="stat-icon">⌂</div></div><strong>{{ est.publicados }}</strong><div class="positive">↑ {{ est.novos_30 }} nos últimos 30 dias</div></div>
@@ -236,7 +236,7 @@ function show(p){
   var el=document.getElementById('pane-'+p);
   document.getElementById('pt').textContent=el.dataset.title;
   document.getElementById('ps').textContent=el.dataset.sub;
-  document.title='ImóvelOnde — '+el.dataset.title;
+  document.title='OndeImóveis — '+el.dataset.title;
   window.scrollTo(0,0);
 }
 function fromHash(){var h=location.hash.slice(1);return h==='novo'?'form':h}
