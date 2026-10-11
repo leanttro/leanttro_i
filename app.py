@@ -11,7 +11,7 @@ Fotos: ficam num volume (UPLOAD_DIR) e são servidas por /assets/<id>?w=640 (red
 Os templates (templates/*.html) são HTML único, com CSS e JS no mesmo arquivo.
 Guia/blog: /guia (público, SEO) e /admin/guia (editor, categorias, autores). Tabelas guia_* criadas por init_db (só CREATE IF NOT EXISTS).
 """
-import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging, unicodedata, smtplib, ssl, threading
+import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging, unicodedata, smtplib, ssl, threading, shutil
 from email.message import EmailMessage
 from email.utils import format_datetime
 from html import unescape as html_unescape
@@ -81,7 +81,7 @@ TIPOS_IMOVEL = {"apartamento": "Apartamento", "casa": "Casa", "cobertura": "Cobe
 FINALIDADES = {"venda": "Venda", "aluguel": "Aluguel"}
 STATUS_IMOVEL = {"publicado": "Publicado", "pendente": "Em análise", "pausado": "Pausado", "rejeitado": "Rejeitado"}
 PLANOS = {"gratis": "Grátis", "profissional": "Profissional"}
-LIMITES = {"gratis": {"imoveis": 3, "fotos": 8}, "profissional": {"imoveis": 100, "fotos": 30}}
+LIMITES = {"gratis": {"imoveis": 3, "fotos": 8}, "profissional": {"imoveis": 100, "fotos": 20}}
 TIPOS_CONTA = {"visitante": "Visitante", "proprietario": "Proprietário", "corretor": "Corretor", "imobiliaria": "Imobiliária"}
 TIPOS_TENANT = ("proprietario", "corretor", "imobiliaria")
 CARACTERISTICAS = ["Suíte", "Piscina", "Sacada", "Salão de festas", "Academia", "Portaria 24h", "Churrasqueira",
@@ -528,13 +528,17 @@ LARGURAS = (120, 200, 240, 320, 480, 640, 960, 1200, 1600)
 MIME_OK = {"JPEG", "PNG", "WEBP"}
 
 
+FOTO_MAX_PX = 1600      # maior lado (px) das imagens guardadas em originais/ (fotos, logos, guia, demo)
+FOTO_QUALIDADE = 82     # qualidade JPEG ao gravar
+
+
 class storage:
-    """Imagens em UPLOAD_DIR/originais/<id>.jpg (máx. 2000px). Variantes sob demanda em UPLOAD_DIR/cache."""
+    """Imagens em UPLOAD_DIR/originais/<id>.jpg (máx. FOTO_MAX_PX). Variantes sob demanda em UPLOAD_DIR/cache."""
     orig = os.path.join(UPLOAD_DIR, "originais")
     cache = os.path.join(UPLOAD_DIR, "cache")
 
     @staticmethod
-    def salvar_imagem(origem, nome="foto.jpg", pasta="imoveis"):
+    def salvar_imagem(origem, nome="foto.jpg", pasta="imoveis", max_px=FOTO_MAX_PX, qualidade=FOTO_QUALIDADE):
         """origem: PIL.Image | bytes | arquivo aberto. Valida, corrige rotação, converte p/ JPEG e grava. Devolve o id."""
         if isinstance(origem, Image.Image):
             img = origem
@@ -554,10 +558,10 @@ class storage:
             img = fundo
         else:
             img = img.convert("RGB")
-        img.thumbnail((2000, 2000), Image.LANCZOS)
+        img.thumbnail((max_px, max_px), Image.LANCZOS)
         fid = uuid.uuid4().hex
         caminho = os.path.join(storage.orig, fid + ".jpg")
-        img.save(caminho, "JPEG", quality=86, optimize=True, progressive=True)
+        img.save(caminho, "JPEG", quality=qualidade, optimize=True, progressive=True)
         execute("INSERT INTO arquivos (id, nome, mime, tamanho, largura, altura, pasta) VALUES (%s,%s,'image/jpeg',%s,%s,%s,%s)",
                 (fid, sanitize_input(nome)[:120], os.path.getsize(caminho), img.width, img.height, pasta))
         return fid
@@ -598,6 +602,98 @@ def url_foto(fid, largura=None):
     if largura:
         largura = min((w for w in LARGURAS if w >= largura), default=LARGURAS[-1])
     return url_for("assets", file_id=fid, w=largura) if largura else url_for("assets", file_id=fid)
+
+
+# ── Uso de armazenamento (painel admin /admin/arquivos) ──
+def fmt_bytes(n):
+    """Tamanho legível em português (base 1024): 0 B · 12 KB · 320 MB · 1,4 GB. Tolera None/negativos."""
+    try:
+        n = float(n or 0)
+    except (TypeError, ValueError):
+        n = 0.0
+    if n <= 0:
+        return "0 B"
+    if n < 1024:
+        return f"{int(n)} B"
+    for un in ("KB", "MB", "GB", "TB"):
+        n /= 1024
+        if n < 1024 or un == "TB":
+            break
+    if un in ("KB", "MB") and n >= 10:
+        txt = f"{n:.0f}"
+    else:
+        txt = f"{n:.1f}"
+        if txt.endswith(".0") and un in ("KB", "MB"):
+            txt = txt[:-2]
+    return f"{txt.replace('.', ',')} {un}"
+
+
+@app.template_filter("bytes_h")
+def f_bytes_h(v):
+    return fmt_bytes(v)
+
+
+_CACHE_BYTES = {"t": 0.0, "v": 0}
+
+
+def cache_bytes_cached(ttl=600):
+    """Soma o tamanho dos arquivos de storage.cache. Resultado fica 10 min em memória (não varre a pasta a cada acesso)."""
+    agora = time.time()
+    if _CACHE_BYTES["t"] and agora - _CACHE_BYTES["t"] < ttl:
+        return _CACHE_BYTES["v"]
+    total = 0
+    try:
+        with os.scandir(storage.cache) as it:
+            for e in it:
+                try:
+                    if e.is_file(follow_symlinks=False):
+                        total += e.stat(follow_symlinks=False).st_size
+                except OSError:
+                    continue
+    except OSError:
+        total = 0
+    _CACHE_BYTES["t"], _CACHE_BYTES["v"] = agora, total
+    return total
+
+
+def disco_info():
+    try:
+        d = shutil.disk_usage(UPLOAD_DIR)
+    except OSError:
+        return None
+    pct = round(d.used / d.total * 100, 1) if d.total else 0.0
+    return {"total": d.total, "usado": d.used, "livre": d.free, "pct_usado": pct}
+
+
+def uso_anunciantes():
+    """Uso por anunciante numa única consulta agregada. Ordenado por espaço ocupado (maior primeiro)."""
+    linhas = query_all(
+        """SELECT t.id, t.nome, t.slug, t.plano, t.assinatura_status, t.plano_vencimento,
+                  COUNT(DISTINCT i.id) FILTER (WHERE i.status <> 'rejeitado') AS n_imoveis,
+                  COUNT(f.id) FILTER (WHERE i.status <> 'rejeitado') AS n_fotos,
+                  COALESCE(SUM(a.tamanho), 0) AS bytes_fotos,
+                  COALESCE(MAX(la.tamanho), 0) AS bytes_logo
+             FROM tenants t
+             LEFT JOIN imoveis i ON i.tenant_id = t.id
+             LEFT JOIN imovel_fotos f ON f.imovel_id = i.id
+             LEFT JOIN arquivos a ON a.id = f.file_id
+             LEFT JOIN arquivos la ON la.id = t.logo_file_id
+            GROUP BY t.id""")
+    saida = []
+    for r in linhas:
+        plano = plano_efetivo(r)
+        lim = LIMITES[plano]
+        n_im, n_fo = int(r["n_imoveis"] or 0), int(r["n_fotos"] or 0)
+        lim_fotos_total = lim["imoveis"] * lim["fotos"]
+        saida.append(dict(
+            id=r["id"], nome=r["nome"], slug=r["slug"], plano_efetivo=plano,
+            n_imoveis=n_im, limite_imoveis=lim["imoveis"], n_fotos=n_fo,
+            limite_fotos=lim["fotos"], limite_fotos_total=lim_fotos_total,
+            bytes=int(r["bytes_fotos"] or 0) + int(r["bytes_logo"] or 0),
+            pct_imoveis=min(100, round(n_im * 100 / lim["imoveis"])) if lim["imoveis"] else 0,
+            pct_fotos=min(100, round(n_fo * 100 / lim_fotos_total)) if lim_fotos_total else 0))
+    saida.sort(key=lambda x: (-x["bytes"], (x["nome"] or "").lower()))
+    return saida
 
 
 @app.route("/assets/<file_id>")
@@ -2034,7 +2130,7 @@ def api_geocodificar():
 
 @app.route("/anuncie-seu-imovel")
 def anuncie():
-    return render_template("anuncie.html")
+    return render_template("anuncie.html", limites=LIMITES)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -3048,7 +3144,7 @@ def _painel(ativa, **form):
     """Painel do anunciante: UMA página só (anunciante.html) com todas as seções.
     `ativa` = seção aberta ao carregar: geral | imoveis | form | interessados | pagina | assinatura."""
     t = g.tenant
-    ctx = dict(t=t, ativa=ativa, pro=t["pro"], pro_limites=LIMITES["profissional"],
+    ctx = dict(t=t, ativa=ativa, pro=t["pro"], pro_limites=LIMITES["profissional"], gratis_limites=LIMITES["gratis"],
                atrasado=t["plano"] != "gratis" and t["plano_efetivo"] == "gratis",
                i=None, val={}, sel=[], proximos=[], fotos=[],
                templates_pagina=metadados_templates_pagina(),
@@ -3144,10 +3240,13 @@ def _ler_form_imovel():
 def _salvar_fotos(imovel_id, t):
     arquivos = [a for a in request.files.getlist("fotos") if a and a.filename]
     atuais = query_one("SELECT COUNT(*) AS n, COALESCE(MAX(ordem), -1) AS m FROM imovel_fotos WHERE imovel_id = %s", (imovel_id,))
-    vagas = t["limites"]["fotos"] - atuais["n"]
+    vagas = max(t["limites"]["fotos"] - atuais["n"], 0)     # nunca negativo (imóvel acima do teto novo mantém as fotos)
     if len(arquivos) > vagas:
-        flash(f"Seu plano permite {t['limites']['fotos']} fotos por imóvel; enviei só as primeiras {max(vagas, 0)}.", "error")
-        arquivos = arquivos[:max(vagas, 0)]
+        if vagas == 0:
+            flash(f"Este imóvel já está no limite de {t['limites']['fotos']} fotos do seu plano; nenhuma foto nova foi adicionada.", "error")
+        else:
+            flash(f"Seu plano permite {t['limites']['fotos']} fotos por imóvel; enviei só as primeiras {vagas}.", "error")
+        arquivos = arquivos[:vagas]
     ordem = atuais["m"] + 1
     for a in arquivos:
         try:
@@ -3773,7 +3872,9 @@ def admin_arquivos():
     resumo = query_one("SELECT COUNT(*) AS n, COALESCE(SUM(tamanho), 0) AS bytes FROM arquivos")
     orfaos = query_one("""SELECT COUNT(*) AS n FROM arquivos a WHERE NOT EXISTS (SELECT 1 FROM imovel_fotos f WHERE f.file_id = a.id)
                           AND NOT EXISTS (SELECT 1 FROM tenants t WHERE t.logo_file_id = a.id)""")["n"]
-    return render_template("admin.html", lista=lista, resumo=resumo, orfaos=orfaos, vol=volume_info(), pagina_ativa="arquivos")
+    return render_template("admin.html", lista=lista, resumo=resumo, orfaos=orfaos, vol=volume_info(), pagina_ativa="arquivos",
+                           uso_anunciantes=uso_anunciantes(), disco=disco_info(), cache_bytes=cache_bytes_cached(),
+                           originais_bytes=int(resumo["bytes"]))
 
 
 @app.route("/admin/arquivos/limpar", methods=["POST"])
