@@ -107,6 +107,16 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 .ond-arrows button{width:44px;height:44px;border-radius:50%;border:1px solid #dfe6e9;background:#fff;color:var(--ink);font-size:24px;line-height:1;padding:0 0 3px;cursor:pointer}
 .ond-arrows button:hover{background:#f3f6f4}
 @media(max-width:700px){.ond{padding-top:40px}.ond-track{gap:30px}.ond-col{flex-basis:76%}.ond-col h3{font-size:22px;margin-bottom:18px}}
+/* seção "Imobiliárias em destaque" */
+.imobs{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
+.imob{display:grid;justify-items:center;align-content:start;gap:8px;padding:20px 12px;text-align:center}
+.imob-logo{width:84px;height:84px;border-radius:16px;background:#f3f6f7;display:grid;place-items:center;overflow:hidden;font-size:32px;font-weight:800;color:#15993a}
+.imob-logo img{width:100%;height:100%;padding:8px;object-fit:contain}
+.imob b{font-size:14px;line-height:1.25;overflow-wrap:anywhere}
+.imob small{font-size:11px;color:var(--muted)}
+.imob em{font-style:normal;font-size:11px;font-weight:800;color:#188e43;background:#eaf9ec;padding:4px 9px;border-radius:999px}
+@media(max-width:1000px){.imobs{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.imobs{grid-template-columns:repeat(2,1fr);gap:12px}}
 </style>
 </head>
 <body>
@@ -151,6 +161,12 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 <div class="body"><div class="price">{{ i|preco }}</div><div class="details"><a class="title-link" href="{{ url_for('imovel', slug=i.slug) }}">{{ i.titulo }}</a></div><div class="details">{{ TIPOS_IMOVEL[i.tipo] }}{% if i.dormitorios %} | {{ i.dormitorios }} quarto{{ 's' if i.dormitorios != 1 }}{% endif %}{% if i.vagas %} | {{ i.vagas }} vaga{{ 's' if i.vagas != 1 }}{% endif %}</div><div class="loc">⌖ {{ i.bairro }} - {{ i.cidade }}/{{ i.uf }}</div>
 <div class="features"><span title="Área">⌗ {{ i.area|num if i.area else '—' }} m²</span><span title="Quartos">▣ {{ i.dormitorios }}</span><span title="Vagas">♙ {{ i.vagas }}</span><span title="Banheiros">▱ {{ i.banheiros }}</span></div></div></article>
 {% else %}<div class="empty-box">Ainda não há imóveis publicados. <a class="accent" href="{{ url_for('anuncie') }}">Anuncie o primeiro →</a></div>{% endfor %}
+</div></div></section>{% endif %}
+
+{% if imobs %}<section aria-labelledby="imobs"><div class="container"><div class="section-head"><h2 class="title" id="imobs">Imobiliárias em destaque</h2><a href="{{ url_for('imobiliarias') }}">Ver todas as imobiliárias →</a></div>
+<div class="imobs">
+{% for t in imobs %}<a class="card imob" href="{{ url_for('imobiliaria', slug=t.slug) }}"><span class="imob-logo">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="" width="84" height="84" loading="lazy" decoding="async">{% else %}{{ t.nome[:1]|upper }}{% endif %}</span><b>{{ t.nome }}</b>{% if t.cidade %}<small>{{ t.cidade }}{% if t.uf %}/{{ t.uf|upper }}{% endif %}</small>{% endif %}<em>★ Destaque</em></a>
+{% endfor %}
 </div></div></section>{% endif %}
 
 <section style="padding-top:4px"><div class="container"><div class="location-block"><div class="map" role="img" aria-label="Mapa ilustrativo"></div><div class="copy"><small><b style="color:var(--g)">▌</b> Busque por localização</small><h3>Imóveis perto de você</h3><a class="btn" href="{{ url_for('perto_de_mim') }}">⌖ &nbsp;Usar minha localização</a> <a class="btn alt" href="{{ url_for('buscar') }}">Buscar por região</a></div>
