@@ -66,6 +66,52 @@ header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 @media(max-width:1000px){header .menu{gap:15px}}
 @media(max-width:700px){header .container{width:calc(100% - 28px)}header .nav{height:76px;gap:10px}header .nav .logo img{height:52px!important}header .menu,header .actions .near{display:none}header .actions{margin-left:auto}header .actions a:not(.anunciar){display:none}header .actions .anunciar{display:inline-block;font-weight:800;padding:9px 15px;border-radius:20px}header .burger{display:flex;margin-left:0}}
 @media(min-width:701px){header .mnav{display:none!important}}
+
+/* cards Pro (foto grande + miniaturas) e lista dos demais */
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pc{background:#fff;border:1px solid var(--l);border-radius:16px;overflow:hidden;box-shadow:0 4px 18px #07152110;display:flex;flex-direction:column;transition:transform .2s,box-shadow .2s}
+@media(prefers-reduced-motion:no-preference){.pc:hover{transform:translateY(-3px);box-shadow:0 14px 34px #07152122}}
+.pc-cover{position:relative;display:block;aspect-ratio:16/10;background:#e9eef0;overflow:hidden}
+.pc-cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}
+.pc:hover .pc-cover>img{transform:scale(1.03)}
+.pc-cover:after{content:"";position:absolute;inset:auto 0 0 0;height:45%;background:linear-gradient(transparent,#0714219e);pointer-events:none}
+.pc-ph{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#071521,#12362a);color:var(--g);font-size:54px;font-weight:850}
+.pc-ph img{max-width:55%;max-height:55%;object-fit:contain}
+.pc-badge,.pc-ver{position:absolute;z-index:2;font-size:10px;font-weight:850;border-radius:7px;padding:5px 9px;letter-spacing:.3px}
+.pc-badge{top:12px;right:12px;background:#ffffffee;color:#071521}
+.pc-ver{left:12px;bottom:12px;background:var(--g);color:#06150c}
+.pc-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px 4px 0}
+.pc-thumbs a{position:relative;display:block;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:#e9eef0}
+.pc-thumbs img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.pc-thumbs a:hover img{transform:scale(1.08)}
+.pc-more{position:absolute;inset:0;display:grid;place-items:center;background:#071521b8;color:#fff;font-weight:850;font-size:15px}
+.pc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px;flex:1}
+.pc-head{display:flex;gap:12px;align-items:center}
+.pc-av{flex:none;width:52px;height:52px;border-radius:13px;background:var(--d);color:var(--g);display:grid;place-items:center;font-weight:850;font-size:17px;overflow:hidden}
+.pc-av img{width:100%;height:100%;object-fit:cover}
+.pc-name{font-size:17px;font-weight:800;letter-spacing:-.3px;line-height:1.2}
+.pc-city{font-size:12px;color:var(--m);margin-top:4px}
+.pc-desc{font-size:12.5px;line-height:1.55;color:#5d6a72;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pc-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pc-chips span{font-size:11px;font-weight:700;padding:5px 10px;border-radius:20px;background:#eef3f4;color:#44535b}
+.pc-chips span.f{background:#eaf9ec;color:#168e29}
+.pc .card-actions{margin-top:auto;padding-top:4px}
+.pc .view,.pc .wa{height:44px;font-size:12px;border-radius:10px}
+.pc .view{background:var(--g);border-color:var(--g);color:#06150c}
+.pc .view:hover{filter:brightness(.95)}
+.pc .wa{width:52px;background:#fff;border:1px solid #c5eacb;color:#159d2d;font-size:16px}
+.sec2{margin:42px 0 14px}.sec2 h2{font-size:19px;margin:0}.sec2 p{font-size:11px;color:var(--m);margin:5px 0 0}
+.ls{background:#fff;border:1px solid var(--l);border-radius:14px;overflow:hidden;box-shadow:0 3px 12px #00000006}
+.ls-row{display:flex;align-items:center;gap:14px;padding:15px 20px;border-top:1px solid #edf1f3;transition:background .15s}
+.ls-row:first-child{border-top:0}.ls-row:hover{background:#f6faf7}
+.ls-av{flex:none;width:42px;height:42px;border-radius:10px;background:#eef3f4;color:#44535b;display:grid;place-items:center;font-weight:850;font-size:13px}
+.ls-info{flex:1;min-width:0}
+.ls-name{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ls-v{color:#159c2d;font-size:12px;margin-left:6px}
+.ls-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--m);margin-top:4px}
+.ls-go{flex:none;font-size:13px;font-weight:800;color:#159d2d}
+@media(max-width:1000px){.pgrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:620px){.pgrid{grid-template-columns:1fr}.ls-row{padding:13px 14px}.ls-go{font-size:12px}}
 </style>
 </head>
 <body>
@@ -79,13 +125,20 @@ header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 <nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
 <section class="hero"><div class="container"><h1>Encontre uma imobiliária</h1><p>Conheça imobiliárias e corretores cadastrados no ImovelOnde e encontre o profissional ideal para você.</p>
 <form class="search" method="get" action="{{ url_for('imobiliarias') }}" style="grid-template-columns:1fr 80px"><label class="field">⌕ <input name="q" value="{{ q }}" placeholder="Nome da imobiliária ou cidade"></label><button>Buscar</button></form></div></section>
-<main class="container content"><div class="top"><div><h2>{{ 'Resultados da busca' if q else 'Imobiliárias em destaque' }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no ImovelOnde</p></div></div>
-<div class="grid">
-{% for t in lista %}<article class="card"><div class="head"><div class="avatar">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.nome }}" loading="lazy">{% else %}{{ t.nome|iniciais }}{% endif %}</div><div><div class="name">{{ t.nome }}</div>{% if t.verificada %}<div class="verified">✓ VERIFICAD{{ 'A' if t.tipo == 'imobiliaria' else 'O' }}</div>{% endif %}<div class="city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
-<div class="desc">{{ (t.descricao or 'Confira os imóveis anunciados no ImovelOnde.')[:140] }}</div>
-<div class="stats"><div class="stat"><strong>{{ t.n_imoveis }}</strong>imóve{{ 'l' if t.n_imoveis == 1 else 'is' }}</div><div class="stat"><strong>{{ t.anos_mercado if t.anos_mercado is not none else '—' }}</strong>anos</div><div class="stat"><strong>{{ 'Pro' if t.plano_efetivo == 'profissional' else 'Grátis' }}</strong>plano</div></div>
-<div class="card-actions"><a class="view" href="{{ url_for('imobiliaria', slug=t.slug) }}">Ver página</a>{% if t.whatsapp %}<a class="wa" href="{{ wa_link(t.whatsapp, 'Olá! Vi sua página no ImovelOnde.') }}" target="_blank" rel="noopener">◉</a>{% endif %}</div></article>
-{% else %}<div class="empty">Nenhuma imobiliária encontrada.</div>{% endfor %}</div>
+<main class="container content">{% set pros = lista|selectattr('pro')|list %}{% set outros = lista|rejectattr('pro')|list %}
+<div class="top"><div><h2>{{ 'Resultados da busca' if q else ('Imobiliárias em destaque' if pros else 'Imobiliárias e corretores') }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no ImovelOnde</p></div></div>
+{% if pros %}<div class="pgrid">
+{% for t in pros %}<article class="pc">
+<a class="pc-cover" href="{{ url_for('imobiliaria', slug=t.slug) }}" aria-label="Ver página de {{ t.nome }}">{% if t.galeria %}<img src="{{ t.galeria[0].big }}" alt="{{ t.galeria[0].titulo }}" loading="lazy">{% else %}<div class="pc-ph">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.nome }}">{% else %}{{ t.nome|iniciais }}{% endif %}</div>{% endif %}<span class="pc-badge">★ PRO</span>{% if t.verificada %}<span class="pc-ver">✓ Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}</span>{% endif %}</a>
+{% if t.galeria|length > 1 %}<div class="pc-thumbs">{% for g in t.galeria[1:5] %}<a href="{{ g.url }}" aria-label="{{ g.titulo }}"><img src="{{ g.thumb }}" alt="{{ g.titulo }}" loading="lazy">{% if loop.last and t.mais %}<span class="pc-more">+{{ t.mais }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
+<div class="pc-body"><div class="pc-head"><div class="pc-av">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.nome }}" loading="lazy">{% else %}{{ t.nome|iniciais }}{% endif %}</div><div><div class="pc-name">{{ t.nome }}</div><div class="pc-city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
+<div class="pc-desc">{{ (t.descricao or 'Confira os imóveis anunciados no ImovelOnde.')[:140] }}</div>
+<div class="pc-chips">{% for f in t.finalidades %}<span class="f">{{ f }}</span>{% endfor %}<span>{{ t.n_imoveis }} imóve{{ 'l' if t.n_imoveis == 1 else 'is' }}</span>{% if t.anos_mercado %}<span>{{ t.anos_mercado }} anos</span>{% endif %}</div>
+<div class="card-actions"><a class="view" href="{{ url_for('imobiliaria', slug=t.slug) }}">Ver página</a>{% if t.whatsapp %}<a class="wa" href="{{ wa_link(t.whatsapp, 'Olá! Vi sua página no ImovelOnde.') }}" target="_blank" rel="noopener" aria-label="WhatsApp">◉</a>{% endif %}</div></div></article>
+{% endfor %}</div>{% endif %}
+{% if outros %}{% if pros %}<div class="sec2"><h2>Mais imobiliárias e corretores</h2><p>{{ outros|length }} no ImovelOnde</p></div>{% endif %}
+<div class="ls">{% for t in outros %}<a class="ls-row" href="{{ url_for('imobiliaria', slug=t.slug) }}"><div class="ls-av">{{ t.nome|iniciais }}</div><div class="ls-info"><div class="ls-name">{{ t.nome }}{% if t.verificada %}<span class="ls-v" title="Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}">✓</span>{% endif %}</div><div class="ls-meta"><span>⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</span><span>▣ {{ t.n_imoveis }} imóve{{ 'l' if t.n_imoveis == 1 else 'is' }}</span></div></div><span class="ls-go">Ver página →</span></a>{% endfor %}</div>{% endif %}
+{% if not lista %}<div class="empty">Nenhuma imobiliária encontrada.</div>{% endif %}
 <section class="cta"><div><h3>Você é corretor ou imobiliária?</h3><p>Cadastre seus imóveis gratuitamente e comece a receber contatos pelo ImovelOnde.</p></div><a href="{{ url_for('cadastrar', tipo='imobiliaria') }}"><button>Quero anunciar meus imóveis</button></a></section></main>
 <footer><div class="container c foot"><span>© {{ ano }} {{ SITE.nome }}</span><div class="links"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></div></div></footer>
 <script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
