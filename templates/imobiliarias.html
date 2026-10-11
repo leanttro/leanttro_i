@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{% set seo_title = ('Imobiliárias e corretores' ~ (' — ' ~ q if q else '')) ~ ' | ImovelOnde' %}
-{% set seo_desc = 'Conheça imobiliárias e corretores que anunciam no ImovelOnde, veja os imóveis de cada um e fale direto pelo WhatsApp.' %}
+{% set seo_title = ('Imobiliárias e corretores' ~ (' — ' ~ q if q else '')) ~ ' | OndeImóveis' %}
+{% set seo_desc = 'Conheça imobiliárias e corretores que anunciam no OndeImóveis, veja os imóveis de cada um e fale direto pelo WhatsApp.' %}
 {% if q %}{% set seo_robots = 'noindex,follow' %}{% set seo_canonical = 'none' %}{% endif %}
 {% include '_seo.html' %}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -112,29 +112,29 @@ header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
 {% macro marca(tam=34) -%}
-{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Imóvel<span class="accent">Onde</span>{%- endif -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
 {%- endmacro %}
 <header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
 <nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
 <div class="actions"><a class="anunciar" href="{{ url_for('anuncie') }}">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
 <nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
-<section class="hero"><div class="container"><h1>Encontre uma imobiliária</h1><p>Conheça imobiliárias e corretores cadastrados no ImovelOnde e encontre o profissional ideal para você.</p>
+<section class="hero"><div class="container"><h1>Encontre uma imobiliária</h1><p>Conheça imobiliárias e corretores cadastrados no OndeImóveis e encontre o profissional ideal para você.</p>
 <form class="search" method="get" action="{{ url_for('imobiliarias') }}" style="grid-template-columns:1fr 80px"><label class="field">⌕ <input name="q" value="{{ q }}" placeholder="Nome da imobiliária ou cidade"></label><button>Buscar</button></form></div></section>
 <main class="container content">{% set pros = lista|selectattr('pro')|list %}{% set outros = lista|rejectattr('pro')|list %}
-<div class="top"><div><h2>{{ 'Resultados da busca' if q else ('Imobiliárias em destaque' if pros else 'Imobiliárias e corretores') }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no ImovelOnde</p></div></div>
+<div class="top"><div><h2>{{ 'Resultados da busca' if q else ('Imobiliárias em destaque' if pros else 'Imobiliárias e corretores') }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no OndeImóveis</p></div></div>
 {% if pros %}<div class="pgrid">
 {% for t in pros %}<article class="pc">
 <a class="pc-cover" href="{{ url_for('imobiliaria', slug=t.slug) }}" aria-label="Ver página de {{ t.nome }}">{% if t.logo_grande %}<img src="{{ t.logo_grande }}" alt="{{ t.nome }}" loading="lazy">{% else %}<div class="pc-ph">{{ t.nome|iniciais }}</div>{% endif %}{% if t.verificada %}<span class="pc-ver">✓ Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}</span>{% endif %}</a>
 {% if t.galeria %}<div class="pc-lbl">Alguns imóveis</div><div class="pc-thumbs">{% for g in t.galeria %}<a href="{{ g.url }}" aria-label="{{ g.titulo }}"><img src="{{ g.thumb }}" alt="{{ g.titulo }}" loading="lazy">{% if loop.last and t.mais %}<span class="pc-more">+{{ t.mais }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
 <div class="pc-body"><div class="pc-head"><div><div class="pc-name">{{ t.nome }}</div><div class="pc-city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
-<div class="pc-desc">{{ (t.descricao or 'Confira os imóveis anunciados no ImovelOnde.')[:140] }}</div>
+<div class="pc-desc">{{ (t.descricao or 'Confira os imóveis anunciados no OndeImóveis.')[:140] }}</div>
 <div class="pc-chips">{% for f in t.finalidades %}<span class="f">{{ f }}</span>{% endfor %}<span>{{ t.n_imoveis }} imóve{{ 'l' if t.n_imoveis == 1 else 'is' }}</span>{% if t.anos_mercado %}<span>{{ t.anos_mercado }} anos</span>{% endif %}</div>
 <div class="card-actions"><a class="view" href="{{ url_for('imobiliaria', slug=t.slug) }}">Ver página</a>{% if t.whatsapp %}{% if usuario %}<a class="wa" href="{{ url_for('imobiliaria_whatsapp', slug=t.slug) }}" target="_blank" rel="noopener nofollow" aria-label="WhatsApp">◉</a>{% else %}<a class="wa" href="{{ url_for('cadastrar', next=request.path) }}" title="Cadastre-se para ver o contato" aria-label="Cadastre-se para ver o contato">🔒</a>{% endif %}{% endif %}</div></div></article>
 {% endfor %}</div>{% endif %}
-{% if outros %}{% if pros %}<div class="sec2"><h2>Mais imobiliárias e corretores</h2><p>{{ outros|length }} no ImovelOnde</p></div>{% endif %}
+{% if outros %}{% if pros %}<div class="sec2"><h2>Mais imobiliárias e corretores</h2><p>{{ outros|length }} no OndeImóveis</p></div>{% endif %}
 <div class="ls">{% for t in outros %}<a class="ls-row" href="{{ url_for('imobiliaria', slug=t.slug) }}"><div class="ls-av">{{ t.nome|iniciais }}</div><div class="ls-info"><div class="ls-name">{{ t.nome }}{% if t.verificada %}<span class="ls-v" title="Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}">✓</span>{% endif %}</div><div class="ls-meta"><span>⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</span><span>▣ {{ t.n_imoveis }} imóve{{ 'l' if t.n_imoveis == 1 else 'is' }}</span></div></div><span class="ls-go">Ver página →</span></a>{% endfor %}</div>{% endif %}
 {% if not lista %}<div class="empty">Nenhuma imobiliária encontrada.</div>{% endif %}
-<section class="cta"><div><h3>Você é corretor ou imobiliária?</h3><p>Cadastre seus imóveis gratuitamente e comece a receber contatos pelo ImovelOnde.</p></div><a href="{{ url_for('cadastrar', tipo='imobiliaria') }}"><button>Quero anunciar meus imóveis</button></a></section></main>
+<section class="cta"><div><h3>Você é corretor ou imobiliária?</h3><p>Cadastre seus imóveis gratuitamente e comece a receber contatos pelo OndeImóveis.</p></div><a href="{{ url_for('cadastrar', tipo='imobiliaria') }}"><button>Quero anunciar meus imóveis</button></a></section></main>
 <footer><div class="container c foot"><span>© {{ ano }} {{ SITE.nome }}</span><div class="links"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></div></div></footer>
 <script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
 function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
