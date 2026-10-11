@@ -9,9 +9,13 @@ Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   Verificação de e-mail no cadastro (código de 6 dígitos): liga sozinha quando o SMTP está configurado; VERIFICAR_EMAIL=0 desliga
 Fotos: ficam num volume (UPLOAD_DIR) e são servidas por /assets/<id>?w=640 (redimensiona e guarda em cache).
 Os templates (templates/*.html) são HTML único, com CSS e JS no mesmo arquivo.
+Guia/blog: /guia (público, SEO) e /admin/guia (editor, categorias, autores). Tabelas guia_* criadas por init_db (só CREATE IF NOT EXISTS).
 """
 import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging, unicodedata, smtplib, ssl, threading
 from email.message import EmailMessage
+from email.utils import format_datetime
+from html import unescape as html_unescape
+from html.parser import HTMLParser
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import quote, urlparse
@@ -307,6 +311,48 @@ SELECT e.usuario_id, e.tenant_id, e.imovel_id, 'imovel', e.tipo, u.nome, u.email
 """
 
 
+# Guia / blog — só CREATE ... IF NOT EXISTS: nunca apaga nem altera nada que já existe (igual ao script de migração).
+SCHEMA_GUIA = """
+CREATE TABLE IF NOT EXISTS guia_autores (
+  id SERIAL PRIMARY KEY, nome TEXT NOT NULL, slug TEXT NOT NULL, cargo TEXT, bio TEXT, foto TEXT,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE TABLE IF NOT EXISTS guia_categorias (
+  id SERIAL PRIMARY KEY, nome TEXT NOT NULL, slug TEXT NOT NULL, descricao TEXT, seo_titulo TEXT, seo_descricao TEXT,
+  ordem INT NOT NULL DEFAULT 0, ativa BOOLEAN NOT NULL DEFAULT TRUE, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE TABLE IF NOT EXISTS guia_tags (
+  id SERIAL PRIMARY KEY, nome TEXT NOT NULL, slug TEXT NOT NULL, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE TABLE IF NOT EXISTS guia_posts (
+  id SERIAL PRIMARY KEY, titulo TEXT NOT NULL, slug TEXT NOT NULL, resumo TEXT,
+  corpo TEXT NOT NULL DEFAULT '', corpo_formato TEXT NOT NULL DEFAULT 'html', tipo TEXT NOT NULL DEFAULT 'artigo',
+  capa TEXT, capa_alt TEXT,
+  categoria_id INT REFERENCES guia_categorias(id) ON DELETE SET NULL,
+  autor_id INT REFERENCES guia_autores(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho','agendado','publicado')),
+  destaque BOOLEAN NOT NULL DEFAULT FALSE, ordem_destaque INT NOT NULL DEFAULT 0, publicado_em TIMESTAMPTZ,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  seo_titulo TEXT, seo_descricao TEXT, noindex BOOLEAN NOT NULL DEFAULT FALSE,
+  uf TEXT, cidade_slug TEXT, bairro_slug TEXT, tempo_leitura INT, visualizacoes INT NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS guia_post_tags (
+  post_id INT NOT NULL REFERENCES guia_posts(id) ON DELETE CASCADE,
+  tag_id INT NOT NULL REFERENCES guia_tags(id) ON DELETE CASCADE, PRIMARY KEY (post_id, tag_id));
+CREATE TABLE IF NOT EXISTS guia_redirecionamentos (
+  slug_antigo TEXT PRIMARY KEY, post_id INT NOT NULL REFERENCES guia_posts(id) ON DELETE CASCADE,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE UNIQUE INDEX IF NOT EXISTS ux_guia_autores_slug ON guia_autores (slug);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_guia_categorias_slug ON guia_categorias (slug);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_guia_tags_slug ON guia_tags (slug);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_guia_posts_slug ON guia_posts (slug);
+CREATE INDEX IF NOT EXISTS ix_guia_posts_pub ON guia_posts (status, publicado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_guia_posts_cat ON guia_posts (categoria_id, publicado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_guia_posts_local ON guia_posts (cidade_slug, bairro_slug);
+CREATE INDEX IF NOT EXISTS ix_guia_posts_destaque ON guia_posts (ordem_destaque, publicado_em DESC) WHERE status = 'publicado' AND destaque;
+CREATE INDEX IF NOT EXISTS ix_guia_posts_busca ON guia_posts USING GIN
+  (to_tsvector('portuguese', coalesce(titulo,'') || ' ' || coalesce(resumo,'') || ' ' || coalesce(corpo,'')));
+CREATE INDEX IF NOT EXISTS ix_guia_post_tags_tag ON guia_post_tags (tag_id);
+CREATE INDEX IF NOT EXISTS ix_guia_redir_post ON guia_redirecionamentos (post_id);
+"""
+
+
 def init_db():
     """Cria as tabelas (idempotente). Espera o Postgres subir; trava para só 1 worker migrar."""
     ultimo = None
@@ -326,6 +372,7 @@ def init_db():
             cur.execute(SCHEMA)
             cur.execute(SCHEMA_CHAT)
             cur.execute(SCHEMA_LEADS)
+            cur.execute(SCHEMA_GUIA)
             cur.execute("SELECT pg_advisory_unlock(727274)")
         c.commit()
     finally:
@@ -1922,9 +1969,832 @@ def anuncie():
     return render_template("anuncie.html")
 
 
+# ═══════════════════════════════════════════════════════════════
+# 4b. GUIA / BLOG — artigos, notícias e guias de bairro (feito para SEO)
+#     Tabelas: guia_posts, guia_categorias, guia_tags, guia_post_tags, guia_autores, guia_redirecionamentos.
+#     Público: /guia · /guia/<slug> · /guia/categoria/<slug> · /guia/tag/<slug> · /guia/autor/<slug>
+#              /guia/busca · /guia/feed.xml        Admin: /admin/guia
+# ═══════════════════════════════════════════════════════════════
+
+GUIA_MARCA = "ImovelOnde"
+TIPOS_GUIA = {"artigo": "Artigo", "noticia": "Notícia", "bairro": "Guia de bairro"}
+STATUS_GUIA = {"rascunho": "Rascunho", "agendado": "Agendado", "publicado": "Publicado"}
+GUIA_POR_PAGINA = 12
+GUIA_RESERVADOS = {"categoria", "tag", "autor", "busca", "feed", "rss", "novo", "sitemap"}   # não podem ser slug de post
+# "no ar" = publicado (ou agendado cuja hora já chegou). Posts agendados entram sozinhos, sem cron.
+GUIA_PUB = "p.status IN ('publicado', 'agendado') AND p.publicado_em IS NOT NULL AND p.publicado_em <= NOW()"
+GUIA_SEL = ("SELECT p.id, p.titulo, p.slug, p.resumo, p.tipo, p.capa, p.capa_alt, p.publicado_em, p.atualizado_em, "
+            "p.tempo_leitura, p.destaque, p.categoria_id, p.autor_id, c.nome AS categoria_nome, c.slug AS categoria_slug, "
+            "a.nome AS autor_nome, a.slug AS autor_slug "
+            "FROM guia_posts p LEFT JOIN guia_categorias c ON c.id = p.categoria_id AND c.ativa "
+            "LEFT JOIN guia_autores a ON a.id = p.autor_id")
+GUIA_SEL_FULL = ("SELECT p.*, c.nome AS categoria_nome, c.slug AS categoria_slug, a.nome AS autor_nome, a.slug AS autor_slug, "
+                 "a.cargo AS autor_cargo, a.bio AS autor_bio, a.foto AS autor_foto "
+                 "FROM guia_posts p LEFT JOIN guia_categorias c ON c.id = p.categoria_id AND c.ativa "
+                 "LEFT JOIN guia_autores a ON a.id = p.autor_id")
+
+
+# ── limpeza do HTML do editor (lista branca: nada de script, iframe, onclick, style…) ──
+
+_G_PERMITIDAS = {"p", "h2", "h3", "h4", "ul", "ol", "li", "strong", "em", "u", "a", "blockquote", "img", "figure",
+                 "figcaption", "br", "hr", "table", "thead", "tbody", "tr", "th", "td", "code", "pre", "sup", "sub", "s", "mark"}
+_G_BLOCOS = {"p", "h2", "h3", "h4", "ul", "ol", "blockquote", "figure", "table", "hr", "pre"}
+_G_SEM_TEXTO = {"ul", "ol", "table", "thead", "tbody", "tr"}
+_G_VAZIAS = {"br", "hr", "img"}
+_G_APELIDOS = {"b": "strong", "i": "em", "h1": "h2", "h5": "h4", "h6": "h4", "strike": "s", "del": "s",
+               "div": "p", "section": "p", "article": "p"}
+_G_DESCARTAR = {"script", "style", "iframe", "object", "embed", "svg", "math", "noscript", "template", "textarea",
+                "select", "head", "title"}
+
+
+def _g_dimensoes(src, largura_url):
+    """width/height de uma foto do volume (evita o texto 'pular' quando a imagem carrega)."""
+    m = re.match(r"^/assets/([a-f0-9]{32})", src)
+    if not m:
+        return None
+    r = query_one("SELECT largura, altura FROM arquivos WHERE id = %s", (m.group(1),))
+    if not r or not r["largura"] or not r["altura"]:
+        return None
+    w = min(largura_url or r["largura"], r["largura"])
+    return w, max(1, round(r["altura"] * w / r["largura"]))
+
+
+class _GuiaLimpa(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out, self.pilha = [], []
+        self.ignorar, self.ignorar_tag = 0, ""
+        self.host = urlparse(BASE_URL).netloc.lower() if BASE_URL else ""
+
+    def _abrir_p(self):
+        if not self.pilha:
+            self.out.append("<p>")
+            self.pilha.append("p")
+
+    def _fechar_ate(self, tag):
+        while self.pilha:
+            t = self.pilha.pop()
+            self.out.append(f"</{t}>")
+            if t == tag:
+                break
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if self.ignorar:
+            if tag == self.ignorar_tag:
+                self.ignorar += 1
+            return
+        if tag in _G_DESCARTAR:
+            self.ignorar, self.ignorar_tag = 1, tag
+            return
+        tag = _G_APELIDOS.get(tag, tag)
+        if tag not in _G_PERMITIDAS:
+            return                                           # tag desconhecida: some, o texto fica
+        a = {k.lower(): (v or "") for k, v in attrs}
+        if tag in _G_BLOCOS and "p" in self.pilha:
+            self._fechar_ate("p")
+        if tag == "li" and self.pilha and self.pilha[-1] == "li":
+            self._fechar_ate("li")
+        if tag == "br":
+            if self.pilha:
+                self.out.append("<br>")
+            return
+        if tag == "hr":
+            self.out.append("<hr>")
+            return
+        if tag == "img":
+            src = a.get("src", "").strip()
+            if not re.match(r"^(https://|/assets/[a-f0-9]{32}|/site-media/)", src):
+                return
+            self._abrir_p()
+            dim = _g_dimensoes(src, int((re.search(r"[?&]w=(\d+)", src) or [0, 0])[1]) or None)
+            self.out.append(f'<img src="{html_escape(src)}" alt="{html_escape(a.get("alt", "")[:200])}"'
+                            + (f' width="{dim[0]}" height="{dim[1]}"' if dim else "") + ' loading="lazy" decoding="async">')
+            return
+        if tag == "a":
+            href = a.get("href", "").strip()
+            if not re.match(r"^(https?://|mailto:|tel:|/(?!/)|#)", href, re.I):
+                return                                       # link sem endereço seguro vira só texto
+            interno = href.startswith(("/", "#")) or (self.host and urlparse(href).netloc.lower() == self.host)
+            self._abrir_p()
+            extra = "" if interno else ' target="_blank" rel="noopener"'
+            titulo = f' title="{html_escape(a["title"][:150])}"' if a.get("title") else ""
+            self.out.append(f'<a href="{html_escape(href)}"{titulo}{extra}>')
+            self.pilha.append("a")
+            return
+        if tag not in _G_BLOCOS and tag not in ("li", "figcaption", "tr", "thead", "tbody", "th", "td"):
+            self._abrir_p()                                  # inline solto (strong, em…) no topo ganha um <p>
+        attrs_ok = ""
+        if tag in ("th", "td"):
+            for k in ("colspan", "rowspan"):
+                if a.get(k, "").isdigit() and 1 < int(a[k]) <= 12:
+                    attrs_ok += f' {k}="{int(a[k])}"'
+        self.out.append(f"<{tag}{attrs_ok}>")
+        self.pilha.append(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag.lower() not in _G_VAZIAS:
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if self.ignorar:
+            if tag == self.ignorar_tag:
+                self.ignorar -= 1
+            return
+        tag = _G_APELIDOS.get(tag, tag)
+        if tag in _G_VAZIAS or tag not in self.pilha:
+            return
+        self._fechar_ate(tag)
+
+    def handle_data(self, data):
+        if self.ignorar:
+            return
+        if self.pilha and self.pilha[-1] in _G_SEM_TEXTO:
+            return
+        data = data.replace("\xa0", " ")
+        if not self.pilha:
+            if not data.strip():
+                return
+            self._abrir_p()
+        self.out.append(str(html_escape(data)))
+
+
+def guia_limpar_html(html):
+    p = _GuiaLimpa()
+    p.feed(str(html or ""))
+    p.close()
+    p._fechar_ate("")
+    saida = "".join(p.out)
+    saida = re.sub(r"<p>(?:\s|<br>)*</p>", "", saida)
+    return saida.strip()
+
+
+def guia_ids_titulos(html):
+    """Põe id em cada <h2>/<h3> (âncoras para o sumário e para o Google)."""
+    usados = set()
+
+    def sub(m):
+        nivel, inner = m.group(1), m.group(2)
+        texto = html_unescape(re.sub(r"<[^>]+>", "", inner)).strip()
+        base = gerar_slug(texto)[:60] if texto else "secao"
+        id_, n = base, 1
+        while id_ in usados:
+            n += 1
+            id_ = f"{base}-{n}"
+        usados.add(id_)
+        return f'<h{nivel} id="{id_}">{inner}</h{nivel}>'
+    return re.sub(r"<h([23])(?:\s[^>]*)?>(.*?)</h\1>", sub, html, flags=re.S)
+
+
+def guia_toc(html):
+    return [{"nivel": int(m.group(1)), "id": m.group(2), "texto": html_unescape(re.sub(r"<[^>]+>", "", m.group(3))).strip()}
+            for m in re.finditer(r'<h([23]) id="([^"]+)">(.*?)</h\1>', html or "", flags=re.S)]
+
+
+def guia_processar(html):
+    """HTML do editor → (html limpo com ids nos títulos, nº de palavras, texto puro)."""
+    limpo = guia_ids_titulos(guia_limpar_html(html))
+    texto = re.sub(r"\s+", " ", html_unescape(re.sub(r"<[^>]+>", " ", limpo))).strip()
+    return limpo, len(texto.split()), texto
+
+
+def guia_resumo_auto(texto, n=160):
+    texto = re.sub(r"\s+", " ", texto or "").strip()
+    if len(texto) <= n:
+        return texto
+    return texto[:n].rsplit(" ", 1)[0].rstrip(",;:.") + "…"
+
+
+def guia_capa_url(capa, w=None):
+    """capa pode ser o id de uma foto do volume ou uma URL https."""
+    capa = (capa or "").strip()
+    if not capa:
+        return None
+    if re.fullmatch(r"[a-f0-9]{32}", capa):
+        return url_foto(capa, w)
+    if re.match(r"^(https?://|/(?!/))", capa):
+        return capa
+    return None
+
+
+def _abs_url(u):
+    return (base_url() + u) if u and u.startswith("/") else u
+
+
+def guia_cards(lista, largura=640):
+    for p in lista:
+        p["img"] = guia_capa_url(p.get("capa"), largura) or url_for("placeholder")
+    return lista
+
+
+def guia_slug_livre(tabela, base, ignorar_id=None):
+    assert tabela in ("guia_posts", "guia_categorias", "guia_autores")
+    base = base or "item"
+    slug, n = base, 1
+    while True:
+        r = query_one(f"SELECT id FROM {tabela} WHERE slug = %s", (slug,))
+        if (not r or r["id"] == ignorar_id) and not (tabela == "guia_posts" and slug in GUIA_RESERVADOS):
+            return slug
+        n += 1
+        slug = f"{base}-{n}"
+
+
+def guia_autor_padrao():
+    r = query_one("SELECT id FROM guia_autores ORDER BY id LIMIT 1")
+    if r:
+        return r["id"]
+    nome = f"Equipe {GUIA_MARCA}"
+    return execute_returning("INSERT INTO guia_autores (nome, slug) VALUES (%s, %s) ON CONFLICT (slug) DO UPDATE "
+                             "SET nome = guia_autores.nome RETURNING id", (nome, gerar_slug(nome)))
+
+
+def _guia_jsonld(obj):
+    return Markup(json.dumps(obj, ensure_ascii=False).replace("</", "<\\/"))
+
+
+def _guia_seo(titulo, descricao, canonical=None, robots="index,follow", og_type="website", imagem=None, **extra):
+    return dict(titulo=titulo, descricao=guia_resumo_auto(descricao, 300), canonical=canonical or canonical_url(),
+                robots=robots, og_type=og_type, imagem=_abs_url(imagem) or _site_ctx()["og"], **extra)
+
+
+_SEO_DUPLICADO = (r"<title>.*?</title>\s*",
+                  r"<meta[^>]+name=[\"'](?:description|robots)[\"'][^>]*>\s*",
+                  r"<meta[^>]+property=[\"']og:[^\"']+[\"'][^>]*>\s*",
+                  r"<meta[^>]+name=[\"']twitter:[^\"']+[\"'][^>]*>\s*",
+                  r"<link[^>]+rel=[\"']canonical[\"'][^>]*>\s*")
+
+
+def render_guia(tpl, seo, **ctx):
+    """Renderiza uma página do guia. O bloco de SEO do guia (entre <!--guia-seo--> …) manda: o que o _seo.html
+    do site já tiver posto de title/description/canonical/og/twitter/robots antes dele é removido para não duplicar
+    (o resto do _seo.html — analytics, verificação do Search Console etc. — continua)."""
+    ctx.update(seo=seo, seo_title=seo["titulo"], seo_desc=seo["descricao"], tipos=TIPOS_GUIA)
+    html = render_template(tpl, **ctx)
+    if "<!--guia-seo-->" in html:
+        antes, depois = html.split("<!--guia-seo-->", 1)
+        for padrao in _SEO_DUPLICADO:
+            antes = re.sub(padrao, "", antes, flags=re.S | re.I)
+        html = antes + "<!--guia-seo-->" + depois
+    return html
+
+
+def _guia_pagina():
+    return max(1, request.args.get("pagina", 1, type=int) or 1)
+
+
+def _guia_pag_url(n):
+    args = {"q": request.args["q"]} if request.args.get("q") else {}
+    if n > 1:
+        args["pagina"] = n
+    return url_for(request.endpoint, **(request.view_args or {}), **args)
+
+
+def _guia_pag_seo(pagina, paginas):
+    base = base_url() + url_for(request.endpoint, **(request.view_args or {}))
+    q = f"q={quote(request.args['q'])}" if request.args.get("q") else ""
+    url = lambda n: base + ("?" + "&".join(x for x in (q, f"pagina={n}" if n > 1 else "") if x) if (q or n > 1) else "")
+    return dict(canonical=url(pagina), prev=url(pagina - 1) if pagina > 1 else None,
+                next=url(pagina + 1) if pagina < paginas else None)
+
+
+def _guia_listar(where="TRUE", params=(), ordem="p.publicado_em DESC, p.id DESC", ordem_params=(), por_pagina=GUIA_POR_PAGINA):
+    pagina = _guia_pagina()
+    total = query_one(f"SELECT COUNT(*) AS n FROM guia_posts p WHERE {GUIA_PUB} AND {where}", list(params))["n"]
+    paginas = max(1, math.ceil(total / por_pagina))
+    if pagina > paginas:
+        abort(404)
+    lista = query_all(f"{GUIA_SEL} WHERE {GUIA_PUB} AND {where} ORDER BY {ordem} LIMIT %s OFFSET %s",
+                      list(params) + list(ordem_params) + [por_pagina, (pagina - 1) * por_pagina])
+    return guia_cards(lista), pagina, paginas, total
+
+
+def guia_categorias_ativas():
+    return query_all(f"SELECT c.nome, c.slug, COUNT(p.id) AS n FROM guia_categorias c "
+                     f"LEFT JOIN guia_posts p ON p.categoria_id = c.id AND {GUIA_PUB} WHERE c.ativa "
+                     f"GROUP BY c.id HAVING COUNT(p.id) > 0 ORDER BY c.ordem, c.nome")
+
+
 @app.route("/guia")
 def guia():
-    return render_template("guia.html")
+    pagina = _guia_pagina()
+    destaques = query_all(f"{GUIA_SEL} WHERE {GUIA_PUB} AND p.destaque ORDER BY p.ordem_destaque, p.publicado_em DESC LIMIT 3")
+    for i, p in enumerate(destaques):
+        p["img"] = guia_capa_url(p["capa"], 1200 if i == 0 else 320) or url_for("placeholder")
+    lista, pagina, paginas, total = _guia_listar("p.id <> ALL(%s)", [[p["id"] for p in destaques]])
+    bairros = guia_cards(query_all(f"{GUIA_SEL} WHERE {GUIA_PUB} AND p.tipo = 'bairro' ORDER BY p.publicado_em DESC LIMIT 6"), 640) \
+        if pagina == 1 else []
+    seo = _guia_seo("Guia de bairros e dicas para escolher seu imóvel | " + GUIA_MARCA,
+                    "Guias de bairros, dicas para comprar ou alugar, notícias e informações para escolher melhor o seu próximo imóvel.",
+                    **_guia_pag_seo(pagina, paginas), jsonld=_guia_jsonld({
+                        "@context": "https://schema.org", "@type": "CollectionPage", "name": f"Guia {GUIA_MARCA}",
+                        "url": base_url() + url_for("guia"), "isPartOf": {"@type": "WebSite", "name": GUIA_MARCA, "url": base_url() + "/"}}))
+    return render_guia("guia.html", seo, destaques=destaques, lista=lista, bairros=bairros, categorias=guia_categorias_ativas(),
+                       pagina=pagina, paginas=paginas, total=total, faixa=_faixa_paginas(pagina, paginas), pag_url=_guia_pag_url)
+
+
+def _guia_pagina_lista(modo, titulo, descricao, where, params, h1, seo_titulo=None, seo_descricao=None, indexar=True, **ctx):
+    lista, pagina, paginas, total = _guia_listar(where, params, **ctx.pop("_listar", {}))
+    pag = _guia_pag_seo(pagina, paginas)
+    seo = _guia_seo(seo_titulo or f"{titulo} | {GUIA_MARCA}", seo_descricao or descricao,
+                    robots="index,follow" if (indexar and total) else "noindex,follow", **pag)
+    return render_guia("guia_lista.html", seo, modo=modo, h1=h1, descricao=descricao, lista=lista, pagina=pagina, paginas=paginas,
+                       total=total, faixa=_faixa_paginas(pagina, paginas), pag_url=_guia_pag_url,
+                       categorias=guia_categorias_ativas(), **ctx)
+
+
+@app.route("/guia/categoria/<slug>")
+def guia_categoria(slug):
+    c = query_one("SELECT * FROM guia_categorias WHERE slug = %s AND ativa", (slug,))
+    if not c:
+        abort(404)
+    desc = c["descricao"] or f"Artigos e guias sobre {c['nome'].lower()} no {GUIA_MARCA}."
+    return _guia_pagina_lista("categoria", c["nome"], desc, "p.categoria_id = %s", [c["id"]], h1=c["nome"],
+                              seo_titulo=c["seo_titulo"] or None, seo_descricao=c["seo_descricao"] or None, categoria=c)
+
+
+@app.route("/guia/tag/<slug>")
+def guia_tag(slug):
+    t = query_one("SELECT * FROM guia_tags WHERE slug = %s", (slug,))
+    if not t:
+        abort(404)
+    n = query_one(f"SELECT COUNT(*) AS n FROM guia_post_tags pt JOIN guia_posts p ON p.id = pt.post_id "
+                  f"WHERE pt.tag_id = %s AND {GUIA_PUB}", (t["id"],))["n"]
+    return _guia_pagina_lista("tag", f"{t['nome']} — artigos", f"Tudo o que publicamos sobre {t['nome']}.",
+                              "EXISTS (SELECT 1 FROM guia_post_tags pt WHERE pt.post_id = p.id AND pt.tag_id = %s)", [t["id"]],
+                              h1=t["nome"], indexar=n >= 2, tag=t)
+
+
+@app.route("/guia/autor/<slug>")
+def guia_autor(slug):
+    a = query_one("SELECT * FROM guia_autores WHERE slug = %s", (slug,))
+    if not a:
+        abort(404)
+    a["foto_url"] = guia_capa_url(a["foto"], 240)
+    desc = a["bio"] or f"Artigos escritos por {a['nome']} no {GUIA_MARCA}."
+    return _guia_pagina_lista("autor", f"{a['nome']}, autor", desc, "p.autor_id = %s", [a["id"]], h1=a["nome"], autor=a)
+
+
+@app.route("/guia/busca")
+def guia_busca():
+    q = sanitize_input(request.args.get("q", ""))[:80]
+    if not q:
+        return redirect(url_for("guia"))
+    ts = "to_tsvector('portuguese', coalesce(p.titulo,'') || ' ' || coalesce(p.resumo,'') || ' ' || coalesce(p.corpo,''))"
+    return _guia_pagina_lista("busca", f"Busca: {q}", f"Resultados do guia para “{q}”.",
+                              f"({ts} @@ websearch_to_tsquery('portuguese', %s) OR p.titulo ILIKE %s)", [q, f"%{q}%"],
+                              h1=f"Resultados para “{q}”", indexar=False, q=q,
+                              _listar=dict(ordem="(p.titulo ILIKE %s) DESC, p.publicado_em DESC", ordem_params=[f"%{q}%"]))
+
+
+def _eh_robo():
+    return bool(re.search(r"bot|crawl|spider|slurp|preview|facebookexternalhit|curl|python-requests",
+                          request.headers.get("User-Agent", ""), re.I))
+
+
+def guia_imoveis_relacionados(p, n=3):
+    """Até 3 imóveis do mesmo bairro (ou cidade) do post — liga o conteúdo ao anúncio (link interno + conversão)."""
+    if not p.get("cidade_slug"):
+        return [], None, None
+    for bairro in ([p["bairro_slug"]] if p.get("bairro_slug") else []) + [None]:
+        cond, params = "i.status = 'publicado' AND t.status = 'ativo' AND i.cidade_slug = %s", [p["cidade_slug"]]
+        if bairro:
+            cond += " AND i.bairro_slug = %s"
+            params.append(bairro)
+        lista = query_all(f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id WHERE {cond} "
+                          f"ORDER BY i.destaque DESC, i.criado_em DESC LIMIT %s", params + [n])
+        if lista:
+            rotulo = (lista[0]["bairro"] if bairro else lista[0]["cidade"])
+            return preparar_imoveis(lista, 480), url_local(p["cidade_slug"], bairro), rotulo
+    return [], None, None
+
+
+def _guia_render_post(p, previa=False):
+    tags = query_all("SELECT t.nome, t.slug FROM guia_post_tags pt JOIN guia_tags t ON t.id = pt.tag_id "
+                     "WHERE pt.post_id = %s ORDER BY t.nome", (p["id"],))
+    rel = query_all(f"{GUIA_SEL} WHERE {GUIA_PUB} AND p.id <> %s AND (p.categoria_id = %s OR EXISTS (SELECT 1 FROM guia_post_tags a "
+                    f"JOIN guia_post_tags b ON b.tag_id = a.tag_id WHERE a.post_id = p.id AND b.post_id = %s)) "
+                    f"ORDER BY (p.categoria_id = %s) DESC NULLS LAST, p.publicado_em DESC LIMIT 3",
+                    (p["id"], p["categoria_id"], p["id"], p["categoria_id"]))
+    if len(rel) < 3:
+        rel += query_all(f"{GUIA_SEL} WHERE {GUIA_PUB} AND p.id <> ALL(%s) ORDER BY p.publicado_em DESC LIMIT %s",
+                         ([p["id"]] + [r["id"] for r in rel], 3 - len(rel)))
+    imoveis, imoveis_url, imoveis_rotulo = guia_imoveis_relacionados(p)
+    if not previa and not _eh_robo() and not (g.usuario and g.usuario["tipo"] == "admin"):
+        execute("UPDATE guia_posts SET visualizacoes = visualizacoes + 1 WHERE id = %s", (p["id"],))
+    url = base_url() + url_for("guia_post", slug=p["slug"])
+    capa = guia_capa_url(p["capa"], 1200)
+    texto = re.sub(r"\s+", " ", html_unescape(re.sub(r"<[^>]+>", " ", p["corpo"] or ""))).strip()
+    desc = p["seo_descricao"] or p["resumo"] or guia_resumo_auto(texto)
+    titulo_seo = p["seo_titulo"] or (f"{p['titulo']} | {GUIA_MARCA}" if len(p["titulo"]) <= 58 else p["titulo"])
+    pub = _local(p["publicado_em"]) if p["publicado_em"] else None
+    upd = _local(p["atualizado_em"]) if p["atualizado_em"] else pub
+    p["pub_iso"], p["upd_iso"] = (pub.isoformat() if pub else ""), (upd.isoformat() if upd else "")
+    p["atualizado_depois"] = bool(pub and upd and (upd - pub).days >= 1)
+    p["autor_foto_url"] = guia_capa_url(p.get("autor_foto"), 120)
+    crumbs = [("Início", base_url() + "/"), ("Guia", base_url() + url_for("guia"))]
+    if p["categoria_slug"]:
+        crumbs.append((p["categoria_nome"], base_url() + url_for("guia_categoria", slug=p["categoria_slug"])))
+    crumbs.append((p["titulo"], url))
+    logo = _site_ctx()["logo_abs"]
+    grafo = [{"@type": "NewsArticle" if p["tipo"] == "noticia" else "Article", "@id": url + "#artigo",
+              "mainEntityOfPage": {"@type": "WebPage", "@id": url}, "headline": p["titulo"][:110], "description": desc,
+              "image": [_abs_url(capa)] if capa else ([_site_ctx()["og"]] if _site_ctx()["og"] else []),
+              "datePublished": p["pub_iso"], "dateModified": p["upd_iso"], "inLanguage": "pt-BR",
+              "wordCount": len(texto.split()),
+              **({"articleSection": p["categoria_nome"]} if p["categoria_nome"] else {}),
+              **({"keywords": ", ".join(t["nome"] for t in tags)} if tags else {}),
+              "author": ({"@type": "Person", "name": p["autor_nome"], "url": base_url() + url_for("guia_autor", slug=p["autor_slug"])}
+                         if p["autor_nome"] else {"@type": "Organization", "name": GUIA_MARCA}),
+              "publisher": {"@type": "Organization", "name": GUIA_MARCA, "url": base_url() + "/",
+                            **({"logo": {"@type": "ImageObject", "url": logo}} if logo else {})}},
+             {"@type": "BreadcrumbList", "itemListElement": [
+                 {"@type": "ListItem", "position": i + 1, "name": n, "item": u} for i, (n, u) in enumerate(crumbs)]}]
+    seo = _guia_seo(titulo_seo, desc, canonical=url, og_type="article", imagem=capa,
+                    robots="noindex,nofollow" if previa else ("noindex,follow" if p["noindex"] else "index,follow"),
+                    publicado=p["pub_iso"], modificado=p["upd_iso"], secao=p["categoria_nome"], tags=[t["nome"] for t in tags],
+                    jsonld=_guia_jsonld({"@context": "https://schema.org", "@graph": grafo}))
+    corpo = p["corpo"] or ""
+    toc = guia_toc(corpo)
+    txt = quote(f"{p['titulo']} {url}")
+    share = [("WhatsApp", f"https://wa.me/?text={txt}"), ("Facebook", f"https://www.facebook.com/sharer/sharer.php?u={quote(url)}"),
+             ("X", f"https://twitter.com/intent/tweet?text={quote(p['titulo'])}&url={quote(url)}"),
+             ("LinkedIn", f"https://www.linkedin.com/sharing/share-offsite/?url={quote(url)}")]
+    return render_guia("guia_post.html", seo, p=p, corpo=Markup(corpo), toc=toc if len(toc) >= 3 else [], tags=tags, relacionados=guia_cards(rel),
+                       imoveis=imoveis, imoveis_url=imoveis_url, imoveis_rotulo=imoveis_rotulo, capa_url=capa, share=share,
+                       url_post=url, crumbs=crumbs, previa=previa)
+
+
+@app.route("/guia/<slug>")
+def guia_post(slug):
+    p = query_one(f"{GUIA_SEL_FULL} WHERE p.slug = %s AND {GUIA_PUB}", (slug,))
+    if not p:
+        r = query_one(f"SELECT p.slug FROM guia_redirecionamentos r JOIN guia_posts p ON p.id = r.post_id "
+                      f"WHERE r.slug_antigo = %s AND {GUIA_PUB}", (slug,))
+        if r:
+            return redirect(url_for("guia_post", slug=r["slug"]), 301)      # slug mudou: 301 preserva o SEO
+        abort(404)
+    return _guia_render_post(p)
+
+
+@app.route("/guia/feed.xml")
+def guia_feed():
+    posts = query_all(f"SELECT p.titulo, p.slug, p.resumo, p.corpo, p.publicado_em, p.atualizado_em, c.nome AS categoria_nome, "
+                      f"a.nome AS autor_nome FROM guia_posts p LEFT JOIN guia_categorias c ON c.id = p.categoria_id "
+                      f"LEFT JOIN guia_autores a ON a.id = p.autor_id WHERE {GUIA_PUB} AND NOT p.noindex "
+                      f"ORDER BY p.publicado_em DESC LIMIT 30")
+    base = base_url()
+    itens = ""
+    for p in posts:
+        link = base + url_for("guia_post", slug=p["slug"])
+        itens += (f"<item><title>{xml_escape(p['titulo'])}</title><link>{xml_escape(link)}</link>"
+                  f"<guid isPermaLink=\"true\">{xml_escape(link)}</guid><pubDate>{format_datetime(p['publicado_em'])}</pubDate>"
+                  + (f"<category>{xml_escape(p['categoria_nome'])}</category>" if p["categoria_nome"] else "")
+                  + (f"<dc:creator>{xml_escape(p['autor_nome'])}</dc:creator>" if p["autor_nome"] else "")
+                  + f"<description>{xml_escape(p['resumo'] or guia_resumo_auto(re.sub(r'<[^>]+>', ' ', p['corpo'] or '')))}</description>"
+                  f"<content:encoded><![CDATA[{(p['corpo'] or '').replace(']]>', ']]&gt;')}]]></content:encoded></item>")
+    xml = ('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" '
+           'xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel>'
+           f"<title>Guia {xml_escape(GUIA_MARCA)}</title><link>{xml_escape(base + url_for('guia'))}</link>"
+           "<description>Guias de bairros, dicas e notícias do mercado imobiliário.</description><language>pt-BR</language>"
+           f"<atom:link href=\"{xml_escape(base + url_for('guia_feed'))}\" rel=\"self\" type=\"application/rss+xml\"/>{itens}</channel></rss>")
+    return Response(xml, mimetype="application/rss+xml", headers={"Cache-Control": "public, max-age=600"})
+
+
+# ── ADMIN DO GUIA ──────────────────────────────────────────────
+
+def _guia_int(v):
+    try:
+        return int(str(v).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _guia_s(v):
+    return gerar_slug(v) if str(v or "").strip() else None
+
+
+def _guia_dt(v):
+    """'2026-10-11T14:30' (hora de Brasília, do <input datetime-local>) → datetime UTC."""
+    try:
+        return datetime.strptime((v or "").strip(), "%Y-%m-%dT%H:%M").replace(tzinfo=TZ).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _guia_dt_local(dt):
+    return _local(dt).strftime("%Y-%m-%dT%H:%M") if dt else ""
+
+
+def _guia_ler_form(atual):
+    f = request.form
+    erros = []
+    d = {"titulo": sanitize_input(f.get("titulo", ""))[:200], "resumo": sanitize_input(f.get("resumo", ""))[:400],
+         "tipo": f.get("tipo") if f.get("tipo") in TIPOS_GUIA else "artigo",
+         "capa_alt": sanitize_input(f.get("capa_alt", ""))[:200], "seo_titulo": sanitize_input(f.get("seo_titulo", ""))[:70] or None,
+         "seo_descricao": sanitize_input(f.get("seo_descricao", ""))[:200] or None,
+         "destaque": f.get("destaque") == "1", "noindex": f.get("noindex") == "1",
+         "ordem_destaque": max(0, min(999, _guia_int(f.get("ordem_destaque")) or 0)),
+         "uf": (re.sub(r"[^A-Za-z]", "", f.get("uf", ""))[:2].upper() or None),
+         "cidade_slug": _guia_s(f.get("cidade_slug")), "bairro_slug": _guia_s(f.get("bairro_slug")),
+         "capa": atual["capa"] if atual else None}
+    d["slug"] = _guia_s(f.get("slug")) or _guia_s(d["titulo"]) or ""
+    if not d["titulo"]:
+        erros.append("Dê um título ao post.")
+    cat = _guia_int(f.get("categoria_id"))
+    d["categoria_id"] = cat if cat and query_one("SELECT 1 FROM guia_categorias WHERE id = %s", (cat,)) else None
+    aut = _guia_int(f.get("autor_id"))
+    d["autor_id"] = aut if aut and query_one("SELECT 1 FROM guia_autores WHERE id = %s", (aut,)) else None
+    d["corpo"], palavras, _ = guia_processar(f.get("corpo", ""))
+    d["tempo_leitura"] = max(1, round(palavras / 200)) if palavras else None
+    status = f.get("status") if f.get("status") in STATUS_GUIA else "rascunho"
+    pub = _guia_dt(f.get("publicado_em"))
+    antiga = atual["publicado_em"] if atual else None
+    agora_ = agora()
+    if status == "rascunho":
+        pub = pub or antiga
+    elif status == "publicado":
+        if pub and pub > agora_ + timedelta(minutes=1):
+            status = "agendado"
+        else:
+            pub = pub or antiga or agora_
+    else:  # agendado
+        if not pub:
+            erros.append("Escolha a data e a hora da publicação agendada.")
+        elif pub <= agora_:
+            status, pub = "publicado", pub
+    if status != "rascunho" and not d["corpo"]:
+        erros.append("O texto está vazio — escreva algo antes de publicar (ou salve como rascunho).")
+    d["status"], d["publicado_em"] = status, pub
+    tags, vistos = [], set()
+    for t in re.split(r"[,\n;]", f.get("tags", "")):
+        nome = sanitize_input(t)[:40]
+        s = _guia_s(nome)
+        if nome and s and s not in vistos and len(tags) < 12:
+            vistos.add(s)
+            tags.append((nome, s))
+    return d, tags, erros
+
+
+_GUIA_CAMPOS = ["titulo", "slug", "resumo", "corpo", "tipo", "capa", "capa_alt", "categoria_id", "autor_id", "status", "destaque",
+                "ordem_destaque", "publicado_em", "seo_titulo", "seo_descricao", "noindex", "uf", "cidade_slug", "bairro_slug",
+                "tempo_leitura"]
+
+
+def _guia_locais():
+    return query_all("SELECT DISTINCT i.cidade, i.cidade_slug, i.uf, i.bairro, i.bairro_slug FROM imoveis i "
+                     "WHERE i.status = 'publicado' ORDER BY i.cidade, i.bairro LIMIT 500")
+
+
+def _guia_render_editor(post, tags_txt=""):
+    return render_template("admin.html", pagina_ativa="guia_editar", post=post, tags_txt=tags_txt,
+                           pub_local=_guia_dt_local(post.get("publicado_em")),
+                           categorias=query_all("SELECT id, nome FROM guia_categorias ORDER BY ordem, nome"),
+                           autores=query_all("SELECT id, nome FROM guia_autores ORDER BY nome"), locais=_guia_locais(),
+                           capa_preview=guia_capa_url(post.get("capa"), 480), tipos=TIPOS_GUIA, status_guia=STATUS_GUIA)
+
+
+@app.route("/admin/guia")
+@admin_required
+def admin_guia():
+    q = sanitize_input(request.args.get("q", ""))[:80]
+    status = request.args.get("status", "")
+    cat = _guia_int(request.args.get("categoria"))
+    pagina = _guia_pagina()
+    where, params = ["TRUE"], []
+    if q:
+        where.append("(p.titulo ILIKE %s OR p.slug ILIKE %s)")
+        params += [f"%{q}%"] * 2
+    if status == "no_ar":
+        where.append(GUIA_PUB)
+    elif status == "agendado":
+        where.append("p.status = 'agendado' AND p.publicado_em > NOW()")
+    elif status == "rascunho":
+        where.append("p.status = 'rascunho'")
+    if cat:
+        where.append("p.categoria_id = %s")
+        params.append(cat)
+    cond = " AND ".join(where)
+    total = query_one(f"SELECT COUNT(*) AS n FROM guia_posts p WHERE {cond}", params)["n"]
+    paginas = max(1, math.ceil(total / 40))
+    lista = query_all(
+        f"SELECT p.id, p.titulo, p.slug, p.status, p.tipo, p.destaque, p.publicado_em, p.atualizado_em, p.visualizacoes, p.capa, "
+        f"c.nome AS categoria_nome, a.nome AS autor_nome, ({GUIA_PUB}) AS no_ar FROM guia_posts p "
+        f"LEFT JOIN guia_categorias c ON c.id = p.categoria_id LEFT JOIN guia_autores a ON a.id = p.autor_id "
+        f"WHERE {cond} ORDER BY p.atualizado_em DESC LIMIT 40 OFFSET %s", params + [(max(1, min(pagina, paginas)) - 1) * 40])
+    for p in lista:
+        p["thumb"] = guia_capa_url(p["capa"], 200)
+    n = query_one(f"SELECT COUNT(*) FILTER (WHERE {GUIA_PUB}) AS no_ar, "
+                  f"COUNT(*) FILTER (WHERE p.status = 'agendado' AND p.publicado_em > NOW()) AS agendados, "
+                  f"COUNT(*) FILTER (WHERE p.status = 'rascunho') AS rascunhos, COALESCE(SUM(p.visualizacoes), 0) AS views "
+                  f"FROM guia_posts p")
+    return render_template("admin.html", pagina_ativa="guia", lista=lista, q=q, status=status, cat=cat, n=n, pagina=pagina,
+                           paginas=paginas, faixa=_faixa_paginas(pagina, paginas), total=total,
+                           categorias=query_all("SELECT id, nome FROM guia_categorias ORDER BY ordem, nome"), status_guia=STATUS_GUIA,
+                           tipos=TIPOS_GUIA)
+
+
+@app.route("/admin/guia/novo", methods=["GET", "POST"], defaults={"post_id": None})
+@app.route("/admin/guia/<int:post_id>/editar", methods=["GET", "POST"])
+@admin_required
+def admin_guia_editar(post_id=None):
+    atual = query_one("SELECT * FROM guia_posts WHERE id = %s", (post_id,)) if post_id else None
+    if post_id and not atual:
+        abort(404)
+    if request.method == "GET":
+        if atual:
+            tags = query_all("SELECT t.nome FROM guia_post_tags pt JOIN guia_tags t ON t.id = pt.tag_id WHERE pt.post_id = %s ORDER BY t.nome",
+                             (post_id,))
+            return _guia_render_editor(atual, ", ".join(t["nome"] for t in tags))
+        meu = query_one("SELECT id FROM guia_autores WHERE usuario_id = %s", (g.usuario["id"],)) or \
+            query_one("SELECT id FROM guia_autores ORDER BY id LIMIT 1")
+        return _guia_render_editor({"tipo": "artigo", "status": "rascunho", "corpo": "", "destaque": False, "noindex": False,
+                                    "ordem_destaque": 0, "autor_id": meu["id"] if meu else None})
+    d, tags, erros = _guia_ler_form(atual)
+    arq = request.files.get("capa_arquivo")
+    capa_url = (request.form.get("capa_url") or "").strip()
+    if request.form.get("remover_capa") == "1":
+        d["capa"] = None
+    if capa_url and re.match(r"^https://", capa_url):
+        d["capa"] = capa_url[:500]
+    if not erros and arq and arq.filename:
+        try:
+            d["capa"] = storage.salvar_imagem(arq, arq.filename, "guia")
+        except Exception as e:
+            log.exception("capa do guia falhou")
+            erros.append("Não consegui usar a imagem de capa: " + (str(e) if isinstance(e, ValueError) else "use PNG, JPG ou WEBP."))
+    if erros:
+        for e in erros:
+            flash(e, "error")
+        return _guia_render_editor(dict(atual or {}, **d, id=post_id), request.form.get("tags", ""))
+    slug = guia_slug_livre("guia_posts", d["slug"], post_id)
+    if slug != d["slug"]:
+        flash(f"Já existia um post com esse endereço — usei “{slug}”.", "success")
+    d["slug"] = slug
+    if not d["autor_id"]:
+        d["autor_id"] = guia_autor_padrao()
+    if atual:
+        execute("UPDATE guia_posts SET " + ", ".join(f"{c} = %({c})s" for c in _GUIA_CAMPOS) + ", atualizado_em = NOW() WHERE id = %(id)s",
+                dict(d, id=post_id))
+        if atual["slug"] != slug and atual["status"] in ("publicado", "agendado"):
+            execute("INSERT INTO guia_redirecionamentos (slug_antigo, post_id) VALUES (%s, %s) "
+                    "ON CONFLICT (slug_antigo) DO UPDATE SET post_id = EXCLUDED.post_id", (atual["slug"], post_id))
+    else:
+        post_id = execute_returning("INSERT INTO guia_posts (" + ", ".join(_GUIA_CAMPOS) + ") VALUES (" +
+                                    ", ".join(f"%({c})s" for c in _GUIA_CAMPOS) + ") RETURNING id", d)
+    execute("DELETE FROM guia_redirecionamentos WHERE slug_antigo = %s", (slug,))      # o endereço novo nunca redireciona
+    execute("DELETE FROM guia_post_tags WHERE post_id = %s", (post_id,))
+    for nome, s in tags:
+        execute("INSERT INTO guia_tags (nome, slug) VALUES (%s, %s) ON CONFLICT (slug) DO NOTHING", (nome, s))
+        execute("INSERT INTO guia_post_tags (post_id, tag_id) SELECT %s, id FROM guia_tags WHERE slug = %s ON CONFLICT DO NOTHING",
+                (post_id, s))
+    msg = {"publicado": "Post publicado.", "agendado": "Post agendado.", "rascunho": "Rascunho salvo."}[d["status"]]
+    flash(msg, "success")
+    return redirect(url_for("admin_guia_editar", post_id=post_id))
+
+
+@app.route("/admin/guia/<int:post_id>/previa")
+@admin_required
+def admin_guia_previa(post_id):
+    p = query_one(f"{GUIA_SEL_FULL} WHERE p.id = %s", (post_id,))
+    if not p:
+        abort(404)
+    return _guia_render_post(p, previa=True)
+
+
+@app.route("/admin/guia/<int:post_id>/<acao>", methods=["POST"])
+@admin_required
+def admin_guia_acao(post_id, acao):
+    p = query_one("SELECT id, titulo FROM guia_posts WHERE id = %s", (post_id,))
+    if not p or acao not in ("publicar", "despublicar", "destacar", "excluir"):
+        abort(404)
+    if acao == "publicar":
+        execute("UPDATE guia_posts SET status = CASE WHEN COALESCE(publicado_em, NOW()) > NOW() THEN 'agendado' ELSE 'publicado' END, "
+                "publicado_em = COALESCE(publicado_em, NOW()), atualizado_em = NOW() WHERE id = %s", (post_id,))
+        flash("Post publicado.", "success")
+    elif acao == "despublicar":
+        execute("UPDATE guia_posts SET status = 'rascunho', atualizado_em = NOW() WHERE id = %s", (post_id,))
+        flash("Post voltou para rascunho (saiu do ar).", "success")
+    elif acao == "destacar":
+        execute("UPDATE guia_posts SET destaque = NOT destaque WHERE id = %s", (post_id,))
+        flash("Destaque atualizado.", "success")
+    else:
+        execute("DELETE FROM guia_posts WHERE id = %s", (post_id,))
+        flash(f"“{p['titulo']}” foi excluído.", "success")
+    return _admin_voltar("admin_guia")
+
+
+@app.route("/admin/guia/imagem", methods=["POST"])
+@admin_required
+def admin_guia_imagem():
+    """Upload de imagem dentro do editor (devolve a URL para inserir no texto)."""
+    arq = request.files.get("arquivo")
+    if not arq or not arq.filename:
+        return jsonify(ok=False, erro="escolha um arquivo"), 400
+    try:
+        fid = storage.salvar_imagem(arq, arq.filename, "guia")
+    except Exception as e:
+        log.exception("imagem do guia falhou")
+        return jsonify(ok=False, erro=str(e) if isinstance(e, ValueError) else "use PNG, JPG ou WEBP"), 400
+    return jsonify(ok=True, url=url_foto(fid, 960), id=fid)
+
+
+@app.route("/admin/guia/categorias")
+@admin_required
+def admin_guia_categorias():
+    lista = query_all("SELECT c.*, (SELECT COUNT(*) FROM guia_posts p WHERE p.categoria_id = c.id) AS n FROM guia_categorias c "
+                      "ORDER BY c.ordem, c.nome")
+    return render_template("admin.html", pagina_ativa="guia_categorias", lista=lista)
+
+
+@app.route("/admin/guia/categorias/salvar", methods=["POST"])
+@admin_required
+def admin_guia_categoria_salvar():
+    f = request.form
+    cid = _guia_int(f.get("id"))
+    nome = sanitize_input(f.get("nome", ""))[:80]
+    if not nome:
+        flash("Dê um nome à categoria.", "error")
+        return redirect(url_for("admin_guia_categorias"))
+    dados = dict(nome=nome, descricao=sanitize_input(f.get("descricao", ""))[:400] or None,
+                 seo_titulo=sanitize_input(f.get("seo_titulo", ""))[:70] or None,
+                 seo_descricao=sanitize_input(f.get("seo_descricao", ""))[:200] or None,
+                 ordem=_guia_int(f.get("ordem")) or 0, ativa=f.get("ativa") == "1")
+    slug = guia_slug_livre("guia_categorias", _guia_s(f.get("slug")) or gerar_slug(nome), cid)
+    if cid and query_one("SELECT 1 FROM guia_categorias WHERE id = %s", (cid,)):
+        execute("UPDATE guia_categorias SET nome=%(nome)s, slug=%(slug)s, descricao=%(descricao)s, seo_titulo=%(seo_titulo)s, "
+                "seo_descricao=%(seo_descricao)s, ordem=%(ordem)s, ativa=%(ativa)s WHERE id=%(id)s", dict(dados, slug=slug, id=cid))
+        flash("Categoria salva.", "success")
+    else:
+        execute("INSERT INTO guia_categorias (nome, slug, descricao, seo_titulo, seo_descricao, ordem, ativa) "
+                "VALUES (%(nome)s, %(slug)s, %(descricao)s, %(seo_titulo)s, %(seo_descricao)s, %(ordem)s, %(ativa)s)", dict(dados, slug=slug))
+        flash("Categoria criada.", "success")
+    return redirect(url_for("admin_guia_categorias"))
+
+
+@app.route("/admin/guia/categorias/<int:cid>/excluir", methods=["POST"])
+@admin_required
+def admin_guia_categoria_excluir(cid):
+    n = query_one("SELECT COUNT(*) AS n FROM guia_posts WHERE categoria_id = %s", (cid,))["n"]
+    if n:
+        flash(f"Essa categoria tem {n} post(s). Mude os posts de categoria antes de excluir (ou desative a categoria).", "error")
+    else:
+        execute("DELETE FROM guia_categorias WHERE id = %s", (cid,))
+        flash("Categoria excluída.", "success")
+    return redirect(url_for("admin_guia_categorias"))
+
+
+@app.route("/admin/guia/autores")
+@admin_required
+def admin_guia_autores():
+    lista = query_all("SELECT a.*, (SELECT COUNT(*) FROM guia_posts p WHERE p.autor_id = a.id) AS n FROM guia_autores a ORDER BY a.nome")
+    for a in lista:
+        a["foto_url"] = guia_capa_url(a["foto"], 120)
+    return render_template("admin.html", pagina_ativa="guia_autores", lista=lista)
+
+
+@app.route("/admin/guia/autores/salvar", methods=["POST"])
+@admin_required
+def admin_guia_autor_salvar():
+    f = request.form
+    aid = _guia_int(f.get("id"))
+    nome = sanitize_input(f.get("nome", ""))[:80]
+    if not nome:
+        flash("Dê um nome ao autor.", "error")
+        return redirect(url_for("admin_guia_autores"))
+    atual = query_one("SELECT * FROM guia_autores WHERE id = %s", (aid,)) if aid else None
+    foto = atual["foto"] if atual else None
+    arq = request.files.get("foto_arquivo")
+    if arq and arq.filename:
+        try:
+            foto = storage.salvar_imagem(arq, arq.filename, "guia")
+        except Exception as e:
+            flash("Não consegui usar a foto: " + (str(e) if isinstance(e, ValueError) else "use PNG, JPG ou WEBP."), "error")
+            return redirect(url_for("admin_guia_autores"))
+    dados = dict(nome=nome, cargo=sanitize_input(f.get("cargo", ""))[:80] or None, bio=sanitize_input(f.get("bio", ""))[:600] or None, foto=foto)
+    slug = guia_slug_livre("guia_autores", _guia_s(f.get("slug")) or gerar_slug(nome), aid)
+    if atual:
+        execute("UPDATE guia_autores SET nome=%(nome)s, slug=%(slug)s, cargo=%(cargo)s, bio=%(bio)s, foto=%(foto)s WHERE id=%(id)s",
+                dict(dados, slug=slug, id=aid))
+        flash("Autor salvo.", "success")
+    else:
+        execute("INSERT INTO guia_autores (nome, slug, cargo, bio, foto) VALUES (%(nome)s, %(slug)s, %(cargo)s, %(bio)s, %(foto)s)",
+                dict(dados, slug=slug))
+        flash("Autor criado.", "success")
+    return redirect(url_for("admin_guia_autores"))
+
+
+@app.route("/admin/guia/autores/<int:aid>/excluir", methods=["POST"])
+@admin_required
+def admin_guia_autor_excluir(aid):
+    n = query_one("SELECT COUNT(*) AS n FROM guia_posts WHERE autor_id = %s", (aid,))["n"]
+    if n:
+        flash(f"Esse autor tem {n} post(s). Troque o autor dos posts antes de excluir.", "error")
+    else:
+        execute("DELETE FROM guia_autores WHERE id = %s", (aid,))
+        flash("Autor excluído.", "success")
+    return redirect(url_for("admin_guia_autores"))
 
 
 @app.route("/newsletter", methods=["POST"])
@@ -1935,14 +2805,14 @@ def newsletter():
         flash("Pronto! Você vai receber as novidades do OndeImóveis.", "success")
     else:
         flash("Informe um e-mail válido.", "error")
-    return redirect(url_for("guia"))
+    return _admin_voltar("guia")          # volta para a página onde a pessoa estava (guia, post, categoria…)
 
 
 @app.route("/robots.txt")
 def robots():
     regras = ["User-agent: *", "Allow: /"] + [f"Disallow: {p}" for p in (
         "/painel", "/admin", "/minha-area", "/entrar", "/cadastrar", "/sair", "/favoritos", "/api/",
-        "/imovel/*/whatsapp", "/imovel/*/visita", "/newsletter", "/webhooks/")]
+        "/imovel/*/whatsapp", "/imovel/*/visita", "/newsletter", "/webhooks/", "/guia/busca")]
     return Response("\n".join(regras) + f"\n\nSitemap: {base_url()}/sitemap.xml\n", mimetype="text/plain")
 
 
@@ -1953,6 +2823,16 @@ def sitemap():
     for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia", "para_empresas"):
         if ep in app.view_functions:
             itens.append((base + url_for(ep), None))
+    # guia/blog: posts no ar (sem noindex), categorias e autores que têm post
+    for r in query_all(f"SELECT p.slug, p.atualizado_em FROM guia_posts p WHERE {GUIA_PUB} AND NOT p.noindex "
+                       "ORDER BY p.publicado_em DESC LIMIT 5000"):
+        itens.append((base + url_for("guia_post", slug=r["slug"]), r["atualizado_em"]))
+    for r in query_all(f"SELECT c.slug, MAX(p.atualizado_em) AS d FROM guia_categorias c JOIN guia_posts p ON p.categoria_id = c.id "
+                       f"AND {GUIA_PUB} AND NOT p.noindex WHERE c.ativa GROUP BY c.slug"):
+        itens.append((base + url_for("guia_categoria", slug=r["slug"]), r["d"]))
+    for r in query_all(f"SELECT a.slug, MAX(p.atualizado_em) AS d FROM guia_autores a JOIN guia_posts p ON p.autor_id = a.id "
+                       f"AND {GUIA_PUB} AND NOT p.noindex GROUP BY a.slug"):
+        itens.append((base + url_for("guia_autor", slug=r["slug"]), r["d"]))
     for r in query_all("SELECT slug, atualizado_em FROM imoveis i WHERE status = 'publicado' AND EXISTS "
                        "(SELECT 1 FROM tenants t WHERE t.id = i.tenant_id AND t.status = 'ativo') ORDER BY id DESC LIMIT 5000"):
         itens.append((base + url_for("imovel", slug=r["slug"]), r["atualizado_em"]))
