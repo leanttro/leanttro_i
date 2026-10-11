@@ -163,7 +163,7 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 {% else %}<div class="empty-box">Ainda não há imóveis publicados. <a class="accent" href="{{ url_for('anuncie') }}">Anuncie o primeiro →</a></div>{% endfor %}
 </div></div></section>{% endif %}
 
-{% if imobs %}<section aria-labelledby="imobs"><div class="container"><div class="section-head"><h2 class="title" id="imobs">Imobiliárias em destaque</h2><a href="{{ url_for('imobiliarias') }}">Ver todas as imobiliárias →</a></div>
+{% if imobs %}<section aria-labelledby="imobs"><div class="container"><div class="section-head"><h2 class="title" id="imobs">Imobiliárias e corretores em destaque</h2><a href="{{ url_for('imobiliarias') }}">Ver todos →</a></div>
 <div class="imobs">
 {% for t in imobs %}<a class="card imob" href="{{ url_for('imobiliaria', slug=t.slug) }}"><span class="imob-logo">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="" width="84" height="84" loading="lazy" decoding="async">{% else %}{{ t.nome[:1]|upper }}{% endif %}</span><b>{{ t.nome }}</b>{% if t.cidade %}<small>{{ t.cidade }}{% if t.uf %}/{{ t.uf|upper }}{% endif %}</small>{% endif %}<em>★ Destaque</em></a>
 {% endfor %}
