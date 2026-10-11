@@ -12,8 +12,35 @@
 
 :root{--green:#39dc4b;--green2:#20bd38;--dark:#071521;--text:#101d26;--muted:#68757d;--line:#e4eaed;--soft:#f5f8f9}
 *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--text);background:#f7f9fa}a{text-decoration:none;color:inherit}button,input,select{font:inherit}.container{width:min(1160px,calc(100% - 42px));margin:auto}
-.searchbar{background:#fff;border-bottom:1px solid var(--line);padding:14px 0}.search{height:47px;background:#fff;border:1px solid #dce4e8;border-radius:9px;display:grid;grid-template-columns:2.3fr 1fr 1.15fr 1fr 78px;overflow:hidden;box-shadow:0 2px 8px #00000008}.field{display:flex;align-items:center;gap:9px;padding:0 14px;border-right:1px solid #e8edef;color:#69767d}.field input,.field select{width:100%;border:0;outline:0;background:transparent;font-size:11px;color:#34424a}.search button{border:0;background:var(--green);color:#fff;font-size:11px;font-weight:850}
-.main{display:grid;grid-template-columns:1fr 350px;height:calc(100vh - 151px);min-height:620px}
+.c{width:min(1180px,calc(100% - 44px));margin:auto}
+.top{background:#fff;border-bottom:1px solid var(--line);padding:18px 0 22px}
+.search{position:relative;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.35fr) minmax(0,1.25fr) minmax(0,1.2fr) auto;font-family:Inter,Arial,sans-serif;background:#fff;border:1px solid #d9e2e6;border-radius:18px;box-shadow:0 8px 26px #07142112}
+.f{position:relative;display:flex;align-items:center;gap:12px;min-width:0;padding:11px 18px;border-right:1px solid #e8edef;cursor:pointer;transition:background .15s,box-shadow .15s}
+.f:first-child{border-radius:17px 0 0 17px}
+.f:hover{background:#f6faf7}
+.f:focus-within{background:#effbf1;box-shadow:inset 0 -3px 0 var(--g)}
+.f>svg{flex:none;width:21px;height:21px;color:#15993a}
+.fx{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.fx label,.fx b{font-size:10.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#6b7a83;cursor:pointer}
+.f input,.f select{width:100%;min-width:0;border:0;outline:0;background:transparent;font:600 14px Inter,Arial,sans-serif;color:#071421;padding:0;text-overflow:ellipsis}
+.f input:focus-visible,.f select:focus-visible{outline:0}
+.f input::placeholder{color:#8a979e;font-weight:500}
+.f select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:22px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23071421' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 1px center/14px no-repeat}
+.go{display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:0 17px 17px 0;background:var(--g);color:#06150c;padding:0 28px;font:800 15px Inter,Arial,sans-serif;cursor:pointer;transition:filter .15s}
+.go:hover{filter:brightness(.94)}
+.go svg{width:19px;height:19px}
+@media(max-width:820px){
+.search{grid-template-columns:1fr 1fr}
+.f{border-right:0;border-bottom:1px solid #e8edef;padding:10px 16px}
+.f.floc{grid-column:1/-1;border-radius:17px 17px 0 0}
+.f:nth-child(2){border-right:1px solid #e8edef;border-radius:0}
+.f:nth-child(4){border-bottom:0;border-radius:0 0 0 17px}
+.go{border-radius:0 0 17px 0;min-height:56px;padding:0 16px}
+.pop{width:100%}
+.f:not(.floc)>svg{display:none}
+.f:not(.floc) select{font-size:13px}
+}
+.main{display:grid;grid-template-columns:1fr 350px;height:calc(100vh - 190px);min-height:620px}
 .map{position:relative;overflow:hidden;background:#e7ece7;background-image:linear-gradient(25deg,transparent 0 20%,rgba(255,255,255,.85) 20.5% 22%,transparent 22.5% 45%,rgba(255,255,255,.8) 45.5% 47%,transparent 47.5%),linear-gradient(115deg,transparent 0 25%,rgba(255,255,255,.75) 25.5% 28%,transparent 28.5% 58%,rgba(255,255,255,.7) 58.5% 61%,transparent 61.5%),linear-gradient(0deg,rgba(57,220,75,.08),rgba(0,0,0,.02));}
 .map:before{content:"";position:absolute;inset:-20%;background:repeating-linear-gradient(32deg,transparent 0 105px,rgba(160,174,180,.32) 106px 110px,transparent 111px 190px),repeating-linear-gradient(-42deg,transparent 0 130px,rgba(160,174,180,.24) 131px 134px,transparent 135px 220px);transform:rotate(5deg)}
 .map-label{position:absolute;font-size:11px;color:#5d696d;font-weight:700;z-index:1}.l1{left:18%;top:22%}.l2{left:55%;top:15%}.l3{left:32%;top:57%}.l4{left:72%;top:62%}.l5{left:58%;top:39%}.road{position:absolute;z-index:0;height:9px;background:#fff;box-shadow:0 0 0 1px #d6dddd;transform:rotate(-23deg);width:100%;top:42%;left:-5%}.road2{top:65%;transform:rotate(31deg);width:110%;left:-8%}.road3{top:23%;transform:rotate(4deg);width:110%;left:-4%}
@@ -23,7 +50,7 @@
 .cards{padding:14px 15px;display:grid;gap:12px}.card{display:grid;grid-template-columns:116px 1fr;gap:12px;border:1px solid var(--line);border-radius:9px;padding:7px;background:#fff;box-shadow:0 2px 7px #00000006}.photo{height:102px;border-radius:6px;background-size:cover;background-position:center;position:relative}.c1{background-image:url("https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=500&q=80")}.c2{background-image:url("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80")}.c3{background-image:url("https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=500&q=80")}.c4{background-image:url("https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=500&q=80")}.badge{position:absolute;left:6px;top:6px;background:#1a9746;color:#fff;border-radius:4px;padding:4px 6px;font-size:8px;font-weight:800}.heart{position:absolute;right:6px;top:6px;width:25px;height:25px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:12px}.info{padding:4px 2px}.price{font-size:15px;font-weight:850}.type{font-size:9px;color:#159d2d;font-weight:750;margin:4px 0}.title{font-size:11px;font-weight:750;line-height:1.3}.loc{font-size:9px;color:#6b777e;margin-top:6px}.meta{font-size:8px;color:#67747b;margin-top:8px;display:flex;gap:8px}
 .radius{padding:13px 15px;background:#f6f9fa;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.radius-title{display:flex;justify-content:space-between;font-size:10px;font-weight:750;margin-bottom:9px}.radius input{width:100%;accent-color:var(--green)}
 @media(max-width:850px){.main{grid-template-columns:1fr;height:auto}.map{height:520px}.panel{border-left:0}}
-@media(max-width:600px){.container{width:calc(100% - 24px)}.search{display:block;height:auto;padding:5px}.field{height:40px;border-right:0;border-bottom:1px solid #edf0f2}.search button{width:100%;height:40px;margin-top:5px}.map{height:430px}.card{grid-template-columns:105px 1fr}}
+@media(max-width:600px){.container{width:calc(100% - 24px)}.map{height:430px}.card{grid-template-columns:105px 1fr}}
 
 
 footer{background:#06121b;color:#aebbc2;padding:26px 0;font-size:11px}.foot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}.links{display:flex;gap:22px;flex-wrap:wrap}
@@ -83,12 +110,12 @@ header a:focus-visible,header button:focus-visible{outline:3px solid var(--g);ou
 <nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
 <div class="actions"><a class="anunciar" href="{{ url_for('home') }}#anunciar">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
 <nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
-<div class="searchbar"><div class="container"><form class="search" id="filtros" onsubmit="return false" style="grid-template-columns:2.3fr 1fr 1.15fr 1fr 78px">
-<label class="field">⌖ <input id="onde" value="Minha localização" readonly aria-label="Localização"></label>
-<label class="field">◉ <select id="finalidade"><option value="">Comprar ou alugar</option><option value="venda">Comprar</option><option value="aluguel">Alugar</option></select></label>
-<label class="field">⌂ <select id="tipo"><option value="">Todos os imóveis</option>{% for k, v in TIPOS_IMOVEL.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
-<label class="field">R$ <select id="preco"><option value="">Qualquer preço</option><option value="5000">Até R$ 5 mil</option><option value="500000">Até R$ 500 mil</option><option value="1000000">Até R$ 1 milhão</option><option value="2000000">Até R$ 2 milhões</option></select></label>
-<button id="buscar">Buscar</button></form></div></div>
+<div class="top"><div class="c"><form class="search" id="filtros" onsubmit="return false">
+<label class="f floc" for="onde"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="fx"><b>Onde</b><input id="onde" value="Minha localização" readonly aria-label="Localização"></span></label>
+<label class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg><span class="fx"><b>Finalidade</b><select id="finalidade"><option value="">Comprar ou alugar</option><option value="venda">Comprar</option><option value="aluguel">Alugar</option></select></span></label>
+<label class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M9 21v-5h6v5M8 9h2M14 9h2M8 13h2M14 13h2"/></svg><span class="fx"><b>Tipo</b><select id="tipo"><option value="">Todos os imóveis</option>{% for k, v in TIPOS_IMOVEL.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></span></label>
+<label class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.6 0-2.8.8-2.8 2s1 1.7 2.8 2 2.8.8 2.8 2-1.2 2-2.8 2c-1.2 0-2.2-.4-2.8-1.2M12 6.5V8M12 16v1.5"/></svg><span class="fx"><b>Preço</b><select id="preco"><option value="">Qualquer preço</option><option value="5000">Até R$ 5 mil</option><option value="500000">Até R$ 500 mil</option><option value="1000000">Até R$ 1 milhão</option><option value="2000000">Até R$ 2 milhões</option></select></span></label>
+<button class="go" id="buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Buscar</button></form></div></div>
 <main class="main"><section class="map"><div id="mapa"></div><div class="location-card"><strong id="loc-t">📍 Localizando…</strong><span id="loc-s">Permita o acesso à sua localização</span></div></section>
 <aside class="panel"><div class="panel-head"><h1>Imóveis perto de você</h1><p id="total">—</p>
 <div class="panel-tools"><button class="active" data-o="dist">Mais próximos</button><button data-o="preco">Menor preço</button><button data-o="recentes">Recentes</button></div></div>
