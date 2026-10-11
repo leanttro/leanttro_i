@@ -1,5 +1,5 @@
 """
-ImóvelOnde — portal imobiliário (Flask + PostgreSQL).
+OndeImóveis — portal imobiliário (Flask + PostgreSQL).
 
 Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
@@ -580,8 +580,8 @@ def placeholder():
 #     Ficam em UPLOAD_DIR/site (no volume). O admin envia em /admin/midia e o site já usa sozinho.
 # ═══════════════════════════════════════════════════════════════
 
-SITE_NOME = "ImóvelOnde"
-SITE_TITULO = "ImóvelOnde — Casas e apartamentos para comprar ou alugar"
+SITE_NOME = "OndeImóveis"
+SITE_TITULO = "OndeImóveis — Casas e apartamentos para comprar ou alugar"
 SITE_DESCRICAO = ("Encontre casas e apartamentos para comprar ou alugar perto de você. "
                   "Fale direto com o anunciante pelo WhatsApp.")
 SITE_WHATSAPP = re.sub(r"\D", "", os.environ.get("PORTAL_WHATSAPP", ""))   # ex.: 5511999999999 (opcional)
@@ -1111,7 +1111,7 @@ def cadastrar():
             uid = criar_usuario(nome, email, senha, tipo, f["telefone"], consentimento=True)
             session.clear()
             session["uid"] = uid
-            flash("Conta criada! Bem-vindo ao ImóvelOnde.", "success")
+            flash("Conta criada! Bem-vindo ao OndeImóveis.", "success")
             if tipo in TIPOS_TENANT:
                 flash("Complete a página do seu negócio e cadastre o primeiro imóvel.", "success")
             if VERIFICAR_EMAIL:
@@ -1661,7 +1661,7 @@ def imovel_whatsapp(slug):
             (i["tenant_id"], i["id"], g.usuario["id"]))
     registrar_lead("imovel", "whatsapp", i["tenant_id"], i)
     link = (BASE_URL or request.host_url.rstrip("/")) + url_for("imovel", slug=slug)
-    texto = f"Olá! Vi o imóvel “{i['titulo']}” no ImóvelOnde e gostaria de mais informações. {link}"
+    texto = f"Olá! Vi o imóvel “{i['titulo']}” no OndeImóveis e gostaria de mais informações. {link}"
     return redirect(wa_link(numero, texto))
 
 
@@ -1776,7 +1776,7 @@ def imobiliaria_whatsapp(slug):
         return redirect(url_for("imobiliaria", slug=slug))
     execute("INSERT INTO eventos (tenant_id, usuario_id, tipo) VALUES (%s,%s,'whatsapp')", (t["id"], g.usuario["id"]))
     registrar_lead("imobiliaria", "whatsapp", t["id"])
-    return redirect(wa_link(t["whatsapp"], "Olá! Vi sua página no ImóvelOnde."))
+    return redirect(wa_link(t["whatsapp"], "Olá! Vi sua página no OndeImóveis."))
 
 
 @app.route("/imobiliarias/<slug>/telefone", methods=["POST"])
@@ -1932,7 +1932,7 @@ def newsletter():
     email = request.form.get("email", "").strip().lower()[:200]
     if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
         execute("INSERT INTO newsletter (email) VALUES (%s) ON CONFLICT DO NOTHING", (email,))
-        flash("Pronto! Você vai receber as novidades do ImóvelOnde.", "success")
+        flash("Pronto! Você vai receber as novidades do OndeImóveis.", "success")
     else:
         flash("Informe um e-mail válido.", "error")
     return redirect(url_for("guia"))
@@ -2413,7 +2413,7 @@ class pagbank:
         base = BASE_URL or request.host_url.rstrip("/")
         corpo = {
             "reference_id": f"assin-{assinatura_id}",
-            "items": [{"name": "ImóvelOnde — Plano Profissional (30 dias)", "quantity": 1,
+            "items": [{"name": "OndeImóveis — Plano Profissional (30 dias)", "quantity": 1,
                        "unit_amount": int(round(valor * 100))}],
             "redirect_url": base + url_for("anunciante_assinatura"),
             "payment_notification_urls": [base + url_for("webhook_pagbank") + (f"?t={quote(PAGBANK_WEBHOOK_TOKEN)}" if PAGBANK_WEBHOOK_TOKEN else "")],
