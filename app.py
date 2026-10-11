@@ -261,6 +261,35 @@ CREATE INDEX IF NOT EXISTS ix_chat_rec_sessao ON chat_recomendacoes (sessao_id, 
 """
 
 
+# Leads — pessoas cadastradas que pediram contato (WhatsApp/telefone/visita). Guarda uma "foto" dos dados do
+# imóvel/anunciante, então o lead continua completo mesmo que o anúncio seja apagado depois.
+SCHEMA_LEADS = """
+CREATE TABLE IF NOT EXISTS leads (
+  id BIGSERIAL PRIMARY KEY,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  tenant_id INT REFERENCES tenants(id) ON DELETE SET NULL,
+  imovel_id INT REFERENCES imoveis(id) ON DELETE SET NULL,
+  origem TEXT NOT NULL, canal TEXT NOT NULL,
+  nome TEXT, email TEXT, telefone TEXT, cidade TEXT,
+  tenant_nome TEXT, imovel_titulo TEXT, finalidade TEXT, tipo_imovel TEXT, preco NUMERIC(14,2),
+  cidade_imovel TEXT, bairro_imovel TEXT, quartos INT,
+  detalhe TEXT, cookies TEXT, ip_hash TEXT, user_agent TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX IF NOT EXISTS ix_leads_data ON leads (criado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_leads_tenant ON leads (tenant_id, criado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_leads_usuario ON leads (usuario_id, canal, criado_em);
+-- importa UMA vez os contatos antigos (eventos de logados) para a tabela de leads
+INSERT INTO leads (usuario_id, tenant_id, imovel_id, origem, canal, nome, email, telefone, cidade, tenant_nome,
+                   imovel_titulo, finalidade, tipo_imovel, preco, cidade_imovel, bairro_imovel, quartos, detalhe, criado_em)
+SELECT e.usuario_id, e.tenant_id, e.imovel_id, 'imovel', e.tipo, u.nome, u.email, u.telefone, u.cidade, t.nome,
+       i.titulo, i.finalidade, i.tipo, i.preco, i.cidade, i.bairro, i.dormitorios, e.detalhe, e.criado_em
+  FROM eventos e JOIN usuarios u ON u.id = e.usuario_id JOIN tenants t ON t.id = e.tenant_id
+  LEFT JOIN imoveis i ON i.id = e.imovel_id
+ WHERE e.tipo IN ('whatsapp','visita') AND e.usuario_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM leads);
+"""
+
+
 def init_db():
     """Cria as tabelas (idempotente). Espera o Postgres subir; trava para só 1 worker migrar."""
     ultimo = None
@@ -279,6 +308,7 @@ def init_db():
             cur.execute("SELECT pg_advisory_lock(727274)")
             cur.execute(SCHEMA)
             cur.execute(SCHEMA_CHAT)
+            cur.execute(SCHEMA_LEADS)
             cur.execute("SELECT pg_advisory_unlock(727274)")
         c.commit()
     finally:
@@ -802,6 +832,42 @@ def _cabecalhos(resp):
     return resp
 
 
+# ═══════════════════════════════════════════════════════════════
+# AVISO DE COOKIES (LGPD) — aparece até a pessoa escolher; a escolha fica 1 ano no cookie `io_cookies`
+# ═══════════════════════════════════════════════════════════════
+
+_COOKIE_HTML = """
+<div id="io-ck" role="dialog" aria-live="polite" aria-label="Aviso de cookies" style="position:fixed;left:16px;bottom:16px;z-index:99990;width:min(420px,calc(100% - 32px));background:#071421;color:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 14px 40px #0006;font:13px/1.5 Inter,Arial,sans-serif">
+<b style="display:block;font-size:14px;margin-bottom:4px">🍪 Cookies</b>
+<span style="color:#cfd9de">Usamos cookies essenciais para manter você conectado e, com a sua permissão, para entender como o site é usado e melhorar a experiência.__LINK__</span>
+<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+<button type="button" data-v="todos" style="flex:1;min-width:130px;border:0;border-radius:22px;padding:10px 14px;background:#39dc4b;color:#06150c;font:800 13px Inter,Arial,sans-serif;cursor:pointer">Aceitar todos</button>
+<button type="button" data-v="essenciais" style="flex:1;min-width:130px;border:1.5px solid #ffffff55;border-radius:22px;padding:10px 14px;background:none;color:#fff;font:700 13px Inter,Arial,sans-serif;cursor:pointer">Só essenciais</button></div></div>
+<script>(function(){var b=document.getElementById('io-ck');if(!b)return;b.querySelectorAll('button').forEach(function(x){x.onclick=function(){document.cookie='io_cookies='+x.dataset.v+';max-age=31536000;path=/;SameSite=Lax'+(location.protocol==='https:'?';Secure':'');b.remove()}})})();</script>
+"""
+
+
+@app.after_request
+def _aviso_cookies(resp):
+    try:
+        if request.method == "GET" and resp.status_code == 200 and resp.mimetype == "text/html":
+            resp.vary.add("Cookie")          # o HTML muda conforme a pessoa já escolheu ou não
+        if (request.method != "GET" or resp.status_code != 200 or resp.mimetype != "text/html" or resp.direct_passthrough
+                or request.cookies.get("io_cookies") or request.path.startswith(("/admin", "/painel", "/chat/", "/api/"))):
+            return resp
+        corpo = resp.get_data(as_text=True)
+        if "</body>" not in corpo:
+            return resp
+        link = ""
+        if "privacidade" in app.view_functions:
+            link = f' <a href="{url_for("privacidade")}" style="color:#39dc4b">Política de privacidade</a>.'
+        corpo = corpo.replace("</body>", _COOKIE_HTML.replace("__LINK__", link) + "</body>", 1)
+        resp.set_data(corpo)
+    except Exception:
+        log.exception("Aviso de cookies: não consegui inserir o banner")
+    return resp
+
+
 def login_required(f):
     @wraps(f)
     def w(*a, **k):
@@ -1252,14 +1318,41 @@ def _contato_imovel(slug):
     return i, (i["whatsapp"] or i["t_whatsapp"])
 
 
+def registrar_lead(origem, canal, tenant_id, imovel=None, detalhe=None):
+    """Grava o lead (quem pediu contato). Ignora o dono do anúncio e o admin; não repete o mesmo pedido em 24h."""
+    u = g.get("usuario")
+    if not u or u["tipo"] == "admin" or (g.get("tenant") and g.tenant["id"] == tenant_id):
+        return
+    imovel_id = imovel["id"] if imovel else None
+    if query_one("SELECT 1 FROM leads WHERE usuario_id = %s AND canal = %s AND tenant_id = %s "
+                 "AND imovel_id IS NOT DISTINCT FROM %s AND criado_em > NOW() - INTERVAL '24 hours'",
+                 (u["id"], canal, tenant_id, imovel_id)):
+        return
+    t = query_one("SELECT nome FROM tenants WHERE id = %s", (tenant_id,))
+    ip = hashlib.sha256((app.secret_key + (request.remote_addr or "")).encode()).hexdigest()[:24]
+    execute(
+        "INSERT INTO leads (usuario_id, tenant_id, imovel_id, origem, canal, nome, email, telefone, cidade, tenant_nome, "
+        "imovel_titulo, finalidade, tipo_imovel, preco, cidade_imovel, bairro_imovel, quartos, detalhe, cookies, ip_hash, user_agent) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (u["id"], tenant_id, imovel_id, origem, canal, u["nome"], u["email"], u["telefone"], u["cidade"],
+         t["nome"] if t else None,
+         imovel["titulo"] if imovel else None, imovel["finalidade"] if imovel else None,
+         imovel["tipo"] if imovel else None, imovel["preco"] if imovel else None,
+         imovel["cidade"] if imovel else None, imovel["bairro"] if imovel else None,
+         imovel["dormitorios"] if imovel else None, detalhe,
+         request.cookies.get("io_cookies"), ip, (request.user_agent.string or "")[:300]))
+
+
 @app.route("/imovel/<slug>/whatsapp")
+@login_required          # contato só para quem tem conta: quem não tem é levado ao cadastro/entrada e volta para o imóvel
 def imovel_whatsapp(slug):
     i, numero = _contato_imovel(slug)
     if not so_digitos(numero):
         flash("Este anunciante ainda não informou um WhatsApp.", "error")
         return redirect(url_for("imovel", slug=slug))
     execute("INSERT INTO eventos (tenant_id, imovel_id, usuario_id, tipo) VALUES (%s,%s,%s,'whatsapp')",
-            (i["tenant_id"], i["id"], g.usuario["id"] if g.usuario else None))
+            (i["tenant_id"], i["id"], g.usuario["id"]))
+    registrar_lead("imovel", "whatsapp", i["tenant_id"], i)
     link = (BASE_URL or request.host_url.rstrip("/")) + url_for("imovel", slug=slug)
     texto = f"Olá! Vi o imóvel “{i['titulo']}” no ImóvelOnde e gostaria de mais informações. {link}"
     return redirect(wa_link(numero, texto))
@@ -1271,8 +1364,10 @@ def imovel_visita(slug):
     i, numero = _contato_imovel(slug)
     quando = sanitize_input(request.form.get("quando", "").strip())[:40]
     msg = sanitize_input(request.form.get("mensagem", "").strip())[:300]
+    detalhe = " · ".join(x for x in (quando, msg) if x) or None
     execute("INSERT INTO eventos (tenant_id, imovel_id, usuario_id, tipo, detalhe) VALUES (%s,%s,%s,'visita',%s)",
-            (i["tenant_id"], i["id"], g.usuario["id"], " · ".join(x for x in (quando, msg) if x) or None))
+            (i["tenant_id"], i["id"], g.usuario["id"], detalhe))
+    registrar_lead("imovel", "visita", i["tenant_id"], i, detalhe)
     flash("Pedido de visita registrado! O anunciante vai ver nos contatos dele.", "success")
     if so_digitos(numero):
         texto = f"Olá! Gostaria de agendar uma visita ao imóvel “{i['titulo']}”" + (f" em {quando}" if quando else "") + "."
@@ -1351,9 +1446,41 @@ def imobiliaria(slug):
         abort(404)
     enriquecer_tenant(t)
     lista, total, pagina, paginas, f = consulta_imoveis(request.args, "i.tenant_id = %s", (t["id"],), por_pagina=9)
+    dono = bool(g.tenant and g.tenant["id"] == t["id"]) or bool(g.usuario and g.usuario["tipo"] == "admin")
+    tel_ok = dono or (bool(g.usuario) and slug in session.get("_tel", []))
     return render_template("imobiliaria.html", tn=t, imoveis=lista, total=total, pagina=pagina, paginas=paginas,
                            faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args),
-                           pro=t["plano_efetivo"] == "profissional")
+                           pro=t["plano_efetivo"] == "profissional", tel_ok=tel_ok)
+
+
+def _tenant_contato(slug):
+    t = query_one("SELECT * FROM tenants WHERE slug = %s AND status = 'ativo'", (slug,))
+    if not t:
+        abort(404)
+    return t
+
+
+@app.route("/imobiliarias/<slug>/whatsapp")
+@login_required
+def imobiliaria_whatsapp(slug):
+    t = _tenant_contato(slug)
+    if not so_digitos(t["whatsapp"]):
+        flash("Este anunciante ainda não informou um WhatsApp.", "error")
+        return redirect(url_for("imobiliaria", slug=slug))
+    execute("INSERT INTO eventos (tenant_id, usuario_id, tipo) VALUES (%s,%s,'whatsapp')", (t["id"], g.usuario["id"]))
+    registrar_lead("imobiliaria", "whatsapp", t["id"])
+    return redirect(wa_link(t["whatsapp"], "Olá! Vi sua página no ImóvelOnde."))
+
+
+@app.route("/imobiliarias/<slug>/telefone", methods=["POST"])
+@login_required
+def imobiliaria_telefone(slug):
+    t = _tenant_contato(slug)
+    registrar_lead("imobiliaria", "telefone", t["id"])
+    liberados = session.get("_tel", [])
+    if slug not in liberados:
+        session["_tel"] = (liberados + [slug])[-30:]
+    return redirect(url_for("imobiliaria", slug=slug) + "#contato")
 
 
 @app.route("/perto-de-mim")
@@ -2242,6 +2369,120 @@ def admin_assinaturas():
         "SELECT p.*, t.nome AS tenant_nome FROM pagamentos p LEFT JOIN tenants t ON t.id = p.tenant_id ORDER BY p.criado_em DESC LIMIT 100")
     return render_template("admin.html", assinaturas=assinaturas, pagamentos=pagamentos,
                            pagbank_ok=pagbank.configurado(), pagina_ativa="assinaturas")
+
+
+# ═══════════════════════════════════════════════════════════════
+# LEADS (admin): lista, filtros e exportação para Excel
+# ═══════════════════════════════════════════════════════════════
+
+CANAIS_LEAD = {"whatsapp": "WhatsApp", "telefone": "Telefone", "visita": "Visita"}
+ORIGENS_LEAD = {"imovel": "Página do imóvel", "imobiliaria": "Página da imobiliária"}
+COOKIES_LEAD = {"todos": "Aceitou todos", "essenciais": "Só essenciais"}
+LEADS_POR_PAGINA = 50
+
+
+def _leads_filtro(args):
+    q = sanitize_input(args.get("q", "").strip())[:80]
+    canal, origem = args.get("canal", ""), args.get("origem", "")
+    dias = args.get("dias", "30")
+    tenant_id = args.get("anunciante", type=int)
+    where, params = ["TRUE"], []
+    if q:
+        where.append("(l.nome ILIKE %s OR l.email ILIKE %s OR l.telefone ILIKE %s OR l.imovel_titulo ILIKE %s)")
+        params += [f"%{q}%"] * 3 + [f"%{q}%"]
+    if canal in CANAIS_LEAD:
+        where.append("l.canal = %s"); params.append(canal)
+    if origem in ORIGENS_LEAD:
+        where.append("l.origem = %s"); params.append(origem)
+    if tenant_id:
+        where.append("l.tenant_id = %s"); params.append(tenant_id)
+    if dias in ("7", "30", "90"):
+        where.append("l.criado_em >= NOW() - %s * INTERVAL '1 day'"); params.append(int(dias))
+    else:
+        dias = "todos"
+    return " AND ".join(where), params, dict(q=q, canal=canal, origem=origem, dias=dias, anunciante=tenant_id or "")
+
+
+_LEADS_SQL = ("SELECT l.*, u.criado_em AS cadastro_em FROM leads l LEFT JOIN usuarios u ON u.id = l.usuario_id "
+              "WHERE {where} ORDER BY l.criado_em DESC")
+
+
+@app.route("/admin/leads")
+@admin_required
+def admin_leads():
+    where, params, f = _leads_filtro(request.args)
+    pagina = max(1, request.args.get("pagina", 1, type=int))
+    resumo = query_one(
+        f"SELECT COUNT(*) AS total, COUNT(DISTINCT l.usuario_id) AS pessoas, COUNT(DISTINCT l.tenant_id) AS anunciantes, "
+        f"COUNT(*) FILTER (WHERE l.criado_em >= NOW() - INTERVAL '7 days') AS ult7 FROM leads l WHERE {where}", params)
+    lista = query_all(_LEADS_SQL.format(where=where) + " LIMIT %s OFFSET %s",
+                      params + [LEADS_POR_PAGINA, (pagina - 1) * LEADS_POR_PAGINA])
+    paginas = max(1, math.ceil(resumo["total"] / LEADS_POR_PAGINA))
+    anunciantes = query_all("SELECT DISTINCT t.id, t.nome FROM leads l JOIN tenants t ON t.id = l.tenant_id ORDER BY t.nome")
+    qs = {k: v for k, v in request.args.items() if k != "pagina" and v}
+    return render_template("admin.html", pagina_ativa="leads", leads=lista, resumo=resumo, f=f, pagina=pagina,
+                           paginas=paginas, anunciantes_lista=anunciantes, qs_filtro=qs, wa_link=wa_link,
+                           CANAIS_LEAD=CANAIS_LEAD, ORIGENS_LEAD=ORIGENS_LEAD, COOKIES_LEAD=COOKIES_LEAD)
+
+
+def _local_naive(dt):
+    return dt.astimezone(TZ).replace(tzinfo=None) if dt else None
+
+
+@app.route("/admin/leads/exportar")
+@admin_required
+def admin_leads_exportar():
+    where, params, _ = _leads_filtro(request.args)
+    linhas = query_all(_LEADS_SQL.format(where=where) + " LIMIT 50000", params)
+    cab = ["Data do contato", "Nome", "E-mail", "Telefone", "Cidade do lead", "Cadastro do lead em", "Origem", "Canal",
+           "Imóvel", "Finalidade", "Tipo", "Preço (R$)", "Quartos", "Cidade do imóvel", "Bairro do imóvel", "Anunciante",
+           "Detalhe (visita)", "Cookies"]
+
+    def linha(r):
+        return [_local_naive(r["criado_em"]), r["nome"], r["email"], r["telefone"], r["cidade"], _local_naive(r["cadastro_em"]),
+                ORIGENS_LEAD.get(r["origem"], r["origem"]), CANAIS_LEAD.get(r["canal"], r["canal"]),
+                r["imovel_titulo"], FINALIDADES.get(r["finalidade"], r["finalidade"]), TIPOS_IMOVEL.get(r["tipo_imovel"], r["tipo_imovel"]),
+                float(r["preco"]) if r["preco"] is not None else None, r["quartos"], r["cidade_imovel"], r["bairro_imovel"],
+                r["tenant_nome"], r["detalhe"], COOKIES_LEAD.get(r["cookies"], "—")]
+
+    nome = f"leads-imovelonde-{datetime.now(TZ).strftime('%Y-%m-%d')}"
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:                       # sem openpyxl no servidor: CSV que o Excel abre direto (; e acentos ok)
+        import csv
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=";")
+        w.writerow(cab)
+        for r in linhas:
+            w.writerow([v.strftime("%d/%m/%Y %H:%M") if isinstance(v, datetime) else ("" if v is None else v) for v in linha(r)])
+        return Response("\ufeff" + buf.getvalue(), mimetype="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Leads"
+    ws.append(cab)
+    for c in ws[1]:
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="071521")
+        c.alignment = Alignment(vertical="center")
+    for r in linhas:
+        ws.append(linha(r))
+    larguras = [17, 26, 32, 16, 18, 17, 22, 12, 36, 11, 13, 14, 8, 18, 18, 26, 30, 14]
+    for k, w_ in enumerate(larguras, 1):
+        ws.column_dimensions[get_column_letter(k)].width = w_
+    for row in ws.iter_rows(min_row=2):
+        row[0].number_format = row[5].number_format = "dd/mm/yyyy hh:mm"
+        row[11].number_format = '#,##0.00'
+        row[3].number_format = "@"
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name=f"{nome}.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @app.route("/admin/arquivos")
