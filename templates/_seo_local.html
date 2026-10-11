@@ -1,0 +1,17 @@
+<section class="seo-local" data-seo-local>
+<style>
+.seo-local{max-width:1180px;margin:34px auto;padding:0 20px;color:#17252d;font-family:Inter,Arial,sans-serif}
+.seo-local nav{font-size:12px;color:#718087;margin-bottom:14px}.seo-local nav a{color:#18a92b;text-decoration:none;font-weight:700}.seo-local nav span{margin:0 6px}
+.seo-local h2{font-size:22px;letter-spacing:-.5px;margin:0 0 10px}.seo-local h3{font-size:15px;margin:22px 0 10px}
+.seo-local p{font-size:14px;line-height:1.7;color:#4b5a61;margin:0;max-width:820px}
+.seo-local ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.seo-local li a{display:inline-block;border:1px solid #dfe7e2;border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;color:#34464d;text-decoration:none;background:#fff}
+.seo-local li a:hover,.seo-local li a.on{border-color:#39dc4b;color:#0c7a1b}
+.seo-local li small{color:#8a979d;font-weight:600;margin-left:4px}
+</style>
+<nav aria-label="Você está em">{% for nome, url in seo.migalhas %}{% if not loop.last %}<a href="{{ url }}">{{ nome }}</a><span>›</span>{% else %}<strong>{{ nome }}</strong>{% endif %}{% endfor %}</nav>
+<h2>{{ seo.h2 }}</h2>
+<p>{{ seo.intro }}</p>
+{% if seo.fins %}<h3>Ver por finalidade</h3><ul>{% for f in seo.fins %}<li><a href="{{ f.url }}"{% if f.atual %} class="on"{% endif %}>{{ f.rotulo }}<small>{{ f.n }}</small></a></li>{% endfor %}</ul>{% endif %}
+{% if seo.bairros %}<h3>{{ 'Outros bairros em ' ~ seo.cidade if seo.bairro else 'Bairros de ' ~ seo.cidade }}</h3><ul>{% for b in seo.bairros %}<li><a href="{{ b.url }}">{{ b.nome }}<small>{{ b.n }}</small></a></li>{% endfor %}</ul>{% endif %}
+</section>
