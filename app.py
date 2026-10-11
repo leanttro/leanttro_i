@@ -1323,6 +1323,23 @@ def imobiliarias():
         f"ORDER BY t.verificada DESC, n_imoveis DESC, t.nome LIMIT 60", params)
     for t in lista:
         enriquecer_tenant(t)
+    # anunciantes Pro: foto grande + miniaturas dos anúncios mais recentes/destacados
+    pros = [t for t in lista if t["pro"]]
+    galerias, fins = {t["id"]: [] for t in pros}, {t["id"]: [] for t in pros}
+    if pros:
+        for r in query_all(
+                f"SELECT i.tenant_id, i.slug, i.titulo, i.finalidade, {CAPA_SQL} AS capa FROM imoveis i "
+                "WHERE i.tenant_id = ANY(%s) AND i.status = 'publicado' ORDER BY i.destaque DESC, i.criado_em DESC",
+                ([t["id"] for t in pros],)):
+            if r["finalidade"] in FINALIDADES and r["finalidade"] not in fins[r["tenant_id"]]:
+                fins[r["tenant_id"]].append(r["finalidade"])
+            if r["capa"] and len(galerias[r["tenant_id"]]) < 5:
+                galerias[r["tenant_id"]].append({"big": url_foto(r["capa"], 960), "thumb": url_foto(r["capa"], 320),
+                                                 "url": url_for("imovel", slug=r["slug"]), "titulo": r["titulo"]})
+    for t in pros:
+        t["galeria"] = galerias[t["id"]]
+        t["mais"] = max(0, t["n_imoveis"] - len(t["galeria"]))
+        t["finalidades"] = [FINALIDADES[f] for f in fins[t["id"]]]
     return render_template("imobiliarias.html", lista=lista, q=q)
 
 
