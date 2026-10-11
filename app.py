@@ -23,9 +23,10 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.pool
 from PIL import Image, ImageDraw, ImageOps
-from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_template, request,
+from flask import (Flask, make_response, Response, abort, flash, g, jsonify, redirect, render_template, request,
                    send_file, session, url_for)
-from markupsafe import Markup
+from markupsafe import Markup, escape as html_escape
+from werkzeug.datastructures import MultiDict
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -1336,7 +1337,7 @@ def cidades_home(limite=10):
             c[fin].sort(key=lambda x: ordem_tipos.index(x["tipo"]))
             c[fin] = [{"rotulo": f"{TIPO_PLURAL[x['tipo']]} {FRASE_FINALIDADE[fin]} em {c['nome']}", "n": x["n"],
                        "url": url_for("buscar", finalidade=fin, tipo=x["tipo"], cidade=c["slug"])} for x in c[fin]]
-            c[fin + "_url"] = url_for("buscar", finalidade=fin, cidade=c["slug"])
+            c[fin + "_url"] = url_local(c["slug"], fin=fin)
         saida.append(c)
     return saida
 
@@ -1362,12 +1363,192 @@ def rotulo_local(f):
     return f"{f['bairro']}, {cidade}" if f["bairro"] else cidade
 
 
+def url_local(cidade, bairro=None, fin=None):
+    """URL limpa para SEO: /sao-paulo, /sao-paulo/barra-funda, /sao-paulo/barra-funda/venda, /sao-paulo/venda."""
+    p = "/" + cidade
+    if bairro:
+        p += "/" + bairro
+    if fin:
+        p += "/" + fin
+    return p
+
+
+def _redirecionar_busca_simples():
+    """/buscar?cidade=sao-paulo&bairro=barra-funda&finalidade=venda → /sao-paulo/barra-funda/venda (301), só quando
+    a busca tem apenas esses filtros e o local existe. Qualquer outro filtro continua em /buscar."""
+    a = {k: v.strip() for k, v in request.args.items() if v.strip()}
+    if not a.get("cidade") or not set(a) <= {"cidade", "bairro", "finalidade", "ordem"} or a.get("ordem", "relevantes") != "relevantes":
+        return None
+    if len(request.args.getlist("cidade")) > 1 or (a.get("finalidade") and a["finalidade"] not in FINALIDADES):
+        return None
+    c, b = gerar_slug(a["cidade"]), (gerar_slug(a["bairro"]) if a.get("bairro") else None)
+    if query_one("SELECT 1 FROM imoveis i JOIN tenants t ON t.id = i.tenant_id WHERE i.status = 'publicado' AND t.status = 'ativo' "
+                 "AND i.cidade_slug = %s" + (" AND i.bairro_slug = %s" if b else "") + " LIMIT 1", (c, b) if b else (c,)):
+        return redirect(url_local(c, b, a.get("finalidade")), 301)
+    return None
+
+
 @app.route("/buscar")
 def buscar():
+    r = _redirecionar_busca_simples()
+    if r:
+        return r
     lista, total, pagina, paginas, f = consulta_imoveis(request.args)
-    return render_template("resultados.html", imoveis=lista, total=total, pagina=pagina, paginas=paginas,
-                           faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args),
-                           loc_label=rotulo_local(f))
+    resp = make_response(render_template("resultados.html", imoveis=lista, total=total, pagina=pagina, paginas=paginas,
+                                         faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args),
+                                         loc_label=rotulo_local(f)))
+    if request.args:        # combinações de filtros não entram no Google (as páginas de cidade/bairro é que ranqueiam)
+        resp.headers["X-Robots-Tag"] = "noindex, follow"
+    return resp
+
+
+# ── Páginas de cidade e bairro (SEO) ──────────────────────────────────────────
+FRASE_FIN_SEO = {"venda": "à venda", "aluguel": "para alugar"}
+
+
+def _brl(v):
+    return "R$ " + f"{float(v):,.0f}".replace(",", ".")
+
+
+def _qtd(n, um, varios):
+    return f"{n} {um if n == 1 else varios}"
+
+
+def _injetar_seo(html, s):
+    """Põe title, description, canonical, Open Graph e JSON-LD no <head> e o bloco de texto/links antes do rodapé.
+    Assim as páginas de local funcionam mesmo antes de o resultados.html ter marcações próprias."""
+    esc = lambda x: str(html_escape(x))
+    html = re.sub(r"<title>.*?</title>\s*", "", html, count=1, flags=re.S | re.I)
+    html = re.sub(r"<meta[^>]+(?:name=[\"']description[\"']|property=[\"']og:(?:title|description|url)[\"'])[^>]*>\s*", "", html, flags=re.I)
+    html = re.sub(r"<link[^>]+rel=[\"']canonical[\"'][^>]*>\s*", "", html, flags=re.I)
+    head = (f"<title>{esc(s['titulo'])}</title>\n"
+            f'<meta name="description" content="{esc(s["descricao"])}">\n'
+            f'<link rel="canonical" href="{esc(s["canonical"])}">\n'
+            f'<meta property="og:type" content="website"><meta property="og:title" content="{esc(s["titulo"])}">\n'
+            f'<meta property="og:description" content="{esc(s["descricao"])}"><meta property="og:url" content="{esc(s["canonical"])}">\n'
+            f'<script type="application/ld+json">{s["jsonld"]}</script>\n')
+    if re.search(r"</head>", html, re.I):
+        html = re.sub(r"</head>", lambda m: head + "</head>", html, count=1, flags=re.I)
+    else:
+        html = head + html
+    if "data-seo-local" not in html:
+        bloco = render_template("_seo_local.html", seo=s)
+        if re.search(r"<footer", html, re.I):
+            html = re.sub(r"<footer", lambda m: bloco + "<footer", html, count=1, flags=re.I)
+        else:
+            html = re.sub(r"</body>", lambda m: bloco + "</body>", html, count=1, flags=re.I) if "</body>" in html.lower() else html + bloco
+    return html
+
+
+@app.route("/<cidade>", defaults={"seg2": None, "seg3": None}, strict_slashes=False)
+@app.route("/<cidade>/<seg2>", defaults={"seg3": None}, strict_slashes=False)
+@app.route("/<cidade>/<seg2>/<seg3>", strict_slashes=False)
+def local(cidade, seg2=None, seg3=None):
+    """/sao-paulo · /sao-paulo/venda · /sao-paulo/barra-funda · /sao-paulo/barra-funda/aluguel"""
+    fin = None
+    bairro = None
+    if seg2 in FINALIDADES and seg3 is None:
+        fin = seg2
+    else:
+        bairro, fin = seg2, seg3
+    if fin is not None and fin not in FINALIDADES:
+        abort(404)
+    partes = [cidade] + ([bairro] if bairro else [])
+    if any(p != gerar_slug(p) for p in partes):          # só slugs "limpos" (minúsculas, sem acento, com hífen)
+        if all(p.lower() == gerar_slug(p) for p in partes):
+            return redirect(url_local(*[p.lower() for p in partes[:1]], bairro.lower() if bairro else None, fin), 301)
+        abort(404)
+
+    base_cond = "i.status = 'publicado' AND t.status = 'ativo' AND i.cidade_slug = %s"
+    juncao = "FROM imoveis i JOIN tenants t ON t.id = i.tenant_id"
+    p_cid = [cidade]
+    cond, params = base_cond, list(p_cid)
+    if bairro:
+        cond += " AND i.bairro_slug = %s"; params.append(bairro)
+    if fin:
+        cond += " AND i.finalidade = %s"; params.append(fin)
+    st = query_one(f"SELECT COUNT(*) AS n, MIN(i.preco) AS pmin, MAX(i.preco) AS pmax, MIN(i.cidade) AS cidade, MIN(i.uf) AS uf, "
+                   f"MIN(i.bairro) AS bairro {juncao} WHERE {cond}", params)
+    if not st or not st["n"]:
+        abort(404)                                         # local sem imóvel não existe (evita página vazia indexada)
+    n = st["n"]
+    nome_cidade = st["cidade"]
+    uf = (st["uf"] or "").upper()
+    nome_bairro = st["bairro"] if bairro else None
+    cid_uf = f"{nome_cidade} - {uf}" if uf else nome_cidade
+    local_txt = f"{nome_bairro}, {cid_uf}" if bairro else cid_uf
+
+    por_fin = {r["finalidade"]: r["n"] for r in query_all(
+        f"SELECT i.finalidade, COUNT(*) AS n {juncao} WHERE {base_cond}" + (" AND i.bairro_slug = %s" if bairro else "") + " GROUP BY i.finalidade",
+        p_cid + ([bairro] if bairro else []))}
+    tipos = [r["tipo"] for r in query_all(f"SELECT i.tipo, COUNT(*) AS n {juncao} WHERE {cond} GROUP BY i.tipo ORDER BY n DESC", params)
+             if r["tipo"] in TIPO_PLURAL]
+    bairros = [{"nome": r["nome"], "n": r["n"], "url": url_local(cidade, r["slug"], fin)} for r in query_all(
+        f"SELECT i.bairro_slug AS slug, MIN(i.bairro) AS nome, COUNT(*) AS n {juncao} WHERE {base_cond}"
+        + (" AND i.finalidade = %s" if fin else "") + " GROUP BY i.bairro_slug ORDER BY n DESC, nome LIMIT 40",
+        p_cid + ([fin] if fin else [])) if r["slug"] != bairro]
+    fins = [{"rotulo": f"Imóveis {FRASE_FIN_SEO[k]}", "n": por_fin[k], "url": url_local(cidade, bairro, k), "atual": k == fin}
+            for k in FINALIDADES if por_fin.get(k)]
+    if len(fins) > 1:
+        fins.insert(0, {"rotulo": "Todos os imóveis", "n": sum(por_fin.values()), "url": url_local(cidade, bairro), "atual": fin is None})
+    else:
+        fins = []
+
+    frase = FRASE_FIN_SEO.get(fin, "")
+    h1 = f"Imóveis {frase} em {local_txt}".replace("  ", " ")
+    titulo = f"{h1} | {SITE_NOME}"
+    if len(titulo) > 70:
+        titulo = h1[:67] + "…" if len(h1) > 70 else h1
+    sufixo_preco = "/mês" if fin == "aluguel" else ""
+    intro = [f"Encontre {_qtd(n, 'imóvel', 'imóveis')} {frase} em {local_txt}".replace("  ", " ") + "."]
+    if fin and st["pmin"] is not None:
+        intro.append(f"Os valores vão de {_brl(st['pmin'])}{sufixo_preco} a {_brl(st['pmax'])}{sufixo_preco}." if st["pmin"] != st["pmax"]
+                     else f"O valor é de {_brl(st['pmin'])}{sufixo_preco}.")
+    if tipos:
+        nomes = [TIPO_PLURAL[t].lower() for t in tipos[:4]]
+        intro.append("Entre as opções estão " + (", ".join(nomes[:-1]) + " e " + nomes[-1] if len(nomes) > 1 else nomes[0]) + ".")
+    intro.append(f"No {SITE_NOME} você vê fotos e detalhes e fala direto com proprietários, corretores e imobiliárias pelo WhatsApp.")
+    texto = " ".join(intro)
+    descricao = " ".join(intro[:-1]) + " Veja fotos e fale direto com o anunciante."
+    if len(descricao) > 158:
+        descricao = " ".join(intro[:-1])
+    if len(descricao) > 158:
+        descricao = descricao[:155].rsplit(" ", 1)[0] + "…"
+
+    base = base_url()
+    migalhas = [("Início", "/"), (nome_cidade, url_local(cidade))]
+    if bairro:
+        migalhas.append((nome_bairro, url_local(cidade, bairro)))
+    if fin:
+        migalhas.append((FINALIDADES[fin], url_local(cidade, bairro, fin)))
+    jsonld = json.dumps({"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+        {"@type": "ListItem", "position": k, "name": nm, "item": base + u} for k, (nm, u) in enumerate(migalhas, 1)]},
+        ensure_ascii=False).replace("</", "<\\/")
+    seo = dict(titulo=titulo, descricao=descricao, canonical=base + url_local(cidade, bairro, fin),
+               h1=h1, intro=texto, jsonld=jsonld, migalhas=migalhas, bairros=bairros, fins=fins,
+               cidade=nome_cidade, bairro=nome_bairro, h2=f"Sobre {nome_bairro or nome_cidade}")
+
+    # a listagem usa a mesma consulta da busca; o bairro é filtrado pelo slug exato (sem o "contém" da busca livre)
+    args_busca = MultiDict([(k, v) for k in request.args for v in request.args.getlist(k)
+                            if k not in ("cidade", "bairro", "finalidade", "uf", "q")])
+    args_busca.add("cidade", cidade)
+    if fin:
+        args_busca.add("finalidade", fin)
+    args_cons = MultiDict(args_busca)
+    qs_args = MultiDict(args_busca)
+    if bairro:
+        qs_args.add("bairro", nome_bairro)                 # paginação/filtros do template seguem para /buscar com o bairro
+    lista, total, pagina, paginas, f = consulta_imoveis(
+        args_cons, extra_where="i.bairro_slug = %s" if bairro else "", extra_params=(bairro,) if bairro else ())
+    if bairro:
+        f["bairro"] = nome_bairro
+    html = render_template("resultados.html", imoveis=lista, total=total, pagina=pagina, paginas=paginas,
+                           faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(qs_args),
+                           loc_label=rotulo_local(f), seo=seo)
+    resp = make_response(_injetar_seo(html, seo))
+    if pagina > 1:                                         # páginas 2, 3… aparecem para quem navega, mas só a 1ª ranqueia
+        resp.headers["X-Robots-Tag"] = "noindex, follow"
+    return resp
 
 
 @app.route("/api/locais")
@@ -1777,6 +1958,17 @@ def sitemap():
         itens.append((base + url_for("imovel", slug=r["slug"]), r["atualizado_em"]))
     for r in query_all("SELECT slug FROM tenants WHERE status = 'ativo' AND tipo = 'imobiliaria'"):
         itens.append((base + url_for("imobiliaria", slug=r["slug"]), None))
+    # páginas de cidade e bairro (só as que têm imóvel)
+    locais = set()
+    for r in query_all("SELECT i.cidade_slug AS c, i.bairro_slug AS b, i.finalidade AS f, MAX(i.atualizado_em) AS d "
+                       "FROM imoveis i JOIN tenants t ON t.id = i.tenant_id WHERE i.status = 'publicado' AND t.status = 'ativo' "
+                       "GROUP BY i.cidade_slug, i.bairro_slug, i.finalidade"):
+        for b in (None, r["b"]):
+            for f_ in (None, r["f"]):
+                if r["c"] and (b is None or r["b"]) and r["c"] == gerar_slug(r["c"]) and (b is None or b == gerar_slug(b)):
+                    locais.add((r["c"], b, f_ if f_ in FINALIDADES else None))
+    for c, b, f_ in sorted(locais, key=lambda x: (x[0], x[1] or "", x[2] or "")):
+        itens.append((base + url_local(c, b, f_), None))
     corpo = "".join(f"<url><loc>{xml_escape(u)}</loc>" + (f"<lastmod>{d.date().isoformat()}</lastmod>" if d else "") + "</url>"
                     for u, d in itens)
     return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
