@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Minha área</title>
+<title>OndeImóveis — Minha área</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 
 :root{
@@ -105,15 +107,30 @@ form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+
+/* ===== cabeçalho igual ao da home ===== */
+:root{--g:#39e44b;--ink:#071421}
+.topbar{height:auto;padding:0;display:block;gap:0;position:relative;top:auto;z-index:1000;background:var(--g);color:var(--ink);box-shadow:0 2px 14px #0002}
+.topbar .hnav{width:min(1110px,calc(100% - 48px));margin:auto;height:88px;display:flex;align-items:center;gap:40px}
+.topbar .logo{font-size:28px;font-weight:800;letter-spacing:-1.5px;display:inline-flex;align-items:center;color:var(--ink);white-space:nowrap;text-decoration:none}
+.topbar .logo img{display:block;width:auto;filter:brightness(0)}
+.topbar .accent{color:#fff}
+.topbar .mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--ink);border-radius:7px;color:var(--ink);margin-right:7px}
+.topbar .avatar{background:var(--ink);color:#fff}
+.layout{min-height:calc(100vh - 88px)}
+@media(max-width:760px){.topbar .hnav{width:calc(100% - 28px);height:76px;gap:10px}.topbar .logo img{height:52px!important}.sidebar{top:0}.layout{min-height:0}}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-<header class="topbar"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
+{%- endmacro %}
+<header class="topbar"><div class="hnav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
 <form class="search" action="{{ url_for('buscar') }}" method="get"><input name="q" placeholder="Buscar imóveis, bairros ou cidades..."></form>
-<div class="top-actions"><div class="avatar">{{ usuario.nome|iniciais }}</div></div></header>
+<div class="top-actions"><div class="avatar">{{ usuario.nome|iniciais }}</div></div></div></header>
 <div class="layout"><aside class="sidebar"><div class="user-mini"><strong>{{ usuario.nome }}</strong><small>Minha conta</small></div><div class="nav"><div class="nav-label">Minha área</div><a class="active" href="{{ url_for('minha_area') }}"><span>▦</span> <span>Visão geral</span></a><a href="{{ url_for('favoritos') }}"><span>♡</span> <span>Favoritos</span></a><a href="{{ url_for('minha_area_lista', aba='visitados') }}"><span>⌂</span> <span>Imóveis visitados</span></a><a href="{{ url_for('minha_area_lista', aba='contatos') }}"><span>💬</span> <span>Meus contatos</span></a><a href="{{ url_for('minha_area_lista', aba='visitas') }}"><span>◷</span> <span>Visitas agendadas</span></a><div class="nav-label">Conta</div><a href="{{ url_for('minha_area_perfil') }}"><span>♙</span> <span>Meu perfil</span></a><a href="{{ url_for('sair') }}"><span>↩</span> <span>Sair</span></a></div></aside><main class="main"><div class="container">
-<div class="heading"><div><h1>Olá, {{ usuario.nome.split()[0] }} 👋</h1><p>Acompanhe os imóveis que você encontrou e seus contatos no ImoveLonde.</p></div><a class="view-site" href="{{ url_for('home') }}" style="text-decoration:none">← Voltar para o portal</a></div>
+<div class="heading"><div><h1>Olá, {{ usuario.nome.split()[0] }}</h1><p>Acompanhe os imóveis que você encontrou e seus contatos no OndeImóveis.</p></div><a class="view-site" href="{{ url_for('home') }}" style="text-decoration:none">← Voltar para o portal</a></div>
 <section class="grid"><div class="stat"><div class="stat-top"><span>Favoritos</span><div class="stat-icon">♡</div></div><strong>{{ st.favoritos }}</strong></div><div class="stat"><div class="stat-top"><span>Imóveis visitados</span><div class="stat-icon">⌂</div></div><strong>{{ st.visitados }}</strong></div><div class="stat"><div class="stat-top"><span>Contatos realizados</span><div class="stat-icon">↗</div></div><strong>{{ st.contatos }}</strong></div><div class="stat"><div class="stat-top"><span>Visitas agendadas</span><div class="stat-icon">◷</div></div><strong>{{ st.visitas }}</strong></div></section>
 <div class="content-grid"><div>
 <section class="panel"><div class="panel-head"><h2>Continue de onde parou</h2><a href="{{ url_for('minha_area_lista', aba='visitados') }}">Ver todos os visitados</a></div>{% for i in continuar %}<article class="property"><img class="property-img" src="{{ i.foto }}" alt=""><div class="property-info"><h3>{{ i.titulo }}</h3><p>{{ i.bairro }} · {{ i.cidade }}, {{ i.uf }}</p><span class="price">{{ i|preco }} <span class="tag">{{ FINALIDADES[i.finalidade] }}</span></span><div class="row-actions"><a class="small-btn" href="{{ url_for('imovel', slug=i.slug) }}">Ver imóvel</a><form class="inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button class="small-btn">{{ '♥ Favoritado' if i.favorito else '♡ Favoritar' }}</button></form></div></div></article>{% endfor %}{% if not continuar %}<div class="empty">Você ainda não visitou nenhum anúncio. <a href="{{ url_for('buscar') }}" style="color:#159c2d;font-weight:800">Procurar imóveis →</a></div>{% endif %}</section>
@@ -122,6 +139,6 @@ form.inline{display:inline;margin:0}
 <aside><section class="panel"><div class="panel-head"><h2>Meu perfil</h2><a href="{{ url_for('minha_area_perfil') }}">Editar</a></div><div class="profile-card"><div class="profile-head"><div class="profile-avatar">{{ usuario.nome|iniciais }}</div><div><h3>{{ usuario.nome }}</h3><p>{{ usuario.cidade or 'Cidade não informada' }}</p></div></div><div class="progress"><i style="width:{{ perfil_pct }}%"></i></div><small>Perfil {{ perfil_pct }}% completo</small></div></section>
 <section class="panel"><div class="panel-head"><h2>Próxima visita</h2><a href="{{ url_for('minha_area_lista', aba='visitas') }}">Ver agenda</a></div><div class="profile-card">{% if proxima %}<span class="tag" style="margin:0">PEDIDA</span><h3 style="font-size:15px;margin:12px 0 4px">{{ proxima.titulo }}</h3><p style="font-size:12px;color:var(--muted);margin:0">{{ proxima.detalhe or 'Horário a combinar' }}</p><p style="font-size:12px;color:var(--muted);margin:8px 0 0">{{ proxima.anunciante_nome }}</p><a class="small-btn" style="margin-top:13px;width:100%;text-align:center" href="{{ url_for('imovel', slug=proxima.slug) }}">Ver imóvel</a>{% else %}<p style="font-size:12px;color:var(--muted);margin:0">Nenhuma visita pedida ainda. Abra um anúncio e use “Agendar visita”.</p>{% endif %}</div></section>
 <section class="panel"><div class="panel-head"><h2>Acesso rápido</h2></div><div class="quick"><a href="{{ url_for('favoritos') }}">♡ Meus favoritos</a><a href="{{ url_for('minha_area_lista', aba='visitados') }}">⌂ Histórico</a><a href="{{ url_for('minha_area_lista', aba='contatos') }}">💬 Contatos</a><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a></div></section></aside></div>
-<div class="footer-note">Sua área do ImoveLonde reúne seu histórico de navegação, favoritos, contatos e visitas.</div></div></main></div>
+<div class="footer-note">Sua área do OndeImóveis reúne seu histórico de navegação, favoritos, contatos e visitas.</div></div></main></div>
 </body>
 </html>
