@@ -1579,8 +1579,11 @@ def home():
     destaques = query_all(
         f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
         f"WHERE i.status = 'publicado' AND t.status = 'ativo' AND {sql_destaque()} ORDER BY i.criado_em DESC LIMIT 4")
+    imobs = [enriquecer_tenant(t) for t in query_all(
+        f"SELECT t.* FROM tenants t WHERE t.status = 'ativo' AND t.tipo = 'imobiliaria' AND {sql_pro_ativo('t')} "
+        "AND EXISTS (SELECT 1 FROM imoveis i WHERE i.tenant_id = t.id AND i.status = 'publicado') ORDER BY random() LIMIT 6")]
     total = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE status = 'publicado'")["n"]
-    return render_template("home.html", destaques=preparar_imoveis(destaques, 640), total=total, cidades=cidades_home())
+    return render_template("home.html", destaques=preparar_imoveis(destaques, 640), imobs=imobs, total=total, cidades=cidades_home())
 
 
 def rotulo_local(f):
