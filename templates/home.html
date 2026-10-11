@@ -198,6 +198,31 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 .m-imobs:not(.is-grid)>*{flex-basis:46%}
 .m-car.is-grid.m-cards{grid-template-columns:1fr}
 }
+
+/* ===== Busca do hero: seleção só por clique (sem teclado) ===== */
+button.fld.pk{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;position:relative;padding-right:40px;-webkit-tap-highlight-color:transparent}
+button.fld.pk:after{content:'';position:absolute;right:16px;top:50%;width:8px;height:8px;border-right:2px solid #6b7a83;border-bottom:2px solid #6b7a83;transform:translateY(-70%) rotate(45deg)}
+button.fld.pk:disabled{cursor:not-allowed;background:#f6f8f9}
+button.fld.pk:disabled:after{opacity:.35}
+button.fld.pk:focus-visible{border-color:var(--ink);outline:0}
+.pk-t{display:block;font:500 16px Inter,Arial,sans-serif;padding-top:4px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-t.ph{color:#7b878e}
+#p-buscar .fld select{font-size:16px}
+.pk-ov{position:fixed;inset:0;z-index:2000;background:#071421a6;display:flex;align-items:center;justify-content:center;padding:16px}
+.pk-ov[hidden]{display:none}
+.pk-sheet{width:100%;max-width:440px;max-height:76vh;background:#fff;color:var(--ink);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px #0006}
+.pk-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 12px;border-bottom:1px solid #edf0f1}
+.pk-top b{font-size:18px;font-weight:800}
+.pk-x{width:36px;height:36px;border-radius:50%;border:0;background:#eef2f3;color:var(--ink);font-size:22px;line-height:1;cursor:pointer;padding:0 0 2px}
+.pk-list{list-style:none;margin:0;padding:6px 8px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pk-list button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:52px;padding:10px 12px;border:0;background:none;border-radius:12px;font:600 16px Inter,Arial,sans-serif;color:var(--ink);text-align:left;cursor:pointer}
+.pk-list button:hover,.pk-list button:active{background:#eef9f0}
+.pk-list button.cur{background:#dff4e3}
+.pk-list button.all{color:#188e43}
+.pk-list small{color:var(--muted);font-size:12px;font-weight:600;margin-left:6px}
+.pk-list .ct{color:var(--muted);font-size:13px;font-weight:600;flex:none}
+.pk-msg{padding:22px 16px;color:var(--muted);font-size:15px;text-align:center}
+@media(max-width:700px){.pk-ov{align-items:flex-end;padding:0}.pk-sheet{max-width:none;max-height:80vh;border-radius:20px 20px 0 0;animation:pkup .22s ease-out}@keyframes pkup{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}}
 </style>
 </head>
 <body>
@@ -217,8 +242,9 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 <div class="pane" id="p-buscar"><h1>Imóveis perto de você</h1>
 <form action="{{ url_for('buscar') }}" method="get" role="search"><input type="hidden" name="finalidade" id="fin" value="venda">
 <div class="sub"><button type="button" class="on" data-f="venda">Comprar</button><button type="button" data-f="aluguel">Alugar</button></div>
-<label class="fld"><b>Cidade</b><input name="q" placeholder="Busque por cidade" autocomplete="off"></label>
-<label class="fld"><b>Bairro</b><input name="bairro" placeholder="Busque por bairro" autocomplete="off"></label>
+<input type="hidden" name="uf" id="pk-uf" value=""><input type="hidden" name="cidade" id="pk-cidv" value=""><input type="hidden" name="bairro" id="pk-baiv" value="">
+<button type="button" class="fld pk" id="pk-cid" aria-haspopup="dialog"><b>Cidade</b><span class="pk-t ph">Escolha a cidade</span></button>
+<button type="button" class="fld pk" id="pk-bai" aria-haspopup="dialog" disabled><b>Bairro</b><span class="pk-t ph">Escolha a cidade primeiro</span></button>
 <div class="row2"><label class="fld"><b>Valor até</b><select name="preco_max"><option value="">Escolha o valor</option><option value="3000">R$ 3 mil</option><option value="500000">R$ 500 mil</option><option value="1000000">R$ 1 milhão</option><option value="2000000">R$ 2 milhões</option></select></label>
 <label class="fld"><b>Quartos</b><select name="quartos"><option value="">Nº de quartos</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option></select></label></div>
 <button class="go" type="submit">Buscar imóveis</button>
@@ -239,7 +265,7 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 <div class="ct-head"><div><div class="ct-eyebrow"><i></i>Explore por categoria</div><h2 id="categorias">Encontre o tipo de <em>imóvel ideal</em> para você</h2></div><div class="ct-tools"><a class="ct-all" href="{{ url_for('buscar') }}">Ver todas as categorias <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg></a><button type="button" class="vt" aria-pressed="false" aria-label="Alternar entre carrossel e grade"><svg class="vt-g" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><svg class="vt-c" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="6" height="12" rx="2"/><rect x="9" y="4" width="8" height="16" rx="2"/><rect x="18" y="6" width="4" height="12" rx="2"/></svg><span class="vt-l"></span></button></div></div>
 <div class="ct-grid m-car m-cats"><a class="ct-card " href="{{ url_for('buscar', tipo='apartamento') }}"><div class="ct-img" role="img" aria-label="Apartamentos" style="background-image:url('https://testeeee.leanttro.com/site-media/img-7cc294e9-image-picsart-aiimageenhancer-2026-10-11.png')"></div><div class="ct-info"><div><b>Apartamentos</b><span>Praticidade e ótima localização</span></div><span class="ct-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span></div></a><a class="ct-card ct-yellow" href="{{ url_for('buscar', tipo='casa') }}"><div class="ct-img" role="img" aria-label="Casas" style="background-image:url('https://testeeee.leanttro.com/site-media/img-79141b7a-image-picsart-aiimageenhancer-2026-10-11.png')"></div><div class="ct-info"><div><b>Casas</b><span>Conforto para toda a família</span></div><span class="ct-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span></div></a><a class="ct-card ct-navy" href="{{ url_for('buscar', tipo='cobertura') }}"><div class="ct-img" role="img" aria-label="Coberturas" style="background-image:url('https://testeeee.leanttro.com/site-media/img-161f6f65-image-picsart-aiimageenhancer-2026-10-11.png')"></div><div class="ct-info"><div><b>Coberturas</b><span>Mais espaço e exclusividade</span></div><span class="ct-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span></div></a><a class="ct-card ct-green" href="{{ url_for('buscar', tipo='comercial') }}"><div class="ct-img" role="img" aria-label="Comerciais" style="background-image:url('https://testeeee.leanttro.com/site-media/img-ea9b76ec-image-picsart-aiimageenhancer-2026-10-11.png')"></div><div class="ct-info"><div><b>Comerciais</b><span>Espaços para o seu negócio</span></div><span class="ct-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span></div></a><a class="ct-card " href="{{ url_for('buscar', tipo='terreno') }}"><div class="ct-img" role="img" aria-label="Terrenos" style="background-image:url('https://testeeee.leanttro.com/site-media/img-727d97a0-image-picsart-aiimageenhancer-2026-10-11.png')"></div><div class="ct-info"><div><b>Terrenos</b><span>Espaço para construir</span></div><span class="ct-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span></div></a><a class="ct-card ct-black" href="{{ url_for('guia') }}"><div class="ct-img" role="img" aria-label="Guia de bairros" style="background-image:url('https://testeeee.leanttro.com/site-media/img-2d1e7d14-image-picsart-aiimageenhancer-2026-10-11.png')"></div><div class="ct-info"><div><b>Guia de bairros</b><span>Conheça cada região</span></div><span class="ct-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span></div></a></div></div></section>
 
-{% if destaques %}<section aria-labelledby="destaques"><div class="container"><div class="section-head"><h2 class="title" id="destaques">Imóveis em destaque</h2><a href="{{ url_for('buscar') }}">Ver todos os imóveis →</a><button type="button" class="vt" aria-pressed="false" aria-label="Alternar entre carrossel e grade"><svg class="vt-g" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><svg class="vt-c" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="6" height="12" rx="2"/><rect x="9" y="4" width="8" height="16" rx="2"/><rect x="18" y="6" width="4" height="12" rx="2"/></svg><span class="vt-l"></span></button></div>
+{% if destaques %}<section aria-labelledby="destaques"><div class="container"><div class="ct-head"><div><div class="ct-eyebrow"><i></i>Selecionados para você</div><h2 id="destaques">Imóveis em <em>destaque</em></h2></div><div class="ct-tools"><a class="ct-all" href="{{ url_for('buscar') }}">Ver todos os imóveis <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg></a><button type="button" class="vt" aria-pressed="false" aria-label="Alternar entre carrossel e grade"><svg class="vt-g" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><svg class="vt-c" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="6" height="12" rx="2"/><rect x="9" y="4" width="8" height="16" rx="2"/><rect x="18" y="6" width="4" height="12" rx="2"/></svg><span class="vt-l"></span></button></div></div>
 <div class="cards m-car m-cards">
 {% for i in destaques %}
 <article class="card"><div class="pic"><img src="{{ i.foto }}"{% if i.capa %} srcset="{{ url_foto(i.capa, 320) }} 320w, {{ url_foto(i.capa, 480) }} 480w, {{ url_foto(i.capa, 640) }} 640w" sizes="(max-width:700px) 100vw, (max-width:1000px) 50vw, 265px"{% endif %} alt="{{ TIPOS_IMOVEL[i.tipo] }} {{ 'à venda' if i.finalidade == 'venda' else 'para alugar' }} em {{ i.bairro }}, {{ i.cidade }} — {{ i.titulo }}" width="640" height="428" loading="lazy" decoding="async"><a class="cover" href="{{ url_for('imovel', slug=i.slug) }}" aria-label="{{ i.titulo }}"></a><span class="badge">{{ FINALIDADES[i.finalidade] }}</span><form class="inline" method="post" action="{{ url_for('favorito_toggle', imovel_id=i.id) }}">{{ csrf() }}<button type="submit" class="heart{{ ' on' if i.favorito }}" title="Favoritar" aria-label="Favoritar">{{ '♥' if i.favorito else '♡' }}</button></form></div>
@@ -248,7 +274,7 @@ footer{background:#eef3f4;color:#56636b}footer a:hover{color:#15993a}.legal{colo
 {% else %}<div class="empty-box">Ainda não há imóveis publicados. <a class="accent" href="{{ url_for('anuncie') }}">Anuncie o primeiro →</a></div>{% endfor %}
 </div></div></section>{% endif %}
 
-{% if imobs %}<section aria-labelledby="imobs"><div class="container"><div class="section-head"><h2 class="title" id="imobs">Imobiliárias e Corretores em Destaque</h2><a href="{{ url_for('imobiliarias') }}">Ver todos →</a><button type="button" class="vt" aria-pressed="false" aria-label="Alternar entre carrossel e grade"><svg class="vt-g" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><svg class="vt-c" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="6" height="12" rx="2"/><rect x="9" y="4" width="8" height="16" rx="2"/><rect x="18" y="6" width="4" height="12" rx="2"/></svg><span class="vt-l"></span></button></div>
+{% if imobs %}<section aria-labelledby="imobs"><div class="container"><div class="ct-head"><div><div class="ct-eyebrow"><i></i>Parceiros</div><h2 id="imobs">Imobiliárias e Corretores em <em>Destaque</em></h2></div><div class="ct-tools"><a class="ct-all" href="{{ url_for('imobiliarias') }}">Ver todos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg></a><button type="button" class="vt" aria-pressed="false" aria-label="Alternar entre carrossel e grade"><svg class="vt-g" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><svg class="vt-c" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="6" height="12" rx="2"/><rect x="9" y="4" width="8" height="16" rx="2"/><rect x="18" y="6" width="4" height="12" rx="2"/></svg><span class="vt-l"></span></button></div></div>
 <div class="imobs m-car m-imobs">
 {% for t in imobs %}<a class="card imob" href="{{ url_for('imobiliaria', slug=t.slug) }}"><span class="imob-logo">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="" width="84" height="84" loading="lazy" decoding="async">{% else %}{{ t.nome[:1]|upper }}{% endif %}</span><b>{{ t.nome }}</b>{% if t.cidade %}<small>{{ t.cidade }}{% if t.uf %}/{{ t.uf|upper }}{% endif %}</small>{% endif %}<em>★ Destaque</em></a>
 {% endfor %}
@@ -288,5 +314,51 @@ s.querySelector('.ond-n').onclick=function(){var t=cur();t.scrollBy({left:t.clie
 window.addEventListener('resize',setas);setas()})();</script>
 {% include '_chatbot.html' %}
 <script>(function(){document.querySelectorAll('.vt').forEach(function(b){var s=b.closest('section'),c=s&&s.querySelector('.m-car');if(!c)return;b.onclick=function(){var g=c.classList.toggle('is-grid');b.classList.toggle('on',g);b.setAttribute('aria-pressed',g)}})})();</script>
+<script>(function(){
+var cb=document.getElementById('pk-cid'),bb=document.getElementById('pk-bai'),hu=document.getElementById('pk-uf'),hc=document.getElementById('pk-cidv'),hb=document.getElementById('pk-baiv'),fin=document.getElementById('fin');
+if(!cb||!bb)return;
+var SRC="{{ url_for('api_locais') }}",cache={},rows=null,failed=false,ov=null,list=null,ttl=null;
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}
+function load(cb2){var f=fin?fin.value:'';if(cache[f]){rows=cache[f];failed=false;cb2();return}
+ fetch(SRC+'?finalidade='+encodeURIComponent(f)).then(function(r){return r.json()}).then(function(d){cache[f]=d;rows=d;failed=false;cb2()}).catch(function(){rows=null;failed=true;cb2()})}
+function cities(){var m={};rows.forEach(function(r){var c=m[r[2]]||(m[r[2]]={uf:r[0],slug:r[2],nome:r[1],n:0});c.n+=r[5]});return Object.keys(m).map(function(k){return m[k]}).sort(function(a,b){return b.n-a.n||a.nome.localeCompare(b.nome)})}
+function bairros(slug){return rows.filter(function(r){return r[2]===slug&&r[3]}).map(function(r){return{nome:r[3],n:r[5]}}).sort(function(a,b){return a.nome.localeCompare(b.nome)})}
+function mk(){if(ov)return;ov=document.createElement('div');ov.className='pk-ov';ov.hidden=true;
+ ov.innerHTML='<div class="pk-sheet" role="dialog" aria-modal="true"><div class="pk-top"><b></b><button type="button" class="pk-x" aria-label="Fechar">×</button></div><ul class="pk-list"></ul></div>';
+ document.body.appendChild(ov);list=ov.querySelector('.pk-list');ttl=ov.querySelector('.pk-top b');
+ ov.addEventListener('click',function(e){if(e.target===ov||e.target.closest('.pk-x'))close()});
+ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!ov.hidden)close()})}
+function close(){if(ov){ov.hidden=true}document.documentElement.style.overflow=''}
+function item(a,d,cls,html,ct){var at='';for(var k in d)at+=' data-'+k+'="'+esc(d[k])+'"';return'<li><button type="button" data-a="'+a+'"'+at+(cls?' class="'+cls+'"':'')+'>'+'<span>'+html+'</span>'+(ct!==undefined?'<span class="ct">'+ct+'</span>':'')+'</button></li>'}
+function setTxt(btn,txt,ph){var s=btn.querySelector('.pk-t');s.textContent=txt;s.classList.toggle('ph',!!ph)}
+function openSheet(kind){mk();ov.hidden=false;document.documentElement.style.overflow='hidden';ov.dataset.k=kind;
+ ttl.textContent=kind==='cid'?'Escolha a cidade':'Escolha o bairro';list.innerHTML='<li class="pk-msg">Carregando…</li>';
+ load(function(){render(kind)})}
+function render(kind){
+ if(failed||!rows){list.innerHTML='<li class="pk-msg">Não foi possível carregar os locais agora. Tente novamente.</li>';return}
+ var h='';
+ if(kind==='cid'){var cs=cities();
+  if(hc.value)h+=item('cid-clear',{},'all','Todas as cidades');
+  cs.forEach(function(c){h+=item('cid',{uf:c.uf,slug:c.slug,nome:c.nome},hc.value===c.slug?'cur':'',esc(c.nome)+(c.uf?'<small>'+esc(c.uf)+'</small>':''),fmt(c.n))});
+  if(!cs.length)h='<li class="pk-msg">Nenhum local disponível no momento.</li>'}
+ else{var bs=bairros(hc.value),tot=0;bs.forEach(function(b){tot+=b.n});
+  h+=item('bai-clear',{},'all','Todos os bairros',fmt(tot));
+  bs.forEach(function(b){h+=item('bai',{nome:b.nome},hb.value===b.nome?'cur':'',esc(b.nome),fmt(b.n))});
+  if(!bs.length)h='<li class="pk-msg">Nenhum bairro disponível nesta cidade.</li>'}
+ list.innerHTML=h}
+function setCity(uf,slug,nome){hu.value=uf||'';hc.value=slug||'';hb.value='';
+ if(slug){setTxt(cb,nome+(uf?' - '+uf:''),false);bb.disabled=false;setTxt(bb,'Todos os bairros',false)}
+ else{setTxt(cb,'Escolha a cidade',true);bb.disabled=true;setTxt(bb,'Escolha a cidade primeiro',true)}}
+function setBai(nome){hb.value=nome||'';setTxt(bb,nome||'Todos os bairros',false)}
+document.addEventListener('click',function(e){
+ var x=e.target.closest('#pk-cid,#pk-bai');if(x&&!x.disabled){openSheet(x.id==='pk-cid'?'cid':'bai');return}
+ var b=e.target.closest('.pk-list button[data-a]');if(!b)return;var a=b.dataset.a;
+ if(a==='cid')setCity(b.dataset.uf,b.dataset.slug,b.dataset.nome);
+ else if(a==='cid-clear')setCity('','','');
+ else if(a==='bai')setBai(b.dataset.nome);
+ else if(a==='bai-clear')setBai('');
+ close()});
+})();</script>
 </body>
 </html>
