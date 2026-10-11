@@ -1333,10 +1333,11 @@ def imobiliarias():
                 ([t["id"] for t in pros],)):
             if r["finalidade"] in FINALIDADES and r["finalidade"] not in fins[r["tenant_id"]]:
                 fins[r["tenant_id"]].append(r["finalidade"])
-            if r["capa"] and len(galerias[r["tenant_id"]]) < 5:
+            if r["capa"] and len(galerias[r["tenant_id"]]) < 4:
                 galerias[r["tenant_id"]].append({"big": url_foto(r["capa"], 960), "thumb": url_foto(r["capa"], 320),
                                                  "url": url_for("imovel", slug=r["slug"]), "titulo": r["titulo"]})
     for t in pros:
+        t["logo_grande"] = url_foto(t["logo_file_id"], 480) if t.get("logo_file_id") else None
         t["galeria"] = galerias[t["id"]]
         t["mais"] = max(0, t["n_imoveis"] - len(t["galeria"]))
         t["finalidades"] = [FINALIDADES[f] for f in fins[t["id"]]]
