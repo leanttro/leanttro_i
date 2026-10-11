@@ -4,6 +4,7 @@ OndeImóveis — portal imobiliário (Flask + PostgreSQL).
 Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
   PAGBANK_TOKEN, PAGBANK_SANDBOX, PAGBANK_WEBHOOK_TOKEN, PRECO_PROFISSIONAL, DEBUG, PORT
+  Tarefas agendadas (cron externo, 1x/dia): TAREFAS_TOKEN — chame /tarefas/renovacao?t=<token> (ou header X-Tarefas-Token); sem ele a rota responde 403
   Chatbot (Groq): GROQ_API_KEY, GROQ_API_KEY_2 (reserva), GROQ_MODEL (opcional)
   E-mail (Zoho): SMTP_USER (e-mail completo), SMTP_SENHA (senha de aplicativo), EMAIL_AVISOS, SMTP_HOST (padrão smtp.zoho.com), SMTP_PORT (587)
   Verificação de e-mail no cadastro (código de 6 dígitos): liga sozinha quando o SMTP está configurado; VERIFICAR_EMAIL=0 desliga
@@ -69,6 +70,7 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "").strip()
 SMTP_SENHA = os.environ.get("SMTP_SENHA", "").replace(" ", "")
 EMAIL_AVISOS = os.environ.get("EMAIL_AVISOS", "").strip() or ADMIN_EMAIL
+TAREFAS_TOKEN = os.environ.get("TAREFAS_TOKEN", "").strip()      # segredo das rotas /tarefas/* (cron externo)
 # Sem SMTP não há como mandar o código: a verificação fica desligada para ninguém ficar trancado fora.
 VERIFICAR_EMAIL = _bool("VERIFICAR_EMAIL", bool(SMTP_USER and SMTP_SENHA))
 CONSENTIMENTO_VERSAO = "2026-10-10"      # mude quando alterar o texto do aceite (fica gravado junto da data)
@@ -81,7 +83,8 @@ TIPOS_IMOVEL = {"apartamento": "Apartamento", "casa": "Casa", "cobertura": "Cobe
 FINALIDADES = {"venda": "Venda", "aluguel": "Aluguel"}
 STATUS_IMOVEL = {"publicado": "Publicado", "pendente": "Em análise", "pausado": "Pausado", "rejeitado": "Rejeitado"}
 PLANOS = {"gratis": "Grátis", "profissional": "Profissional"}
-LIMITES = {"gratis": {"imoveis": 3, "fotos": 8}, "profissional": {"imoveis": 100, "fotos": 20}}
+LIMITES = {"gratis": {"imoveis": 3, "fotos": 8, "destaques": 0}, "profissional": {"imoveis": 100, "fotos": 20, "destaques": 3}}
+RENOVAR_ANTES_DIAS = 10     # o Pro ativo pode renovar (pagamento avulso de 30 dias) quando faltarem tantos dias ou menos
 TIPOS_CONTA = {"visitante": "Visitante", "proprietario": "Proprietário", "corretor": "Corretor", "imobiliaria": "Imobiliária"}
 TIPOS_TENANT = ("proprietario", "corretor", "imobiliaria")
 CARACTERISTICAS = ["Suíte", "Piscina", "Sacada", "Salão de festas", "Academia", "Portaria 24h", "Churrasqueira",
@@ -246,6 +249,10 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone_verificado_em TIMESTAMPTZ
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_em TIMESTAMPTZ;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_versao TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS template TEXT;
+ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS destaque_anunciante BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE TABLE IF NOT EXISTS avisos_assinatura (
+  id SERIAL PRIMARY KEY, tenant_id INT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, tipo TEXT NOT NULL,
+  vencimento DATE NOT NULL, enviado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (tenant_id, tipo, vencimento));
 CREATE TABLE IF NOT EXISTS verificacoes (
   id BIGSERIAL PRIMARY KEY, usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   codigo_hash TEXT NOT NULL, expira_em TIMESTAMPTZ NOT NULL, tentativas INT NOT NULL DEFAULT 0,
@@ -916,6 +923,24 @@ def enriquecer_tenant(t):
     return t
 
 
+def _alias_sql(a):
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", a):
+        raise ValueError("alias SQL inválido")
+    return a
+
+
+def sql_pro_ativo(alias="t"):
+    """Fragmento SQL que espelha plano_efetivo() == 'profissional'. A data vem de hoje() (já com fuso), não do CURRENT_DATE."""
+    a = _alias_sql(alias)
+    return (f"({a}.plano = 'profissional' AND {a}.assinatura_status = 'ativa' "
+            f"AND ({a}.plano_vencimento IS NULL OR {a}.plano_vencimento >= '{hoje().isoformat()}'::date))")
+
+
+def sql_destaque(i="i", t="t"):
+    """Destaque efetivo: o do admin (sempre vale) OU o marcado pelo anunciante enquanto o plano Pro estiver ativo."""
+    return f"({_alias_sql(i)}.destaque OR ({_alias_sql(i)}.destaque_anunciante AND {sql_pro_ativo(t)}))"
+
+
 # ── Templates da página pública (/imobiliarias/<slug>) ────────────────────────
 # A lista de templates vem da PASTA templates/paginas/pagina_*.html — nunca do código.
 # Para adicionar um template novo basta copiar o arquivo e fazer deploy (sem editar o app.py).
@@ -1013,7 +1038,7 @@ def _token_csrf():
 
 @app.before_request
 def _checar_csrf():
-    if request.method in ("POST", "PUT", "DELETE", "PATCH") and not request.path.startswith("/webhooks/"):
+    if request.method in ("POST", "PUT", "DELETE", "PATCH") and not request.path.startswith(("/webhooks/", "/tarefas/")):
         enviado = request.form.get("_csrf") or request.headers.get("X-CSRF-Token", "")
         if not enviado or not hmac.compare_digest(enviado, session.get("_csrf", "")):
             abort(400, "Sessão expirada. Volte e tente de novo.")
@@ -1429,8 +1454,13 @@ def _500(e):
 # ═══════════════════════════════════════════════════════════════
 
 POR_PAGINA = 10
-ORDENS = {"relevantes": "i.destaque DESC, i.criado_em DESC", "menor": "i.preco ASC", "maior": "i.preco DESC",
+ORDENS = {"relevantes": "{destaque} DESC, i.criado_em DESC", "menor": "i.preco ASC", "maior": "i.preco DESC",
           "recentes": "i.criado_em DESC"}
+
+
+def ordem_busca_sql(chave):
+    """ORDER BY da busca. O destaque efetivo depende da data de hoje, então é montado a cada consulta."""
+    return ORDENS[chave].replace("{destaque}", sql_destaque())
 
 
 def _montar_qs(args):
@@ -1491,7 +1521,7 @@ def consulta_imoveis(args, extra_where="", extra_params=(), por_pagina=POR_PAGIN
     pagina = min(max(1, args.get("pagina", 1, type=int)), paginas)
     lista = query_all(
         f"SELECT i.*, t.nome AS anunciante_nome, t.slug AS anunciante_slug, {CAPA_SQL} AS capa {juncao} "
-        f"WHERE {cond} ORDER BY {ORDENS[f['ordem']]}, i.id DESC LIMIT %s OFFSET %s",
+        f"WHERE {cond} ORDER BY {ordem_busca_sql(f['ordem'])}, i.id DESC LIMIT %s OFFSET %s",
         params + [por_pagina, (pagina - 1) * por_pagina])
     return anexar_fotos(preparar_imoveis(lista)), total, pagina, paginas, f
 
@@ -1548,7 +1578,7 @@ def cidades_home(limite=10):
 def home():
     destaques = query_all(
         f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
-        "WHERE i.status = 'publicado' AND t.status = 'ativo' AND i.destaque ORDER BY i.criado_em DESC LIMIT 4")
+        f"WHERE i.status = 'publicado' AND t.status = 'ativo' AND {sql_destaque()} ORDER BY i.criado_em DESC LIMIT 4")
     total = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE status = 'publicado'")["n"]
     return render_template("home.html", destaques=preparar_imoveis(destaques, 640), total=total, cidades=cidades_home())
 
@@ -1924,7 +1954,7 @@ def imobiliarias():
     lista = query_all(
         f"SELECT t.*, (SELECT COUNT(*) FROM imoveis i WHERE i.tenant_id = t.id AND i.status = 'publicado') AS n_imoveis "
         f"FROM tenants t WHERE {where} AND EXISTS (SELECT 1 FROM imoveis i WHERE i.tenant_id = t.id AND i.status = 'publicado') "
-        f"ORDER BY t.verificada DESC, n_imoveis DESC, t.nome LIMIT 60", params)
+        f"ORDER BY {sql_pro_ativo('t')} DESC, t.verificada DESC, n_imoveis DESC, t.nome LIMIT 60", params)
     for t in lista:
         enriquecer_tenant(t)
     # anunciantes Pro: foto grande + miniaturas dos anúncios mais recentes/destacados
@@ -1933,7 +1963,8 @@ def imobiliarias():
     if pros:
         for r in query_all(
                 f"SELECT i.tenant_id, i.slug, i.titulo, i.finalidade, {CAPA_SQL} AS capa FROM imoveis i "
-                "WHERE i.tenant_id = ANY(%s) AND i.status = 'publicado' ORDER BY i.destaque DESC, i.criado_em DESC",
+                f"JOIN tenants t ON t.id = i.tenant_id "
+                f"WHERE i.tenant_id = ANY(%s) AND i.status = 'publicado' ORDER BY {sql_destaque()} DESC, i.criado_em DESC",
                 ([t["id"] for t in pros],)):
             if r["finalidade"] in FINALIDADES and r["finalidade"] not in fins[r["tenant_id"]]:
                 fins[r["tenant_id"]].append(r["finalidade"])
@@ -2527,7 +2558,7 @@ def guia_imoveis_relacionados(p, n=3):
             cond += " AND i.bairro_slug = %s"
             params.append(bairro)
         lista = query_all(f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id WHERE {cond} "
-                          f"ORDER BY i.destaque DESC, i.criado_em DESC LIMIT %s", params + [n])
+                          f"ORDER BY {sql_destaque()} DESC, i.criado_em DESC LIMIT %s", params + [n])
         if lista:
             rotulo = (lista[0]["bairro"] if bairro else lista[0]["cidade"])
             return preparar_imoveis(lista, 480), url_local(p["cidade_slug"], bairro), rotulo
@@ -3129,7 +3160,10 @@ def _ctx_imoveis():
     for i in lista:
         i["foto"] = url_foto(i["capa"], 200)
     em_uso = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE tenant_id = %s AND status <> 'rejeitado'", (t["id"],))["n"]
-    return dict(imoveis=lista, em_uso=em_uso)
+    destaques_usados = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE tenant_id = %s AND destaque_anunciante AND status <> 'rejeitado'",
+                                 (t["id"],))["n"]
+    return dict(imoveis=lista, em_uso=em_uso, destaques_usados=destaques_usados,
+                destaques_limite=LIMITES["profissional"]["destaques"])
 
 
 def _ctx_interessados():
@@ -3144,9 +3178,14 @@ def _painel(ativa, **form):
     """Painel do anunciante: UMA página só (anunciante.html) com todas as seções.
     `ativa` = seção aberta ao carregar: geral | imoveis | form | interessados | pagina | assinatura."""
     t = g.tenant
+    venc = t.get("plano_vencimento") if t["pro"] else None       # só o Pro ativo tem contagem regressiva
+    dias_restantes = (venc - hoje()).days if venc else None
+    pode_renovar = dias_restantes is not None and dias_restantes <= RENOVAR_ANTES_DIAS
+    renovar_a_partir = (venc - timedelta(days=RENOVAR_ANTES_DIAS)) if venc and not pode_renovar else None
     ctx = dict(t=t, ativa=ativa, pro=t["pro"], pro_limites=LIMITES["profissional"], gratis_limites=LIMITES["gratis"],
                atrasado=t["plano"] != "gratis" and t["plano_efetivo"] == "gratis",
                i=None, val={}, sel=[], proximos=[], fotos=[],
+               dias_restantes=dias_restantes, pode_renovar=pode_renovar, renovar_a_partir=renovar_a_partir,
                templates_pagina=metadados_templates_pagina(),
                template_atual=t.get("template") if t.get("template") in listar_templates_pagina() else TEMPLATE_PADRAO)
     ctx.update(_ctx_geral())
@@ -3334,6 +3373,34 @@ def anunciante_imovel_pausar(imovel_id):
     novo = {"publicado": "pausado", "pausado": "publicado"}.get(im["status"])
     if novo:
         execute("UPDATE imoveis SET status = %s, atualizado_em = NOW() WHERE id = %s", (novo, imovel_id))
+    return redirect(url_for("anunciante_imoveis"))
+
+
+@app.route("/painel/imoveis/<int:imovel_id>/destaque", methods=["POST"])
+@anunciante_required
+def anunciante_imovel_destaque(imovel_id):
+    """Liga/desliga o destaque do próprio anunciante (Pro, até LIMITES['profissional']['destaques']). O destaque do admin é outro campo."""
+    t = g.tenant
+    im = _meu_imovel(imovel_id)                       # 404 se o imóvel não for dele
+    if im["destaque_anunciante"]:                     # desligar é sempre permitido (inclusive com o plano vencido)
+        execute("UPDATE imoveis SET destaque_anunciante = FALSE WHERE id = %s AND tenant_id = %s", (imovel_id, t["id"]))
+        flash("Destaque removido.", "success")
+        return redirect(url_for("anunciante_imoveis"))
+    if not t["pro"]:
+        flash("Imóvel em destaque é um recurso do plano Profissional.", "error")
+        return redirect(url_for("anunciante_assinatura"))
+    limite = LIMITES["profissional"]["destaques"]
+    if im["status"] == "rejeitado":
+        flash("Imóveis rejeitados não podem ser destacados.", "error")
+        return redirect(url_for("anunciante_imoveis"))
+    # UPDATE único com a contagem dentro: dois cliques ao mesmo tempo não passam do limite
+    ok = execute("UPDATE imoveis SET destaque_anunciante = TRUE WHERE id = %s AND tenant_id = %s AND "
+                 "(SELECT COUNT(*) FROM imoveis WHERE tenant_id = %s AND destaque_anunciante AND status <> 'rejeitado') < %s",
+                 (imovel_id, t["id"], t["id"], limite))
+    if ok:
+        flash("Imóvel colocado em destaque.", "success")
+    else:
+        flash(f"Você já usou os {limite} destaques do seu plano. Remova um para destacar outro.", "error")
     return redirect(url_for("anunciante_imoveis"))
 
 
@@ -3536,8 +3603,14 @@ def desativar_profissional(tenant_id, status="cancelada"):
 def anunciante_assinar():
     t = g.tenant
     if t["plano_efetivo"] == "profissional":
-        flash("Você já está no plano Profissional.", "success")
-        return redirect(url_for("anunciante_assinatura"))
+        # Pro ativo: só abre cobrança de renovação perto do vencimento (o webhook soma 30 dias ao vencimento atual)
+        venc = t.get("plano_vencimento")
+        if not venc:
+            flash("Você já está no plano Profissional.", "success")
+            return redirect(url_for("anunciante_assinatura"))
+        if (venc - hoje()).days > RENOVAR_ANTES_DIAS:
+            flash(f"Você poderá renovar a partir de {(venc - timedelta(days=RENOVAR_ANTES_DIAS)).strftime('%d/%m')}.", "success")
+            return redirect(url_for("anunciante_assinatura"))
     if not pagbank.configurado():
         flash("O pagamento online ainda não está ativo. Fale com o suporte para contratar o Profissional.", "error")
         return redirect(url_for("anunciante_assinatura"))
@@ -3551,6 +3624,63 @@ def anunciante_assinar():
         return redirect(url_for("anunciante_assinatura"))
     execute("UPDATE assinaturas SET referencia_externa = %s WHERE id = %s", (ref, aid))
     return redirect(link)
+
+
+def _email_renovacao(tipo, nome, venc, dias, link):
+    """Assunto, texto e HTML do aviso de vencimento do Pro."""
+    data = venc.strftime("%d/%m/%Y")
+    if tipo == "vencido":
+        assunto = "Seu plano Profissional venceu"
+        abre = f"O plano Profissional de {nome} venceu em {data}."
+        fecha = "Você pode reativar quando quiser: ao renovar, os destaques e a personalização voltam como estavam."
+    else:
+        quando = "hoje" if dias == 0 else "amanhã" if dias == 1 else f"em {dias} dias"
+        assunto = f"Seu plano Profissional vence {quando}"
+        abre = f"O plano Profissional de {nome} vence {quando} ({data})."
+        fecha = "Renove para manter tudo como está."
+    perde = ("Sem a renovação, a conta volta ao plano Grátis: o limite cai para "
+             f"{LIMITES['gratis']['imoveis']} imóveis e {LIMITES['gratis']['fotos']} fotos por imóvel, e logo, cor, template da página "
+             "e imóveis em destaque deixam de valer.")
+    texto = f"Olá, {nome}!\n\n{abre}\n\n{perde}\n\n{fecha}\nRenovar: {link}\n\n— {SITE_NOME}\n"
+    html = (f"<p>Olá, {html_escape(nome)}!</p><p>{html_escape(abre)}</p><p>{html_escape(perde)}</p><p>{html_escape(fecha)}</p>"
+            f'<p><a href="{html_escape(link)}">Renovar meu plano</a></p><p>— {html_escape(SITE_NOME)}</p>')
+    return f"[{SITE_NOME}] {assunto}", texto, html
+
+
+@app.route("/tarefas/renovacao", methods=["GET", "POST"])
+def tarefa_renovacao():
+    """Cron diário (externo): avisa por e-mail quem está perto de vencer ou venceu. Idempotente (avisos_assinatura)."""
+    enviado = request.args.get("t") or request.headers.get("X-Tarefas-Token", "")
+    if not TAREFAS_TOKEN or not enviado or not hmac.compare_digest(enviado.encode(), TAREFAS_TOKEN.encode()):
+        abort(403)
+    if not (SMTP_USER and SMTP_SENHA):
+        return jsonify(ok=False, erro="SMTP não configurado: nada foi enviado nem marcado como enviado."), 503
+    link = base_url() + url_for("anunciante_assinatura")
+    h = hoje()
+    enviados, erros = {"aviso_5d": 0, "aviso_1d": 0, "vencido": 0}, 0
+    for r in query_all("SELECT t.id, t.nome, t.plano_vencimento, u.email FROM tenants t JOIN usuarios u ON u.id = t.usuario_id "
+                       "WHERE t.plano = 'profissional' AND t.assinatura_status = 'ativa' AND t.plano_vencimento IS NOT NULL "
+                       "AND t.status = 'ativo'"):
+        dias = (r["plano_vencimento"] - h).days
+        tipo = "aviso_5d" if 2 <= dias <= 5 else "aviso_1d" if 0 <= dias <= 1 else "vencido" if -3 <= dias < 0 else None
+        if not tipo or not r["email"]:
+            continue
+        try:
+            novo = execute_returning("INSERT INTO avisos_assinatura (tenant_id, tipo, vencimento) VALUES (%s,%s,%s) "
+                                     "ON CONFLICT DO NOTHING RETURNING id", (r["id"], tipo, r["plano_vencimento"]))
+            _conn().commit()                          # grava já: se algo falhar adiante, este aviso não se repete
+            if novo:
+                assunto, texto, html = _email_renovacao(tipo, r["nome"], r["plano_vencimento"], dias, link)
+                _enviar_email(assunto, texto, para=r["email"], html=html)
+                enviados[tipo] += 1
+        except Exception:
+            erros += 1
+            log.exception("Falha no aviso de renovação (tenant %s)", r["id"])
+            try:
+                _conn().rollback()
+            except Exception:
+                pass
+    return jsonify(ok=True, enviados=enviados, total=sum(enviados.values()), erros=erros)
 
 
 @app.route("/webhooks/pagbank", methods=["POST"])
@@ -4188,8 +4318,8 @@ def chat_buscar(d, qtd=3):
     if d.get("finalidade"):
         where.append("i.finalidade = %s"); params.append(d["finalidade"])
     linhas = query_all(
-        f"SELECT i.*, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
-        f"WHERE {' AND '.join(where)} ORDER BY i.destaque DESC, i.criado_em DESC LIMIT 400", params)
+        f"SELECT i.*, {sql_destaque()} AS destaque_efetivo, {CAPA_SQL} AS capa FROM imoveis i JOIN tenants t ON t.id = i.tenant_id "
+        f"WHERE {' AND '.join(where)} ORDER BY {sql_destaque()} DESC, i.criado_em DESC LIMIT 400", params)
     bairro_s, cidade_s = gerar_slug(d.get("bairro", "")) if d.get("bairro") else "", gerar_slug(d.get("cidade", "")) if d.get("cidade") else ""
     pontuados = []
     for r in linhas:
@@ -4236,7 +4366,7 @@ def chat_buscar(d, qtd=3):
             pts += 10 * len(tem) / len(d["extras"]); ok += tem
             falta += [e for e in d["extras"] if e not in tem][:1]
         score = round(100 * pts / maxi) if maxi else 50
-        pontuados.append((score, bool(r["destaque"]), r, ok, falta))
+        pontuados.append((score, bool(r["destaque_efetivo"]), r, ok, falta))
     pontuados = [x for x in pontuados if x[0] >= 35]
     pontuados.sort(key=lambda x: (-x[0], not x[1]))
     exatos = sum(1 for x in pontuados if x[0] >= 90)
