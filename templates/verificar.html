@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirme seu e-mail — {{ SITE.nome }}</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{--green:#39dc4b;--dark:#071521;--text:#17252d;--muted:#718087;--line:#dfe7e2}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--text);background:#f4f7f5;min-height:100vh;display:grid;place-items:center;padding:24px}
+.card{width:100%;max-width:440px;background:#fff;border-radius:18px;padding:34px 30px;box-shadow:0 14px 40px #07152114}
+.logo{display:block;text-align:center;font-size:26px;font-weight:900;letter-spacing:-1.4px;margin-bottom:26px;color:var(--dark);text-decoration:none}.logo span{color:#22b936}
+h1{font-size:26px;letter-spacing:-.7px;margin:0 0 8px}p{color:var(--muted);font-size:14px;line-height:1.55;margin:0 0 22px}p b{color:var(--text)}
+.code{width:100%;height:62px;border:1.5px solid var(--line);border-radius:12px;text-align:center;font:800 30px/1 Inter,Arial,sans-serif;letter-spacing:12px;padding-left:12px;outline:none}
+.code:focus{border-color:var(--green);box-shadow:0 0 0 3px #39dc4b1f}
+.go{width:100%;height:51px;border:0;border-radius:10px;background:var(--green);color:#061108;font:900 14px Inter,Arial,sans-serif;cursor:pointer;margin-top:14px}.go:hover{background:#31cf43}
+.sec{margin-top:22px;padding-top:20px;border-top:1px solid var(--line);text-align:center;font-size:13px;color:var(--muted)}
+.link{border:0;background:none;color:#18a92b;font:800 13px Inter,Arial,sans-serif;cursor:pointer;padding:0}.sec a{color:#68777d;font-size:12px}
+form.inline{display:inline;margin:0}
+.flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
+.flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
+.flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+</style>
+</head>
+<body>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},6000)</script>{% endif %}{% endwith %}
+<main class="card">
+<a class="logo" href="{{ url_for('home') }}">Imóvel<span>Onde</span></a>
+<h1>Confirme seu e-mail</h1>
+<p>Enviamos um código de 6 dígitos para <b>{{ email }}</b>. Digite abaixo para liberar os contatos. Se não achar, olhe o spam.</p>
+<form method="post" action="{{ url_for('verificar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}">
+<input class="code" name="codigo" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" required autofocus aria-label="Código de 6 dígitos">
+<button class="go" type="submit">Confirmar e-mail</button></form>
+<div class="sec">Não chegou? <form class="inline" method="post" action="{{ url_for('verificar_reenviar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}"><button class="link" type="submit">Enviar um novo código</button></form><br><br><a href="{{ next or url_for('painel') }}">Confirmar depois</a></div>
+</main>
+</body>
+</html>
