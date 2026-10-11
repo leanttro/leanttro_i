@@ -17,7 +17,7 @@ from email.utils import format_datetime
 from html import unescape as html_unescape
 from html.parser import HTMLParser
 from datetime import datetime, timedelta, timezone
-from functools import wraps
+from functools import wraps, lru_cache
 from urllib.parse import quote, urlparse
 from xml.sax.saxutils import escape as xml_escape
 from zoneinfo import ZoneInfo
@@ -245,6 +245,7 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_verificado_em TIMESTAMPTZ;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone_verificado_em TIMESTAMPTZ;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_em TIMESTAMPTZ;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_versao TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS template TEXT;
 CREATE TABLE IF NOT EXISTS verificacoes (
   id BIGSERIAL PRIMARY KEY, usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   codigo_hash TEXT NOT NULL, expira_em TIMESTAMPTZ NOT NULL, tentativas INT NOT NULL DEFAULT 0,
@@ -817,6 +818,64 @@ def enriquecer_tenant(t):
     cor = t.get("cor_primaria") or ""
     t["cor"] = cor if t["pro"] and re.fullmatch(r"#[0-9a-fA-F]{6}", cor) else None
     return t
+
+
+# ── Templates da página pública (/imobiliarias/<slug>) ────────────────────────
+# A lista de templates vem da PASTA templates/paginas/pagina_*.html — nunca do código.
+# Para adicionar um template novo basta copiar o arquivo e fazer deploy (sem editar o app.py).
+TEMPLATE_PADRAO = "pagina_padrao"
+_PASTA_PAGINAS = os.path.join(BASE_DIR, "templates", "paginas")
+_META_RE = re.compile(r"^\s*\{#-?\s*(.*?)\s*-?#\}")
+
+
+def _ler_meta_template(caminho):
+    """Lê SÓ a primeira linha: {# nome: Institucional | descricao: Visual escuro #} (opcional)."""
+    try:
+        with open(caminho, encoding="utf-8") as fh:
+            m = _META_RE.match(fh.readline())
+    except OSError:
+        return {}
+    meta = {}
+    if m:
+        for parte in m.group(1).split("|"):
+            chave, sep, valor = parte.partition(":")
+            if sep and chave.strip().lower() in ("nome", "descricao"):
+                meta[chave.strip().lower()] = valor.strip()
+    return meta
+
+
+@lru_cache(maxsize=1)
+def _catalogo_templates_pagina():
+    """Varre a pasta uma vez por processo (os arquivos só mudam em deploy)."""
+    itens = []
+    for caminho in sorted(glob.glob(os.path.join(_PASTA_PAGINAS, "pagina_*.html"))):
+        tid = os.path.basename(caminho)[:-len(".html")]
+        meta = _ler_meta_template(caminho)
+        nome = meta.get("nome") or tid[len("pagina_"):].replace("_", " ").replace("-", " ").capitalize()
+        thumb = os.path.exists(os.path.join(BASE_DIR, "static", "templates", tid + ".jpg"))
+        itens.append((tid, nome[:60], (meta.get("descricao") or "")[:140], thumb))
+    return tuple(itens)
+
+
+def listar_templates_pagina():
+    """Nomes (sem .html) dos templates disponíveis, ordenados. É a lista de PERMITIDOS."""
+    return [i[0] for i in _catalogo_templates_pagina()]
+
+
+def metadados_templates_pagina():
+    """[{id, nome, descricao, miniatura}] para os cards do painel."""
+    return [dict(id=tid, nome=nome, descricao=desc,
+                 miniatura=url_for("static", filename="templates/%s.jpg" % tid) if thumb else None)
+            for tid, nome, desc, thumb in _catalogo_templates_pagina()]
+
+
+def template_do_tenant(t):
+    """Caminho do template a renderizar. O valor do banco veio de formulário: só é usado se for Pro
+    E estiver EXATAMENTE na lista da pasta; nunca vai direto para render_template."""
+    escolhido = t.get("template")
+    if t.get("plano_efetivo") == "profissional" and escolhido and escolhido in listar_templates_pagina():
+        return "paginas/%s.html" % escolhido
+    return "paginas/%s.html" % TEMPLATE_PADRAO
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1802,9 +1861,18 @@ def imobiliaria(slug):
     lista, total, pagina, paginas, f = consulta_imoveis(request.args, "i.tenant_id = %s", (t["id"],), por_pagina=9)
     dono = bool(g.tenant and g.tenant["id"] == t["id"]) or bool(g.usuario and g.usuario["tipo"] == "admin")
     tel_ok = dono or (email_ok(g.usuario) and slug in session.get("_tel", []))
-    return render_template("imobiliaria.html", tn=t, imoveis=lista, total=total, pagina=pagina, paginas=paginas,
-                           faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args),
-                           pro=t["plano_efetivo"] == "profissional", tel_ok=tel_ok)
+    ctx = dict(tn=t, imoveis=lista, total=total, pagina=pagina, paginas=paginas,
+               faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args),
+               pro=t["plano_efetivo"] == "profissional", tel_ok=tel_ok)
+    caminho = template_do_tenant(t)
+    try:
+        return render_template(caminho, **ctx)
+    except Exception:
+        padrao = "paginas/%s.html" % TEMPLATE_PADRAO
+        if caminho == padrao:
+            raise
+        log.exception("Template de página %s falhou (tenant %s); usando o padrão", caminho, t["id"])
+        return render_template(padrao, **ctx)
 
 
 def _tenant_contato(slug):
@@ -2982,7 +3050,9 @@ def _painel(ativa, **form):
     t = g.tenant
     ctx = dict(t=t, ativa=ativa, pro=t["pro"], pro_limites=LIMITES["profissional"],
                atrasado=t["plano"] != "gratis" and t["plano_efetivo"] == "gratis",
-               i=None, val={}, sel=[], proximos=[], fotos=[])
+               i=None, val={}, sel=[], proximos=[], fotos=[],
+               templates_pagina=metadados_templates_pagina(),
+               template_atual=t.get("template") if t.get("template") in listar_templates_pagina() else TEMPLATE_PADRAO)
     ctx.update(_ctx_geral())
     ctx.update(_ctx_imoveis())
     ctx.update(_ctx_interessados())
@@ -3229,16 +3299,22 @@ def anunciante_pagina():
                     flash("Não consegui ler a logo (use JPG, PNG ou WebP).", "error")
         else:
             cor = None
+        # Template: só Pro grava, e só valores que existem na pasta. Não-Pro mantém o que já estava gravado.
+        template = t.get("template")
+        if t["pro"]:
+            escolhido = f.get("template", "")
+            if escolhido in listar_templates_pagina():
+                template = escolhido
         execute(
             "UPDATE tenants SET nome=%s, creci=%s, anos_mercado=%s, descricao=%s, telefone=%s, whatsapp=%s, horario=%s, cidade=%s, uf=%s, "
-            "instagram=%s, facebook=%s, linkedin=%s, logo_file_id=%s, cor_primaria=%s WHERE id=%s",
+            "instagram=%s, facebook=%s, linkedin=%s, logo_file_id=%s, cor_primaria=%s, template=%s WHERE id=%s",
             (nome, sanitize_input(f.get("creci", ""))[:20] or None, int(anos) if anos.isdigit() else None,
              sanitize_input(f.get("descricao", ""))[:300] or None, so_digitos(f.get("telefone")) or None,
              so_digitos(f.get("whatsapp")) or None, sanitize_input(f.get("horario", ""))[:80] or None,
              sanitize_input(f.get("cidade", ""))[:80] or None, sanitize_input(f.get("uf", "")).upper()[:2] or None,
              sanitize_input(f.get("instagram", ""))[:120] or None, sanitize_input(f.get("facebook", ""))[:120] or None,
              sanitize_input(f.get("linkedin", ""))[:120] or None, logo_id,
-             cor if cor and re.fullmatch(r"#[0-9a-fA-F]{6}", cor) else None, t["id"]))
+             cor if cor and re.fullmatch(r"#[0-9a-fA-F]{6}", cor) else None, template, t["id"]))
         flash("Página atualizada.", "success")
         return redirect(url_for("anunciante_pagina"))
     return _painel("pagina")
