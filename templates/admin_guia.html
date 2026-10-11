@@ -1,0 +1,258 @@
+{# Páginas do Guia dentro do admin (incluído por admin.html). Usa as mesmas classes do admin: card, table, badge, filters, fld2… #}
+<style>
+.gtabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}.gtabs a{padding:9px 16px;border-radius:8px;font-size:12px;font-weight:800;color:#5f6c66;background:#fff;border:1px solid var(--line)}.gtabs a.on{background:var(--dark);color:#fff;border-color:var(--dark)}.gtabs .novo{margin-left:auto;background:var(--green);color:#06150c;border-color:var(--green)}
+.ed-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:17px;align-items:start}@media(max-width:1150px){.ed-grid{grid-template-columns:1fr}}
+.ed-grid .card+.card{margin-top:17px}
+.ed-titulo{width:100%;border:0;outline:0;font-size:26px;font-weight:850;letter-spacing:-.8px;padding:20px 19px 6px;font-family:inherit;color:var(--text);background:none}
+.slugrow{display:flex;align-items:center;gap:4px;padding:0 19px 14px;font-size:11px;color:var(--muted)}.slugrow input{flex:1;border:0;border-bottom:1px dashed var(--line);outline:0;font-size:11px;padding:4px 2px;color:#34464d;background:none;min-width:0}
+.tb{display:flex;gap:4px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #edf1ef;background:#fafcfb;border-radius:12px 12px 0 0;position:sticky;top:0;z-index:5}
+.tb button{border:1px solid var(--line);background:#fff;border-radius:6px;min-width:32px;height:30px;padding:0 9px;font-size:11px;font-weight:800;cursor:pointer;color:#34464d}.tb button:hover{border-color:#1cae32;color:#168e29}.tb button.on{background:var(--dark);color:#fff;border-color:var(--dark)}.tb .sp{width:1px;background:var(--line);margin:2px 4px}
+.tb.off button:not(.fonte){opacity:.35;pointer-events:none}
+#ed{min-height:420px;padding:22px 26px;outline:0;font-size:15px;line-height:1.75;color:#1b2a24}
+#ed>*+*{margin-top:1em}#ed h2{font-size:24px;letter-spacing:-.5px;margin-top:1.5em}#ed h3{font-size:19px;margin-top:1.3em}#ed h4{font-size:16px}
+#ed a{color:#168e29;text-decoration:underline}#ed ul,#ed ol{padding-left:1.4em}#ed blockquote{border-left:4px solid #39dc4b;background:#eef5f1;padding:10px 16px;border-radius:0 8px 8px 0}
+#ed img{max-width:100%;height:auto;border-radius:8px;display:block}#ed figure{margin:1em 0}#ed table{border-collapse:collapse;width:100%}#ed td,#ed th{border:1px solid var(--line);padding:6px 9px}
+#ed:empty:before{content:"Escreva aqui. Use H2 para os títulos das seções — eles viram o sumário do artigo e ajudam no Google.";color:#9aa6a0}
+#corpo.fonte{display:none;width:100%;min-height:420px;border:0;outline:0;padding:18px 22px;font:12px/1.6 ui-monospace,Menlo,monospace;resize:vertical;background:#0f1d27;color:#cfe3d8;border-radius:0 0 12px 12px}
+.edbar{display:flex;justify-content:space-between;padding:9px 16px;border-top:1px solid #edf1ef;font-size:10px;color:var(--muted)}
+.ctr{font-size:10px;color:var(--muted);text-align:right;margin-top:4px}.ctr.bad{color:#c33e3e}
+.serp{margin:16px 19px 4px;border:1px solid var(--line);border-radius:9px;padding:13px 15px;background:#fff}.serp .u{font-size:11px;color:#3c6e47}.serp .t{font-size:17px;color:#1a0dab;margin:3px 0;line-height:1.3}.serp .d{font-size:12px;color:#4d5156;line-height:1.5}
+.side-body{padding:6px 0 18px}.side-body .fld2:first-child{padding-top:12px}.side-body .chk{padding-top:12px}
+.fld2 input[type=file]{font-size:11px;width:100%}.fld2 input[type=datetime-local],.fld2 input[type=url]{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;outline:0;background:#fff}
+.capaprev{margin:14px 19px 0;aspect-ratio:16/9;border-radius:9px;border:1px dashed var(--line);background:#eef2f0 center/cover no-repeat;display:grid;place-items:center;font-size:11px;color:var(--muted)}
+.btnrow{display:flex;gap:8px;padding:16px 19px 4px;flex-wrap:wrap}.btnrow .primary{flex:1;padding:12px 16px;font-size:12px}
+.row-form{padding:6px 0 16px;border-bottom:1px solid #edf1ef}.row-form:last-child{border:0}
+.row-form .cfg-foot{padding-top:14px}.row-form .tagn{font-size:10px;color:var(--muted);padding:0 19px}
+.dest{color:#c98a16;font-size:13px}
+</style>
+
+{% set aba = pagina_ativa %}
+<div class="gtabs">
+<a class="{{ 'on' if aba == 'guia' }}" href="{{ url_for('admin_guia') }}">Posts</a>
+<a class="{{ 'on' if aba == 'guia_categorias' }}" href="{{ url_for('admin_guia_categorias') }}">Categorias</a>
+<a class="{{ 'on' if aba == 'guia_autores' }}" href="{{ url_for('admin_guia_autores') }}">Autores</a>
+<a href="{{ url_for('guia') }}" target="_blank" rel="noopener">Ver guia no site ↗</a>
+<a class="novo" href="{{ url_for('admin_guia_editar') }}">+ Novo post</a>
+</div>
+
+{% if aba == 'guia' %}
+<div class="stats leadstats">
+<div class="stat"><div class="stat-top">No ar</div><strong>{{ n.no_ar }}</strong></div>
+<div class="stat"><div class="stat-top">Agendados</div><strong>{{ n.agendados }}</strong></div>
+<div class="stat"><div class="stat-top">Rascunhos</div><strong>{{ n.rascunhos }}</strong></div>
+<div class="stat"><div class="stat-top">Visualizações</div><strong>{{ n.views|num }}</strong></div>
+</div>
+<div class="card">
+<div class="card-head"><h2>Posts do guia</h2><span class="link">{{ total }} encontrado(s)</span></div>
+<div class="filters"><form method="get"><input name="q" value="{{ q }}" placeholder="Buscar por título ou endereço...">
+<select name="status"><option value="">Todos</option>{% for v, r in (('no_ar','No ar'),('agendado','Agendados'),('rascunho','Rascunhos')) %}<option value="{{ v }}" {{ 'selected' if status == v }}>{{ r }}</option>{% endfor %}</select>
+<select name="categoria"><option value="">Todas as categorias</option>{% for c in categorias %}<option value="{{ c.id }}" {{ 'selected' if cat == c.id }}>{{ c.nome }}</option>{% endfor %}</select>
+<button>Filtrar</button></form></div>
+<div class="table-wrap"><table class="table"><thead><tr><th></th><th>Post</th><th>Categoria</th><th>Situação</th><th>Views</th><th>Atualizado</th><th>Ações</th></tr></thead><tbody>
+{% for p in lista %}<tr>
+<td><div class="thumb" style="{% if p.thumb %}background-image:url('{{ p.thumb }}');{% endif %}background-size:cover;background-position:center"></div></td>
+<td><b style="font-size:12px">{% if p.destaque %}<span class="dest" title="Em destaque">★</span> {% endif %}{{ p.titulo }}</b><div class="mono">/guia/{{ p.slug }} · {{ tipos[p.tipo] or p.tipo }}</div></td>
+<td>{{ p.categoria_nome or '—' }}</td>
+<td>{% if p.no_ar %}<span class="badge pago">No ar</span>{% elif p.status == 'agendado' %}<span class="badge pending">Agendado · {{ p.publicado_em|data(True) }}</span>{% else %}<span class="badge free">Rascunho</span>{% endif %}</td>
+<td>{{ p.visualizacoes|num }}</td><td>{{ p.atualizado_em|data(True) }}</td>
+<td><div class="acts">
+<a class="ghost" href="{{ url_for('admin_guia_editar', post_id=p.id) }}">Editar</a>
+{% if p.no_ar %}<a class="ghost" href="{{ url_for('guia_post', slug=p.slug) }}" target="_blank" rel="noopener">Ver ↗</a>{% else %}<a class="ghost" href="{{ url_for('admin_guia_previa', post_id=p.id) }}" target="_blank" rel="noopener">Prévia ↗</a>{% endif %}
+<form method="post" action="{{ url_for('admin_guia_acao', post_id=p.id, acao='destacar') }}">{{ csrf() }}<button class="ghost">{{ 'Tirar destaque' if p.destaque else 'Destacar' }}</button></form>
+{% if p.no_ar or p.status == 'agendado' %}<form method="post" action="{{ url_for('admin_guia_acao', post_id=p.id, acao='despublicar') }}" onsubmit="return confirm('Tirar este post do ar? Ele volta para rascunho.')">{{ csrf() }}<button class="ghost">Tirar do ar</button></form>
+{% else %}<form method="post" action="{{ url_for('admin_guia_acao', post_id=p.id, acao='publicar') }}">{{ csrf() }}<button class="ghost ok">Publicar</button></form>{% endif %}
+<form method="post" action="{{ url_for('admin_guia_acao', post_id=p.id, acao='excluir') }}" onsubmit="return confirm('Excluir “{{ p.titulo|replace("'", "")|replace('"', '') }}” para sempre? Isso não pode ser desfeito.')">{{ csrf() }}<button class="ghost danger">Excluir</button></form>
+</div></td></tr>
+{% else %}<tr><td colspan="7"><div class="empty">Nenhum post ainda. <a class="link" href="{{ url_for('admin_guia_editar') }}">Escreva o primeiro →</a></div></td></tr>{% endfor %}
+</tbody></table></div>
+{% if paginas > 1 %}<div class="pg">{% for pg in faixa %}{% if pg == pagina %}<span>{{ pg }}</span>{% else %}<a href="{{ url_for('admin_guia', pagina=pg, q=q or None, status=status or None, categoria=cat) }}">{{ pg }}</a>{% endif %}{% endfor %}</div>{% endif %}
+</div>
+
+{% elif aba == 'guia_editar' %}
+{% if not categorias %}<div class="hint">Você ainda não tem categorias. <a class="link" href="{{ url_for('admin_guia_categorias') }}">Crie as primeiras →</a> (ajudam o leitor e o Google a entender o guia).</div>{% endif %}
+<form method="post" enctype="multipart/form-data" id="fpost" action="{{ url_for('admin_guia_editar', post_id=post.id) if post.id else url_for('admin_guia_editar') }}">
+{{ csrf() }}
+<div class="ed-grid">
+<div>
+<div class="card">
+<input class="ed-titulo" type="text" name="titulo" id="titulo" value="{{ post.titulo or '' }}" placeholder="Título do post" maxlength="200" required>
+<div class="slugrow">/guia/<input type="text" name="slug" id="slug" value="{{ post.slug or '' }}" placeholder="endereco-do-post" maxlength="80"></div>
+{% if post.id and post.status != 'rascunho' %}<div class="hint" style="margin:0 19px 14px">Se mudar o endereço, o antigo passa a redirecionar (301) para o novo — o Google não perde o post.</div>{% endif %}
+<div class="fld2" style="padding-top:0"><b>Resumo</b><textarea name="resumo" id="resumo" rows="2" maxlength="400" placeholder="1 ou 2 frases. Aparece nos cards e abaixo do título.">{{ post.resumo or '' }}</textarea></div>
+<div style="height:14px"></div>
+</div>
+
+<div class="card">
+<div class="tb" id="tb">
+<button type="button" data-c="h2" title="Título de seção">H2</button><button type="button" data-c="h3" title="Subtítulo">H3</button><button type="button" data-c="p" title="Parágrafo normal">¶</button>
+<span class="sp"></span>
+<button type="button" data-c="b" title="Negrito"><b>B</b></button><button type="button" data-c="i" title="Itálico"><i>I</i></button>
+<span class="sp"></span>
+<button type="button" data-c="ul" title="Lista">• Lista</button><button type="button" data-c="ol" title="Lista numerada">1. Lista</button><button type="button" data-c="q" title="Citação">❝</button>
+<span class="sp"></span>
+<button type="button" data-c="a" title="Inserir link">Link</button><button type="button" data-c="unlink" title="Remover link">Sem link</button><button type="button" data-c="img" title="Inserir imagem">Imagem</button><button type="button" data-c="hr" title="Linha divisória">—</button>
+<span class="sp"></span>
+<button type="button" data-c="rm" title="Limpar formatação">Limpar</button><button type="button" class="fonte" data-c="fonte" title="Ver/editar o HTML">&lt;/&gt;</button>
+</div>
+<div id="ed" contenteditable="true" spellcheck="true"></div>
+<textarea name="corpo" id="corpo" class="fonte">{{ post.corpo or '' }}</textarea>
+<input type="file" id="fimg" accept="image/png,image/jpeg,image/webp" hidden>
+<div class="edbar"><span id="cnt">0 palavras</span><span id="tempo">—</span></div>
+</div>
+
+<div class="card">
+<div class="card-head"><h2>Aparência no Google</h2></div>
+<div class="serp"><div class="u">{{ SITE.base }}/guia/<span id="sp-slug">{{ post.slug or 'endereco-do-post' }}</span></div><div class="t" id="sp-t">Título</div><div class="d" id="sp-d">Descrição</div></div>
+<label class="fld2"><b>Título para o Google <small style="display:inline;font-weight:400">(opcional — se vazio usa o título do post + marca)</small></b><input type="text" name="seo_titulo" id="seo_titulo" value="{{ post.seo_titulo or '' }}" maxlength="70"><div class="ctr" id="c-t">0/60</div></label>
+<label class="fld2"><b>Descrição para o Google <small style="display:inline;font-weight:400">(opcional — se vazia usa o resumo)</small></b><textarea name="seo_descricao" id="seo_descricao" rows="2" maxlength="200">{{ post.seo_descricao or '' }}</textarea><div class="ctr" id="c-d">0/155</div></label>
+<div style="height:16px"></div>
+</div>
+</div>
+
+<aside>
+<div class="card">
+<div class="card-head"><h2>Publicação</h2></div>
+<div class="side-body">
+<label class="fld2"><b>Situação</b><select name="status" id="status">{% for v, r in status_guia.items() %}<option value="{{ v }}" {{ 'selected' if post.status == v }}>{{ r }}</option>{% endfor %}</select></label>
+<label class="fld2" id="wdata"><b>Data e hora</b><input type="datetime-local" name="publicado_em" id="pub" value="{{ pub_local }}"><small>Em “Agendado”, o post entra no ar sozinho nessa hora. Em “Publicado”, vazio = agora.</small></label>
+<label class="chk"><input type="checkbox" name="destaque" value="1" {{ 'checked' if post.destaque }}> Destacar na página do guia</label>
+<label class="fld2"><b>Ordem do destaque</b><input type="number" name="ordem_destaque" value="{{ post.ordem_destaque or 0 }}" min="0" max="999"><small>Menor número aparece primeiro.</small></label>
+<label class="chk"><input type="checkbox" name="noindex" value="1" {{ 'checked' if post.noindex }}> Não deixar o Google indexar (noindex)</label>
+</div>
+<div class="btnrow"><button class="primary" type="submit">Salvar</button>{% if post.id %}<a class="ghost" style="padding:12px 14px" href="{{ url_for('admin_guia_previa', post_id=post.id) }}" target="_blank" rel="noopener">Prévia ↗</a>{% endif %}</div>
+<div style="height:14px"></div>
+</div>
+
+<div class="card">
+<div class="card-head"><h2>Imagem de capa</h2></div>
+<div class="capaprev" id="capaprev" style="{% if capa_preview %}background-image:url('{{ capa_preview }}'){% endif %}">{% if not capa_preview %}Sem capa{% endif %}</div>
+<label class="fld2"><b>Enviar imagem</b><input type="file" name="capa_arquivo" id="capa_arquivo" accept="image/png,image/jpeg,image/webp"><small>Horizontal, ideal 1200×675 px (16:9).</small></label>
+<label class="fld2"><b>…ou colar um endereço (https)</b><input type="url" name="capa_url" placeholder="https://"></label>
+<label class="fld2"><b>Texto alternativo da capa</b><input type="text" name="capa_alt" value="{{ post.capa_alt or '' }}" maxlength="200"><small>Descreva a imagem. Ajuda o Google Imagens e quem usa leitor de tela.</small></label>
+{% if post.capa %}<label class="chk"><input type="checkbox" name="remover_capa" value="1"> Remover a capa atual</label>{% endif %}
+<div style="height:16px"></div>
+</div>
+
+<div class="card">
+<div class="card-head"><h2>Organização</h2></div>
+<div class="side-body">
+<label class="fld2"><b>Tipo</b><select name="tipo">{% for v, r in tipos.items() %}<option value="{{ v }}" {{ 'selected' if post.tipo == v }}>{{ r }}</option>{% endfor %}</select></label>
+<label class="fld2"><b>Categoria</b><select name="categoria_id"><option value="">Sem categoria</option>{% for c in categorias %}<option value="{{ c.id }}" {{ 'selected' if post.categoria_id == c.id }}>{{ c.nome }}</option>{% endfor %}</select></label>
+<label class="fld2"><b>Autor</b><select name="autor_id"><option value="">Padrão (Equipe)</option>{% for a in autores %}<option value="{{ a.id }}" {{ 'selected' if post.autor_id == a.id }}>{{ a.nome }}</option>{% endfor %}</select></label>
+<label class="fld2"><b>Assuntos (tags)</b><input type="text" name="tags" value="{{ tags_txt }}" placeholder="financiamento, documentação, moema"><small>Separe por vírgula. Máx. 12.</small></label>
+</div>
+</div>
+
+<div class="card">
+<div class="card-head"><h2>Imóveis relacionados</h2></div>
+<div class="side-body">
+<label class="fld2"><b>Escolher um local</b><select id="loc"><option value="">— nenhum —</option>{% for l in locais %}<option data-uf="{{ l.uf or '' }}" data-c="{{ l.cidade_slug }}" data-b="{{ l.bairro_slug }}">{{ l.cidade }}{% if l.uf %} - {{ l.uf }}{% endif %} · {{ l.bairro }}</option>{% endfor %}</select><small>Mostra até 3 imóveis desse bairro no fim do post (ótimo para guia de bairro).</small></label>
+<div class="two"><label class="fld2"><b>Cidade</b><input type="text" name="cidade_slug" id="cidade_slug" value="{{ post.cidade_slug or '' }}" placeholder="sao-paulo"></label><label class="fld2"><b>Bairro</b><input type="text" name="bairro_slug" id="bairro_slug" value="{{ post.bairro_slug or '' }}" placeholder="moema"></label></div>
+<label class="fld2"><b>UF</b><input type="text" name="uf" id="uf" value="{{ post.uf or '' }}" maxlength="2" placeholder="SP"></label>
+</div>
+</div>
+</aside>
+</div>
+</form>
+
+<script>
+(function(){
+var f=document.getElementById('fpost');if(!f)return;
+var $=function(i){return document.getElementById(i)};
+var ed=$('ed'),src=$('corpo'),tb=$('tb'),fonte=false,salva=null;
+var OK={P:1,H2:1,H3:1,H4:1,UL:1,OL:1,LI:1,STRONG:1,EM:1,U:1,A:1,BLOCKQUOTE:1,IMG:1,FIGURE:1,FIGCAPTION:1,BR:1,HR:1,TABLE:1,THEAD:1,TBODY:1,TR:1,TH:1,TD:1,CODE:1,PRE:1,SUP:1,SUB:1,S:1,MARK:1};
+var ALIAS={B:'STRONG',I:'EM',H1:'H2',H5:'H4',H6:'H4',DIV:'P',SECTION:'P',ARTICLE:'P',STRIKE:'S',DEL:'S'};
+var DROP={SCRIPT:1,STYLE:1,IFRAME:1,OBJECT:1,EMBED:1,SVG:1,META:1,LINK:1,NOSCRIPT:1,TEMPLATE:1,TEXTAREA:1,SELECT:1,HEAD:1,TITLE:1};
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function limpaNo(n,dest){for(var c=n.firstChild;c;c=c.nextSibling){
+ if(c.nodeType===3){dest.appendChild(document.createTextNode(c.nodeValue));continue}
+ if(c.nodeType!==1)continue;var t=c.tagName;if(DROP[t])continue;t=ALIAS[t]||t;
+ if(!OK[t]){limpaNo(c,dest);continue}
+ var el=document.createElement(t);
+ if(t==='A'){var h=c.getAttribute('href')||'';if(/^(https?:|mailto:|tel:|\/(?!\/)|#)/i.test(h))el.setAttribute('href',h);else{limpaNo(c,dest);continue}}
+ if(t==='IMG'){var s=c.getAttribute('src')||'';if(!/^(https:|\/assets\/|\/site-media\/)/i.test(s))continue;el.setAttribute('src',s);el.setAttribute('alt',c.getAttribute('alt')||'')}
+ if(t!=='IMG'&&t!=='BR'&&t!=='HR')limpaNo(c,el);dest.appendChild(el)}}
+function limpaHtml(h){var d=new DOMParser().parseFromString(h,'text/html');var r=document.createElement('div');limpaNo(d.body,r);return r.innerHTML}
+try{document.execCommand('defaultParagraphSeparator',false,'p')}catch(e){}
+ed.innerHTML=limpaHtml(src.value);
+function slugify(s){return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)}
+function contar(){var t=(fonte?src.value.replace(/<[^>]+>/g,' '):ed.innerText||'').trim();var n=t?t.split(/\s+/).length:0;$('cnt').textContent=n+' palavra'+(n===1?'':'s');$('tempo').textContent=n?Math.max(1,Math.round(n/200))+' min de leitura':'—'}
+function seo(){var t=$('seo_titulo').value||$('titulo').value||'Título';var d=$('seo_descricao').value||$('resumo').value||'Descrição';
+ $('sp-t').textContent=t.length>60?t.slice(0,58)+'…':t;$('sp-d').textContent=d.length>155?d.slice(0,153)+'…':d;$('sp-slug').textContent=$('slug').value||'endereco-do-post';
+ var ct=$('seo_titulo').value.length,cd=$('seo_descricao').value.length;$('c-t').textContent=ct+'/60';$('c-t').className='ctr'+(ct>60?' bad':'');$('c-d').textContent=cd+'/155';$('c-d').className='ctr'+(cd>155?' bad':'')}
+var novo={{ 'true' if not post.id else 'false' }},slugTocado=!novo;
+$('titulo').addEventListener('input',function(){if(!slugTocado)$('slug').value=slugify(this.value);seo()});
+$('slug').addEventListener('input',function(){slugTocado=true;seo()});
+['seo_titulo','seo_descricao','resumo'].forEach(function(i){$(i).addEventListener('input',seo)});
+ed.addEventListener('input',contar);
+function cmd(c,v){ed.focus();document.execCommand(c,false,v||null);contar()}
+function guardaSel(){var s=getSelection();if(s.rangeCount&&ed.contains(s.anchorNode))salva=s.getRangeAt(0).cloneRange()}
+function voltaSel(){ed.focus();if(salva){var s=getSelection();s.removeAllRanges();s.addRange(salva)}}
+tb.addEventListener('mousedown',function(e){if(e.target.closest('button'))e.preventDefault()});
+tb.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var c=b.dataset.c;
+ if(c==='fonte'){fonte=!fonte;b.classList.toggle('on',fonte);tb.classList.toggle('off',fonte);
+  if(fonte){src.value=ed.innerHTML;ed.style.display='none';src.style.display='block'}else{ed.innerHTML=limpaHtml(src.value);src.style.display='none';ed.style.display='block'}contar();return}
+ if(fonte)return;
+ if(c==='h2'||c==='h3'||c==='p')cmd('formatBlock',c.toUpperCase());
+ else if(c==='q')cmd('formatBlock','BLOCKQUOTE');
+ else if(c==='b')cmd('bold');else if(c==='i')cmd('italic');
+ else if(c==='ul')cmd('insertUnorderedList');else if(c==='ol')cmd('insertOrderedList');
+ else if(c==='hr')cmd('insertHorizontalRule');else if(c==='unlink')cmd('unlink');
+ else if(c==='rm'){cmd('removeFormat');cmd('formatBlock','P')}
+ else if(c==='a'){guardaSel();var u=prompt('Endereço do link (https://… ou /pagina-do-site):','https://');if(u&&u!=='https://'){voltaSel();cmd('createLink',u)}}
+ else if(c==='img'){guardaSel();$('fimg').click()}});
+ed.addEventListener('paste',function(e){var cd=e.clipboardData;if(!cd)return;e.preventDefault();var h=cd.getData('text/html'),t=cd.getData('text/plain');
+ if(h)document.execCommand('insertHTML',false,limpaHtml(h));
+ else document.execCommand('insertHTML',false,t.split(/\n{2,}/).map(function(p){return '<p>'+esc(p).replace(/\n/g,'<br>')+'</p>'}).join(''));contar()});
+$('fimg').addEventListener('change',function(){var a=this.files[0],inp=this;if(!a)return;
+ var alt=prompt('Descreva a imagem em poucas palavras (texto alternativo — importante para o Google):','')||'';
+ var fd=new FormData();fd.append('arquivo',a);fd.append('_csrf',f.querySelector('[name=_csrf]').value);
+ fetch('{{ url_for("admin_guia_imagem") }}',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){
+  if(!j.ok)throw new Error(j.erro||'erro');voltaSel();document.execCommand('insertHTML',false,'<figure><img src="'+j.url+'" alt="'+esc(alt)+'"></figure><p><br></p>');contar()
+ }).catch(function(er){alert('Não consegui enviar a imagem: '+er.message)});inp.value=''});
+$('capa_arquivo').addEventListener('change',function(){var a=this.files[0];if(!a)return;var p=$('capaprev');p.style.backgroundImage="url('"+URL.createObjectURL(a)+"')";p.textContent=''});
+$('status').addEventListener('change',function(){$('wdata').style.display=this.value==='rascunho'?'none':'block'});
+$('wdata').style.display=$('status').value==='rascunho'?'none':'block';
+$('loc').addEventListener('change',function(){var o=this.options[this.selectedIndex];if(!o.dataset.c)return;$('cidade_slug').value=o.dataset.c;$('bairro_slug').value=o.dataset.b||'';$('uf').value=o.dataset.uf||''});
+f.addEventListener('submit',function(){if(!fonte)src.value=ed.innerHTML});
+contar();seo();
+})();
+</script>
+
+{% elif aba == 'guia_categorias' %}
+<div class="hint">Categorias organizam o guia e viram páginas próprias (<b>/guia/categoria/…</b>) que o Google indexa. Mudar o endereço (slug) de uma categoria muda essa URL — evite depois de publicado.</div>
+<div class="card"><div class="card-head"><h2>Nova categoria</h2></div>
+<form method="post" action="{{ url_for('admin_guia_categoria_salvar') }}" class="row-form" style="border:0">{{ csrf() }}
+<div class="two"><label class="fld2"><b>Nome</b><input type="text" name="nome" required maxlength="80"></label><label class="fld2"><b>Endereço (opcional)</b><input type="text" name="slug" maxlength="80" placeholder="gerado a partir do nome"></label></div>
+<label class="fld2"><b>Descrição</b><textarea name="descricao" rows="2" maxlength="400"></textarea></label>
+<div class="cfg-foot"><button class="primary">Criar categoria</button></div></form></div>
+<div class="card"><div class="card-head"><h2>Categorias existentes</h2><span class="link">{{ lista|length }}</span></div>
+{% for c in lista %}
+<form method="post" action="{{ url_for('admin_guia_categoria_salvar') }}" class="row-form">{{ csrf() }}<input type="hidden" name="id" value="{{ c.id }}">
+<div class="two"><label class="fld2"><b>Nome</b><input type="text" name="nome" value="{{ c.nome }}" required maxlength="80"></label><label class="fld2"><b>Endereço</b><input type="text" name="slug" value="{{ c.slug }}" maxlength="80"></label></div>
+<label class="fld2"><b>Descrição (aparece no topo da página da categoria)</b><textarea name="descricao" rows="2" maxlength="400">{{ c.descricao or '' }}</textarea></label>
+<div class="two"><label class="fld2"><b>Título para o Google</b><input type="text" name="seo_titulo" value="{{ c.seo_titulo or '' }}" maxlength="70"></label><label class="fld2"><b>Descrição para o Google</b><input type="text" name="seo_descricao" value="{{ c.seo_descricao or '' }}" maxlength="200"></label></div>
+<div class="two"><label class="fld2"><b>Ordem</b><input type="number" name="ordem" value="{{ c.ordem }}"></label><label class="chk" style="padding-top:34px"><input type="checkbox" name="ativa" value="1" {{ 'checked' if c.ativa }}> Ativa (aparece no site)</label></div>
+<div class="cfg-foot"><button class="primary">Salvar</button><a class="ghost" href="{{ url_for('guia_categoria', slug=c.slug) }}" target="_blank" rel="noopener">Ver ↗</a>
+<button class="ghost danger" formaction="{{ url_for('admin_guia_categoria_excluir', cid=c.id) }}" formmethod="post" formnovalidate onclick="return confirm('Excluir esta categoria?')">Excluir</button><span class="tagn">{{ c.n }} post(s)</span></div></form>
+{% else %}<div class="empty">Nenhuma categoria ainda.</div>{% endfor %}</div>
+
+{% elif aba == 'guia_autores' %}
+<div class="hint">O autor aparece no artigo, na página dele (<b>/guia/autor/…</b>) e nos dados estruturados que o Google lê. Foto e mini-bio reforçam a credibilidade do conteúdo.</div>
+<div class="card"><div class="card-head"><h2>Novo autor</h2></div>
+<form method="post" enctype="multipart/form-data" action="{{ url_for('admin_guia_autor_salvar') }}" class="row-form" style="border:0">{{ csrf() }}
+<div class="two"><label class="fld2"><b>Nome</b><input type="text" name="nome" required maxlength="80"></label><label class="fld2"><b>Cargo</b><input type="text" name="cargo" maxlength="80" placeholder="Editor, Corretor, Analista…"></label></div>
+<label class="fld2"><b>Mini-bio</b><textarea name="bio" rows="2" maxlength="600"></textarea></label>
+<label class="fld2"><b>Foto</b><input type="file" name="foto_arquivo" accept="image/png,image/jpeg,image/webp"></label>
+<div class="cfg-foot"><button class="primary">Criar autor</button></div></form></div>
+<div class="card"><div class="card-head"><h2>Autores</h2><span class="link">{{ lista|length }}</span></div>
+{% for a in lista %}
+<form method="post" enctype="multipart/form-data" action="{{ url_for('admin_guia_autor_salvar') }}" class="row-form">{{ csrf() }}<input type="hidden" name="id" value="{{ a.id }}">
+<div class="user" style="padding:14px 19px 0">{% if a.foto_url %}<img src="{{ a.foto_url }}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">{% else %}<div class="user-avatar" style="border-radius:50%;width:44px;height:44px">{{ a.nome|iniciais }}</div>{% endif %}<div><b style="font-size:13px">{{ a.nome }}</b><small>/guia/autor/{{ a.slug }} · {{ a.n }} post(s)</small></div></div>
+<div class="two"><label class="fld2"><b>Nome</b><input type="text" name="nome" value="{{ a.nome }}" required maxlength="80"></label><label class="fld2"><b>Cargo</b><input type="text" name="cargo" value="{{ a.cargo or '' }}" maxlength="80"></label></div>
+<div class="two"><label class="fld2"><b>Endereço</b><input type="text" name="slug" value="{{ a.slug }}" maxlength="80"></label><label class="fld2"><b>Trocar foto</b><input type="file" name="foto_arquivo" accept="image/png,image/jpeg,image/webp"></label></div>
+<label class="fld2"><b>Mini-bio</b><textarea name="bio" rows="2" maxlength="600">{{ a.bio or '' }}</textarea></label>
+<div class="cfg-foot"><button class="primary">Salvar</button><a class="ghost" href="{{ url_for('guia_autor', slug=a.slug) }}" target="_blank" rel="noopener">Ver ↗</a>
+<button class="ghost danger" formaction="{{ url_for('admin_guia_autor_excluir', aid=a.id) }}" formmethod="post" formnovalidate onclick="return confirm('Excluir este autor?')">Excluir</button></div></form>
+{% else %}<div class="empty">Nenhum autor ainda — ao salvar o primeiro post o sistema cria “Equipe ImovelOnde”.</div>{% endfor %}</div>
+{% endif %}

@@ -1,0 +1,27 @@
+{# Peças reutilizadas nas páginas do guia #}
+{% macro card(p) %}
+<article class="guide">
+<a class="guide-img" href="{{ url_for('guia_post', slug=p.slug) }}" tabindex="-1" aria-hidden="true"><img src="{{ p.img }}" alt="{{ p.capa_alt or '' }}" loading="lazy" width="640" height="360"></a>
+<div class="guide-info"><div class="category">{{ p.categoria_nome or 'Guia' }}</div>
+<h3><a href="{{ url_for('guia_post', slug=p.slug) }}">{{ p.titulo }}</a></h3>
+{% if p.resumo %}<p>{{ p.resumo|truncate(130) }}</p>{% endif %}
+<div class="meta">{{ p.publicado_em|data }}{% if p.tempo_leitura %} · {{ p.tempo_leitura }} min de leitura{% endif %}</div></div>
+</article>
+{% endmacro %}
+
+{% macro paginacao(pagina, paginas, faixa, pag_url) %}
+{% if paginas > 1 %}<nav class="pg" aria-label="Páginas">
+{% if pagina > 1 %}<a href="{{ pag_url(pagina - 1) }}" rel="prev" aria-label="Página anterior">‹</a>{% endif %}
+{% if faixa and faixa[0] > 1 %}<a href="{{ pag_url(1) }}">1</a>{% if faixa[0] > 2 %}<span style="background:none;border:0;color:#8a968f">…</span>{% endif %}{% endif %}
+{% for n in faixa %}{% if n == pagina %}<span aria-current="page">{{ n }}</span>{% else %}<a href="{{ pag_url(n) }}">{{ n }}</a>{% endif %}{% endfor %}
+{% if faixa and faixa[-1] < paginas %}{% if faixa[-1] < paginas - 1 %}<span style="background:none;border:0;color:#8a968f">…</span>{% endif %}<a href="{{ pag_url(paginas) }}">{{ paginas }}</a>{% endif %}
+{% if pagina < paginas %}<a href="{{ pag_url(pagina + 1) }}" rel="next" aria-label="Próxima página">›</a>{% endif %}
+</nav>{% endif %}
+{% endmacro %}
+
+{% macro chips(categorias, ativa=None) %}
+{% if categorias %}<nav class="chips" aria-label="Categorias do guia">
+<a class="chip{{ ' on' if not ativa }}" href="{{ url_for('guia') }}">Tudo</a>
+{% for c in categorias %}<a class="chip{{ ' on' if ativa == c.slug }}" href="{{ url_for('guia_categoria', slug=c.slug) }}">{{ c.nome }}<small>{{ c.n }}</small></a>{% endfor %}
+</nav>{% endif %}
+{% endmacro %}

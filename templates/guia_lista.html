@@ -1,0 +1,36 @@
+{% extends '_guia_base.html' %}
+{% from '_guia_macros.html' import card, paginacao, chips %}
+{% block conteudo %}
+<section class="hero slim">
+<div class="wrap">
+<nav class="crumbs" aria-label="Você está em"><a href="{{ url_for('home') }}">Início</a><span>›</span><a href="{{ url_for('guia') }}">Guia</a>{% if modo == 'categoria' %}<span>›</span><span style="opacity:1;color:#d8e3de">{{ h1 }}</span>{% elif modo == 'tag' %}<span>›</span><span style="opacity:1;color:#d8e3de">Assunto: {{ h1 }}</span>{% elif modo == 'autor' %}<span>›</span><span style="opacity:1;color:#d8e3de">Autor</span>{% elif modo == 'busca' %}<span>›</span><span style="opacity:1;color:#d8e3de">Busca</span>{% endif %}</nav>
+{% if modo == 'autor' %}
+<div class="autor-hero">{% if autor.foto_url %}<img src="{{ autor.foto_url }}" alt="{{ autor.nome }}" width="72" height="72">{% else %}<div class="ava">{{ autor.nome|iniciais }}</div>{% endif %}
+<div><h1>{{ h1 }}</h1>{% if autor.cargo %}<p style="margin-top:6px">{{ autor.cargo }}</p>{% endif %}</div></div>
+{% if autor.bio %}<p>{{ autor.bio }}</p>{% endif %}
+{% else %}
+<h1>{{ h1 }}</h1>
+{% if modo != 'busca' and descricao %}<p>{{ descricao }}</p>{% endif %}
+{% endif %}
+</div>
+</section>
+
+<main class="content wrap">
+<div class="top">
+<div><div class="eyebrow">{{ total }} {{ 'publicação' if total == 1 else 'publicações' }}</div>{% if modo == 'busca' %}<h2>Resultados do guia</h2>{% endif %}</div>
+<form class="search" method="get" action="{{ url_for('guia_busca') }}" role="search"><input name="q" value="{{ q or '' }}" placeholder="Buscar no guia..." aria-label="Buscar no guia"><button>Buscar</button></form>
+</div>
+
+{{ chips(categorias, categoria.slug if categoria else None) }}
+
+{% if lista %}
+<section class="guides">{% for p in lista %}{{ card(p) }}{% endfor %}</section>
+{{ paginacao(pagina, paginas, faixa, pag_url) }}
+{% else %}
+<div class="vazio">
+{% if modo == 'busca' %}<b>Nada encontrado para “{{ q }}”.</b><br>Tente outras palavras ou <a href="{{ url_for('buscar', q=q) }}">procure imóveis em “{{ q }}”</a>.
+{% else %}<b>Ainda não há publicações aqui.</b><br><a href="{{ url_for('guia') }}">Voltar ao guia</a>{% endif %}
+</div>
+{% endif %}
+</main>
+{% endblock %}
