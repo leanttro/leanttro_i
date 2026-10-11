@@ -135,15 +135,15 @@ function carregar(){
     else escolha(j.boas_vindas||('Oi! Eu sou a '+NOME+'. Como você prefere?'))})
   .catch(function(){escolha('Oi! Como você prefere?')})}
 function reiniciar(){api('/chat/api/reiniciar',{}).then(function(){st.carregado=false;carregar()}).catch(function(){st.carregado=false;carregar()})}
-function abrir(){panel.hidden=false;panel.scrollTop=0;fab.setAttribute('aria-expanded','true');tip.hidden=true;try{sessionStorage.setItem('ioc_tip','1')}catch(e){}if(!st.carregado)carregar();else if(!foot.hidden)inp.focus()}
+function abrir(){panel.hidden=false;panel.scrollTop=0;fab.setAttribute('aria-expanded','true');tip.hidden=true;if(!st.carregado)carregar();else if(!foot.hidden)inp.focus()}
 function fechar(){panel.hidden=true;fab.setAttribute('aria-expanded','false');fab.focus()}
 fab.onclick=function(){panel.hidden?abrir():fechar()};
 root.querySelector('.ioc-x').onclick=fechar;
 root.querySelector('.ioc-rs').onclick=reiniciar;
-tip.querySelector('button').onclick=function(){tip.hidden=true;try{sessionStorage.setItem('ioc_tip','1')}catch(e){}};
+tip.querySelector('button').onclick=function(){tip.hidden=true};
 foot.addEventListener('submit',enviar);
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!panel.hidden)fechar()});
-try{if(!sessionStorage.getItem('ioc_tip'))setTimeout(function(){if(panel.hidden)tip.hidden=false},4000)}catch(e){}
+setTimeout(function(){if(panel.hidden)tip.hidden=false},3000);
 })();
 </script>
 </div>
