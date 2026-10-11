@@ -99,6 +99,22 @@ header a:focus-visible,header button:focus-visible{outline:3px solid var(--g);ou
 @media(max-width:1000px){.menu{gap:15px}}
 @media(max-width:700px){header .container{width:calc(100% - 28px)}.menu,.actions .near{display:none}.actions{margin-left:auto}.nav{height:76px;gap:10px}.nav .logo img{height:52px!important}.actions .anunciar{display:inline-block;font-weight:800;padding:9px 15px;border-radius:20px}.burger{display:flex;margin-left:0}.actions a:not(.anunciar){display:none}}
 @media(min-width:701px){.mnav{display:none!important}}
+
+/* ===== Mobile: mapa em cartão (bottom sheet) aberto por botão ===== */
+.map-fab,.map-bd,.map-close{display:none}
+@media(max-width:850px){
+.main{display:block;height:auto;min-height:0}
+.main .map{position:fixed!important;left:0;right:0;bottom:0;top:auto;height:78vh!important;height:78dvh!important;z-index:3000;border-radius:20px 20px 0 0;box-shadow:0 -10px 40px #0005;transform:translateY(105%);visibility:hidden;transition:transform .28s ease,visibility 0s linear .28s}
+.main .map.open{transform:none;visibility:visible;transition:transform .28s ease}
+.map-bd{display:block;position:fixed;inset:0;z-index:2999;background:#071421a6;opacity:0;pointer-events:none;transition:opacity .28s}
+.map-bd.open{opacity:1;pointer-events:auto}
+.map-close{display:grid;place-items:center;position:absolute;right:12px;top:12px;z-index:600;width:40px;height:40px;border-radius:50%;border:0;background:#fff;color:#071421;font-size:24px;line-height:1;padding:0 0 3px;box-shadow:0 4px 14px #0003;cursor:pointer}
+.main .map .location-card{left:12px;top:12px;max-width:calc(100% - 70px)}
+.map-fab{display:inline-flex;align-items:center;gap:8px;position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2000;height:48px;padding:0 22px;border:0;border-radius:999px;background:#071421;color:#fff;font:800 15px Inter,Arial,sans-serif;box-shadow:0 10px 28px #0006;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.map-fab svg{width:20px;height:20px}
+.map-fab.hide{display:none}
+.panel{border-left:0;overflow:visible;padding-bottom:84px}
+}
 </style>
 </head>
 <body>
@@ -116,11 +132,12 @@ header a:focus-visible,header button:focus-visible{outline:3px solid var(--g);ou
 <label class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M9 21v-5h6v5M8 9h2M14 9h2M8 13h2M14 13h2"/></svg><span class="fx"><b>Tipo</b><select id="tipo"><option value="">Todos os imóveis</option>{% for k, v in TIPOS_IMOVEL.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></span></label>
 <label class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.6 0-2.8.8-2.8 2s1 1.7 2.8 2 2.8.8 2.8 2-1.2 2-2.8 2c-1.2 0-2.2-.4-2.8-1.2M12 6.5V8M12 16v1.5"/></svg><span class="fx"><b>Preço</b><select id="preco"><option value="">Qualquer preço</option><option value="5000">Até R$ 5 mil</option><option value="500000">Até R$ 500 mil</option><option value="1000000">Até R$ 1 milhão</option><option value="2000000">Até R$ 2 milhões</option></select></span></label>
 <button class="go" id="buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Buscar</button></form></div></div>
-<main class="main"><section class="map"><div id="mapa"></div><div class="location-card"><strong id="loc-t">📍 Localizando…</strong><span id="loc-s">Permita o acesso à sua localização</span></div></section>
+<main class="main"><section class="map" id="mapa-sheet" aria-label="Mapa"><button type="button" class="map-close" id="map-close" aria-label="Fechar mapa">×</button><div id="mapa"></div><div class="location-card"><strong id="loc-t">📍 Localizando…</strong><span id="loc-s">Permita o acesso à sua localização</span></div></section>
 <aside class="panel"><div class="panel-head"><h1>Imóveis perto de você</h1><p id="total">—</p>
 <div class="panel-tools"><button class="active" data-o="dist">Mais próximos</button><button data-o="preco">Menor preço</button><button data-o="recentes">Recentes</button></div></div>
 <div class="radius"><div class="radius-title"><span>Raio de busca</span><strong id="raio-v">5 km</strong></div><input id="raio" type="range" min="1" max="20" value="5"></div>
 <div class="cards" id="lista"></div></aside></main>
+<div class="map-bd" id="map-bd"></div><button type="button" class="map-fab" id="map-fab" aria-controls="mapa-sheet" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>Ver mapa</button>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -169,5 +186,15 @@ m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
 document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
 window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
+<script>(function(){
+var sh=document.getElementById('mapa-sheet'),bd=document.getElementById('map-bd'),fab=document.getElementById('map-fab'),x=document.getElementById('map-close');
+if(!sh||!fab)return;
+function open(){sh.classList.add('open');bd.classList.add('open');fab.classList.add('hide');fab.setAttribute('aria-expanded','true');document.documentElement.style.overflow='hidden';
+ setTimeout(function(){if(window.mapa){mapa.invalidateSize();if(window.pos)mapa.setView(pos,mapa.getZoom())}},300)}
+function close(){sh.classList.remove('open');bd.classList.remove('open');fab.classList.remove('hide');fab.setAttribute('aria-expanded','false');document.documentElement.style.overflow=''}
+fab.onclick=open;bd.onclick=close;x.onclick=close;
+document.addEventListener('keydown',function(e){if(e.key==='Escape')close()});
+window.addEventListener('resize',function(){if(window.innerWidth>850)close()});
+})();</script>
 </body>
 </html>
