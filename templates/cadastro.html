@@ -75,6 +75,13 @@ form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#eef2ef;border-radius:12px;padding:4px}
+.seg button{height:44px;border:2px solid transparent;border-radius:9px;background:none;font:800 13px Inter,Arial,sans-serif;color:#34464d;cursor:pointer}
+.seg button.on{background:#fff;border-color:var(--dark)}
+.field[hidden]{display:none}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.5;color:#55656c;cursor:pointer}
+.consent input{width:18px;height:18px;margin-top:1px;flex:none;accent-color:var(--green)}
+.consent a{color:#18a92b;font-weight:700}
 </style>
 </head>
 <body>
@@ -85,10 +92,10 @@ form.inline{display:inline;margin:0}
   <div class="visual-content">
     <a class="logo" href="{{ url_for('home') }}" style="color:#fff">Imove<span>Londe</span></a>
     <div class="visual-bottom">
-      <span class="eyebrow">Sua busca começa aqui</span>
-      <h2>Encontre um lugar para chamar de seu.</h2>
-      <p>Salve seus imóveis favoritos, acompanhe o que você já visitou, organize seus contatos e agende suas visitas em um só lugar.</p>
-      <div class="features">
+      <span class="eyebrow" id="v-eyebrow">Sua busca começa aqui</span>
+      <h2 id="v-h2">Encontre um lugar para chamar de seu.</h2>
+      <p id="v-p">Salve seus imóveis favoritos, acompanhe o que você já visitou, organize seus contatos e agende suas visitas em um só lugar.</p>
+      <div class="features" id="v-feats">
         <span class="feature">♡ Favoritos</span>
         <span class="feature">⌂ Histórico</span>
         <span class="feature">💬 Contatos</span>
@@ -98,15 +105,35 @@ form.inline{display:inline;margin:0}
   </div>
 </section>
 <section class="form-side"><div class="form-wrap"><a class="mobile-logo" href="{{ url_for('home') }}" style="color:inherit">Imove<span>Londe</span></a>
-<div class="form-head"><h1>Crie sua conta</h1><p>É gratuito. Procure imóveis ou anuncie os seus.</p></div><form class="form" method="post" action="{{ url_for('cadastrar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}">
-<div class="field"><label for="tipo">Eu quero</label><select id="tipo" name="tipo"><option value="visitante" {{ 'selected' if tipo == 'visitante' }}>Procurar um imóvel</option><option value="proprietario" {{ 'selected' if tipo == 'proprietario' }}>Anunciar meu imóvel (proprietário)</option><option value="corretor" {{ 'selected' if tipo == 'corretor' }}>Anunciar como corretor</option><option value="imobiliaria" {{ 'selected' if tipo == 'imobiliaria' }}>Anunciar como imobiliária</option></select></div>
-<div class="field"><label for="nome">Nome (ou nome da imobiliária)</label><input id="nome" name="nome" required minlength="3" maxlength="120" value="{{ nome or '' }}" autocomplete="name"></div>
+{% set anunciar = tipo in ('proprietario', 'corretor', 'imobiliaria') %}
+<div class="form-head"><h1>Crie sua conta</h1><p id="sub">É gratuito e leva 1 minuto.</p></div><form class="form" method="post" action="{{ url_for('cadastrar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}"><input type="hidden" name="tipo" id="tipo" value="{{ tipo }}">
+<div class="seg" role="tablist" aria-label="Tipo de conta"><button type="button" role="tab" data-m="visitante" class="{{ 'on' if not anunciar }}" aria-selected="{{ 'false' if anunciar else 'true' }}">Sou visitante</button><button type="button" role="tab" data-m="anunciar" class="{{ 'on' if anunciar }}" aria-selected="{{ 'true' if anunciar else 'false' }}">Quero anunciar</button></div>
+<div class="field" id="sub-tipo"{% if not anunciar %} hidden{% endif %}><label for="tipo2">Como você anuncia?</label><select id="tipo2"><option value="proprietario" {{ 'selected' if tipo == 'proprietario' }}>Sou proprietário</option><option value="corretor" {{ 'selected' if tipo == 'corretor' }}>Sou corretor</option><option value="imobiliaria" {{ 'selected' if tipo == 'imobiliaria' }}>Sou imobiliária</option></select></div>
+<div class="field"><label for="nome" id="lbl-nome">{{ 'Nome da imobiliária' if tipo == 'imobiliaria' else 'Seu nome' }}</label><input id="nome" name="nome" required minlength="3" maxlength="120" value="{{ nome or '' }}" autocomplete="name"></div>
 <div class="field"><label for="email">E-mail</label><input id="email" name="email" type="email" required value="{{ email or '' }}" placeholder="seu@email.com" autocomplete="email"></div>
-<div class="field"><label for="tel">WhatsApp / telefone</label><input id="tel" name="telefone" inputmode="tel" value="{{ telefone or '' }}" placeholder="(11) 99999-9999" autocomplete="tel"></div>
+<div class="field"><label for="tel">WhatsApp (com DDD)</label><input id="tel" name="telefone" required inputmode="tel" value="{{ telefone or '' }}" placeholder="(11) 99999-9999" autocomplete="tel"></div>
 <div class="field"><label for="password">Senha (mínimo 8 caracteres)</label><div class="password-wrap"><input id="password" name="senha" type="password" required minlength="8" autocomplete="new-password"><button type="button" class="show" onclick="togglePassword()" aria-label="Mostrar senha">◉</button></div></div>
-<button class="submit" type="submit">Criar minha conta</button></form><div class="signup">Já tenho conta. <a href="{{ url_for('entrar', next=next) }}">Entrar</a></div><div class="back"><a href="{{ url_for('home') }}">← Voltar para o ImoveLonde</a></div></div></section></div>
+<label class="consent"><input type="checkbox" name="aceite" value="1" required><span>Li e aceito os {% if tem_rota('termos') %}<a href="{{ url_for('termos') }}" target="_blank" rel="noopener">Termos de uso</a>{% else %}Termos de uso{% endif %} e a {% if tem_rota('privacidade') %}<a href="{{ url_for('privacidade') }}" target="_blank" rel="noopener">Política de Privacidade</a>{% else %}Política de Privacidade{% endif %}. Autorizo o compartilhamento do meu nome, e-mail e telefone com os anunciantes dos imóveis em que eu pedir contato.</span></label>
+<button class="submit" type="submit">Criar minha conta</button><p class="notice" style="margin:0">Enviaremos um código de 6 dígitos para o seu e-mail para confirmar a conta.</p></form><div class="signup">Já tenho conta. <a href="{{ url_for('entrar', next=next) }}">Entrar</a></div><div class="back"><a href="{{ url_for('home') }}">← Voltar para o ImoveLonde</a></div></div></section></div>
 <script>
 function togglePassword(){var i=document.getElementById('password');i.type=i.type==='password'?'text':'password'}
+(function(){
+var t=document.getElementById('tipo'),t2=document.getElementById('tipo2'),sub=document.getElementById('sub-tipo'),btns=document.querySelectorAll('.seg button'),lbl=document.getElementById('lbl-nome'),
+E=document.getElementById('v-eyebrow'),H=document.getElementById('v-h2'),P=document.getElementById('v-p'),F=document.getElementById('v-feats'),S=document.getElementById('sub');
+var TXT={
+ visitante:{e:'Sua busca começa aqui',h:'Encontre um lugar para chamar de seu.',p:'Salve seus imóveis favoritos, acompanhe o que você já visitou, organize seus contatos e agende suas visitas em um só lugar.',f:['♡ Favoritos','⌂ Histórico','💬 Contatos','◷ Visitas'],s:'É gratuito e leva 1 minuto.'},
+ anunciar:{e:'Anuncie sem complicação',h:'Seu imóvel diante de quem está procurando.',p:'Publique grátis, receba os contatos direto no WhatsApp e acompanhe visualizações e interessados no seu painel.',f:['✓ Anúncio grátis','💬 WhatsApp direto','▤ Painel de contatos','⌂ Página própria'],s:'Grátis. Publique seu primeiro imóvel hoje.'}
+};
+function nome(){lbl.textContent=t.value==='imobiliaria'?'Nome da imobiliária':'Seu nome'}
+function set(m){
+ btns.forEach(function(b){var on=b.dataset.m===m;b.classList.toggle('on',on);b.setAttribute('aria-selected',on)});
+ if(m==='visitante'){t.value='visitante';sub.hidden=true}else{t.value=t2.value;sub.hidden=false}
+ var x=TXT[m];E.textContent=x.e;H.textContent=x.h;P.textContent=x.p;S.textContent=x.s;F.textContent='';
+ x.f.forEach(function(s){var e=document.createElement('span');e.className='feature';e.textContent=s;F.appendChild(e)});nome()}
+btns.forEach(function(b){b.onclick=function(){set(b.dataset.m)}});
+t2.onchange=function(){t.value=t2.value;nome()};
+if(t.value!=='visitante')set('anunciar');
+})();
 </script>
 </body>
 </html>
