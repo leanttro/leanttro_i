@@ -71,24 +71,19 @@ header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .pc{background:#fff;border:1px solid var(--l);border-radius:16px;overflow:hidden;box-shadow:0 4px 18px #07152110;display:flex;flex-direction:column;transition:transform .2s,box-shadow .2s}
 @media(prefers-reduced-motion:no-preference){.pc:hover{transform:translateY(-3px);box-shadow:0 14px 34px #07152122}}
-.pc-cover{position:relative;display:block;aspect-ratio:16/10;background:#e9eef0;overflow:hidden}
-.pc-cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}
-.pc:hover .pc-cover>img{transform:scale(1.03)}
-.pc-cover:after{content:"";position:absolute;inset:auto 0 0 0;height:45%;background:linear-gradient(transparent,#0714219e);pointer-events:none}
+.pc-cover{position:relative;display:block;aspect-ratio:1/1;background:#fff;overflow:hidden;border-bottom:1px solid #edf1f3}
+.pc-cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;display:block}
 .pc-ph{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#071521,#12362a);color:var(--g);font-size:54px;font-weight:850}
-.pc-ph img{max-width:55%;max-height:55%;object-fit:contain}
-.pc-badge,.pc-ver{position:absolute;z-index:2;font-size:10px;font-weight:850;border-radius:7px;padding:5px 9px;letter-spacing:.3px}
-.pc-badge{top:12px;right:12px;background:#ffffffee;color:#071521}
+.pc-ver{position:absolute;z-index:2;font-size:10px;font-weight:850;border-radius:7px;padding:5px 9px;letter-spacing:.3px}
 .pc-ver{left:12px;bottom:12px;background:var(--g);color:#06150c}
-.pc-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px 4px 0}
-.pc-thumbs a{position:relative;display:block;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:#e9eef0}
+.pc-lbl{font-size:11px;font-weight:800;color:var(--m);letter-spacing:.4px;text-transform:uppercase;padding:12px 14px 6px}
+.pc-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 10px}
+.pc-thumbs a{position:relative;display:block;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#e9eef0}
 .pc-thumbs img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
 .pc-thumbs a:hover img{transform:scale(1.08)}
 .pc-more{position:absolute;inset:0;display:grid;place-items:center;background:#071521b8;color:#fff;font-weight:850;font-size:15px}
 .pc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px;flex:1}
 .pc-head{display:flex;gap:12px;align-items:center}
-.pc-av{flex:none;width:52px;height:52px;border-radius:13px;background:var(--d);color:var(--g);display:grid;place-items:center;font-weight:850;font-size:17px;overflow:hidden}
-.pc-av img{width:100%;height:100%;object-fit:cover}
 .pc-name{font-size:17px;font-weight:800;letter-spacing:-.3px;line-height:1.2}
 .pc-city{font-size:12px;color:var(--m);margin-top:4px}
 .pc-desc{font-size:12.5px;line-height:1.55;color:#5d6a72;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -129,9 +124,9 @@ header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 <div class="top"><div><h2>{{ 'Resultados da busca' if q else ('Imobiliárias em destaque' if pros else 'Imobiliárias e corretores') }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no ImovelOnde</p></div></div>
 {% if pros %}<div class="pgrid">
 {% for t in pros %}<article class="pc">
-<a class="pc-cover" href="{{ url_for('imobiliaria', slug=t.slug) }}" aria-label="Ver página de {{ t.nome }}">{% if t.galeria %}<img src="{{ t.galeria[0].big }}" alt="{{ t.galeria[0].titulo }}" loading="lazy">{% else %}<div class="pc-ph">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.nome }}">{% else %}{{ t.nome|iniciais }}{% endif %}</div>{% endif %}<span class="pc-badge">★ PRO</span>{% if t.verificada %}<span class="pc-ver">✓ Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}</span>{% endif %}</a>
-{% if t.galeria|length > 1 %}<div class="pc-thumbs">{% for g in t.galeria[1:5] %}<a href="{{ g.url }}" aria-label="{{ g.titulo }}"><img src="{{ g.thumb }}" alt="{{ g.titulo }}" loading="lazy">{% if loop.last and t.mais %}<span class="pc-more">+{{ t.mais }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
-<div class="pc-body"><div class="pc-head"><div class="pc-av">{% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.nome }}" loading="lazy">{% else %}{{ t.nome|iniciais }}{% endif %}</div><div><div class="pc-name">{{ t.nome }}</div><div class="pc-city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
+<a class="pc-cover" href="{{ url_for('imobiliaria', slug=t.slug) }}" aria-label="Ver página de {{ t.nome }}">{% if t.logo_grande %}<img src="{{ t.logo_grande }}" alt="{{ t.nome }}" loading="lazy">{% else %}<div class="pc-ph">{{ t.nome|iniciais }}</div>{% endif %}{% if t.verificada %}<span class="pc-ver">✓ Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}</span>{% endif %}</a>
+{% if t.galeria %}<div class="pc-lbl">Alguns imóveis</div><div class="pc-thumbs">{% for g in t.galeria %}<a href="{{ g.url }}" aria-label="{{ g.titulo }}"><img src="{{ g.thumb }}" alt="{{ g.titulo }}" loading="lazy">{% if loop.last and t.mais %}<span class="pc-more">+{{ t.mais }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
+<div class="pc-body"><div class="pc-head"><div><div class="pc-name">{{ t.nome }}</div><div class="pc-city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
 <div class="pc-desc">{{ (t.descricao or 'Confira os imóveis anunciados no ImovelOnde.')[:140] }}</div>
 <div class="pc-chips">{% for f in t.finalidades %}<span class="f">{{ f }}</span>{% endfor %}<span>{{ t.n_imoveis }} imóve{{ 'l' if t.n_imoveis == 1 else 'is' }}</span>{% if t.anos_mercado %}<span>{{ t.anos_mercado }} anos</span>{% endif %}</div>
 <div class="card-actions"><a class="view" href="{{ url_for('imobiliaria', slug=t.slug) }}">Ver página</a>{% if t.whatsapp %}<a class="wa" href="{{ wa_link(t.whatsapp, 'Olá! Vi sua página no ImovelOnde.') }}" target="_blank" rel="noopener" aria-label="WhatsApp">◉</a>{% endif %}</div></div></article>
