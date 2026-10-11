@@ -3,16 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Favoritos</title>
+<title>OndeImóveis — Favoritos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,Arial,sans-serif;background:#f5f7f6;color:#17231e}
 a{text-decoration:none;color:inherit}
-.header{height:76px;background:#071521;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 6%;position:sticky;top:0;z-index:10}
-.logo{font-size:27px;font-weight:800;letter-spacing:-1.2px}.logo span{color:#39dc4b}
-.nav{display:flex;gap:28px;font-size:14px;color:#d8e2dd}.nav a:hover{color:#39dc4b}
-.actions{display:flex;gap:10px}.btn{padding:11px 18px;border-radius:9px;font-weight:700;font-size:13px}.outline{border:1px solid #50606a}.green{background:#39dc4b;color:#06150c}
+.btn{padding:11px 18px;border-radius:9px;font-weight:700;font-size:13px}.green{background:#39dc4b;color:#06150c}
 .hero{padding:54px 7% 38px;background:#fff;border-bottom:1px solid #e4e9e6}
 .hero-inner{max-width:1200px;margin:auto}
 .crumb{font-size:12px;color:#7b8983;margin-bottom:22px}.crumb span{color:#1cae32}
@@ -32,21 +31,56 @@ a{text-decoration:none;color:inherit}
 .cta{max-width:1200px;margin:0 auto 70px;background:#071521;border-radius:20px;color:#fff;padding:38px 45px;display:flex;align-items:center;justify-content:space-between;gap:25px}
 .cta h2{font-size:26px}.cta p{color:#abbab4;font-size:14px;margin-top:8px;line-height:1.5}
 .footer{background:#071521;color:#899991;padding:28px 7%;font-size:12px;display:flex;justify-content:space-between}
-@media(max-width:950px){.nav{display:none}.grid{grid-template-columns:repeat(2,1fr)}.content{padding-left:5%;padding-right:5%}.cta{margin-left:5%;margin-right:5%}}
-@media(max-width:600px){.header{padding:0 5%}.actions .outline{display:none}.hero{padding-left:5%;padding-right:5%}.hero h1{font-size:31px}.grid{grid-template-columns:1fr}.toolbar{align-items:flex-start;gap:15px;flex-direction:column}.cta{margin-bottom:45px;padding:30px;flex-direction:column;align-items:flex-start}.footer{flex-direction:column;gap:8px}}
+@media(max-width:950px){.grid{grid-template-columns:repeat(2,1fr)}.content{padding-left:5%;padding-right:5%}.cta{margin-left:5%;margin-right:5%}}
+@media(max-width:600px){.hero{padding-left:5%;padding-right:5%}.hero h1{font-size:31px}.grid{grid-template-columns:1fr}.toolbar{align-items:flex-start;gap:15px;flex-direction:column}.cta{margin-bottom:45px;padding:30px;flex-direction:column;align-items:flex-start}.footer{flex-direction:column;gap:8px}}
 .heart{border:0;cursor:pointer;padding:0;font-family:inherit}.photo a.cover{position:absolute;inset:0}.card .title a:hover{color:#1cae32}.sort{cursor:pointer}.btn{display:inline-block}
 
 form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+
+/* ===== cabeçalho idêntico ao da home ===== */
+:root{--g:#39e44b;--ink:#071421}
+header{position:relative;z-index:1000;width:100%;background:var(--g);color:var(--ink);box-shadow:0 2px 14px #0002}
+header .container{width:min(1110px,calc(100% - 48px));margin:auto}
+.nav{height:88px;display:flex;align-items:center;gap:40px}
+.logo{font-size:28px;font-weight:800;letter-spacing:-1.5px;display:inline-flex;align-items:center}
+.logo img{display:block;width:auto}header .logo img{filter:brightness(0)}
+.accent{color:var(--g)}header .accent{color:#fff}
+.mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--g);border-radius:7px;color:var(--g);margin-right:7px}
+header .mark{border-color:var(--ink);color:var(--ink)}
+.menu{display:flex;gap:30px;margin-left:auto;font-size:14px;font-weight:600}
+.actions{display:flex;gap:12px;margin-left:12px;font-size:14px}
+.actions a{white-space:nowrap}
+.menu a:hover{color:#fff}
+header .actions .btn.outline{border:1.5px solid var(--ink);color:var(--ink);background:transparent}
+header .actions .btn.green{background:var(--ink);color:#fff}
+header a:focus-visible,header button:focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-radius:6px}
+.burger{display:none;width:44px;height:44px;margin-left:6px;padding:0;border:0;background:transparent;border-radius:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+.burger span{display:block;width:25px;height:2.5px;background:var(--ink);border-radius:2px;transition:transform .2s,opacity .2s}
+.burger[aria-expanded=true] span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+.burger[aria-expanded=true] span:nth-child(2){opacity:0}
+.burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+.mnav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);border-top:1px solid #ffffff1f;box-shadow:0 16px 30px #0007;padding:8px 0 14px}
+.mnav.on{display:block}
+.mnav a{display:block;padding:15px 22px;font-size:16px;font-weight:650;color:#fff}
+.mnav a:active{background:#ffffff14}
+.mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
+@media(max-width:1000px){.menu{gap:15px}}
+@media(max-width:700px){header .container{width:calc(100% - 28px)}.menu{display:none}.actions{margin-left:auto}.nav{height:76px;gap:10px}.nav .logo img{height:52px!important}header .actions .btn.outline{display:none}.burger{display:flex;margin-left:0}}
+@media(min-width:701px){.mnav{display:none!important}}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-<header class="header"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
-<nav class="nav"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a></nav>
-<div class="actions">{% if usuario %}<a class="btn outline" href="{{ url_for('painel') }}">{{ usuario.nome.split()[0] }}</a><a class="btn green" href="{{ url_for('sair') }}">Sair</a>{% else %}<a class="btn outline" href="{{ url_for('entrar') }}">Entrar</a><a class="btn green" href="{{ url_for('cadastrar') }}">Criar conta</a>{% endif %}</div></header>
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
+{%- endmacro %}
+<header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
+<nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a></nav>
+<div class="actions">{% if usuario %}<a class="btn outline" href="{{ url_for('painel') }}">{{ usuario.nome.split()[0] }}</a><a class="btn green" href="{{ url_for('sair') }}">Sair</a>{% else %}<a class="btn outline" href="{{ url_for('entrar') }}">Entrar</a><a class="btn green" href="{{ url_for('cadastrar') }}">Criar conta</a>{% endif %}</div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
+<nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('perto_de_mim') }}">Perto de mim</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a><hr>{% if usuario %}<a href="{{ url_for('painel') }}">♙ {{ usuario.nome.split()[0] }}</a><a href="{{ url_for('sair') }}">Sair</a>{% else %}<a href="{{ url_for('entrar') }}">♙ Entrar</a><a href="{{ url_for('cadastrar') }}">Criar conta</a>{% endif %}</nav></header>
 <section class="hero"><div class="hero-inner"><div class="crumb"><a href="{{ url_for('home') }}">Início</a> / <span>Meus favoritos</span></div><h1>Meus favoritos</h1><p>Guarde os imóveis que você mais gostou e compare antes de entrar em contato.</p></div></section>
 <main class="content"><div class="toolbar"><div class="count"><strong>{{ imoveis|length }} imóve{{ 'l' if imoveis|length == 1 else 'is' }}</strong> salvo{{ '' if imoveis|length == 1 else 's' }} nos favoritos</div>
 <select class="sort" onchange="location='?ordem='+this.value"><option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Mais recentes adicionados</option><option value="menor" {{ 'selected' if ordem == 'menor' }}>Menor preço</option><option value="maior" {{ 'selected' if ordem == 'maior' }}>Maior preço</option></select></div>
@@ -58,6 +92,13 @@ form.inline{display:inline;margin:0}
 {% else %}<div style="grid-column:1/-1;background:#fff;border:1px dashed #d4dde1;border-radius:14px;padding:50px 20px;text-align:center;color:#73817b">Você ainda não favoritou nenhum imóvel.<br><a class="btn green" style="margin-top:16px" href="{{ url_for('buscar') }}">Procurar imóveis</a></div>{% endfor %}
 </section></main>
 <section class="cta"><div><h2>Encontrou o imóvel ideal?</h2><p>Abra o anúncio, confira todos os detalhes e fale diretamente com o anunciante pelo WhatsApp.</p></div><a class="btn green" href="{{ url_for('buscar') }}">Continuar procurando</a></section>
-<footer class="footer"><div>© 2026 ImoveLonde</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
+<footer class="footer"><div>© 2026 OndeImóveis</div><div>Imóveis • Imobiliárias • Tecnologia para o mercado imobiliário</div></footer>
+<script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
+function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
+b.onclick=function(){set(!m.classList.contains('on'))};
+m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
+document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
+window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
 </body>
 </html>
