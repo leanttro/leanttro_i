@@ -3,16 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{% set seo_title = 'Imóveis perto de você | ImovelOnde' %}
+{% set seo_title = 'Imóveis perto de você | OndeImóveis' %}
 {% set seo_desc = 'Veja no mapa casas e apartamentos para comprar ou alugar perto da sua localização. Fale direto com o anunciante.' %}
 {% include '_seo.html' %}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 
 :root{--green:#39dc4b;--green2:#20bd38;--dark:#071521;--text:#101d26;--muted:#68757d;--line:#e4eaed;--soft:#f5f8f9}
 *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--text);background:#f7f9fa}a{text-decoration:none;color:inherit}button,input,select{font:inherit}.container{width:min(1160px,calc(100% - 42px));margin:auto}
-header{height:70px;background:var(--dark);color:#fff}.nav{height:100%;display:flex;align-items:center;gap:40px}.logo{font-size:25px;font-weight:850;letter-spacing:-1.5px}.logo span{color:var(--green)}.logo i{display:inline-grid;place-items:center;width:25px;height:25px;border:2px solid var(--green);border-radius:6px;color:var(--green);font-style:normal;font-size:14px;margin-right:7px}.menu{display:flex;gap:27px;font-size:12px;font-weight:650}.actions{margin-left:auto;display:flex;gap:18px;font-size:12px}
 .searchbar{background:#fff;border-bottom:1px solid var(--line);padding:14px 0}.search{height:47px;background:#fff;border:1px solid #dce4e8;border-radius:9px;display:grid;grid-template-columns:2.3fr 1fr 1.15fr 1fr 78px;overflow:hidden;box-shadow:0 2px 8px #00000008}.field{display:flex;align-items:center;gap:9px;padding:0 14px;border-right:1px solid #e8edef;color:#69767d}.field input,.field select{width:100%;border:0;outline:0;background:transparent;font-size:11px;color:#34424a}.search button{border:0;background:var(--green);color:#fff;font-size:11px;font-weight:850}
-.main{display:grid;grid-template-columns:1fr 350px;height:calc(100vh - 133px);min-height:620px}
+.main{display:grid;grid-template-columns:1fr 350px;height:calc(100vh - 151px);min-height:620px}
 .map{position:relative;overflow:hidden;background:#e7ece7;background-image:linear-gradient(25deg,transparent 0 20%,rgba(255,255,255,.85) 20.5% 22%,transparent 22.5% 45%,rgba(255,255,255,.8) 45.5% 47%,transparent 47.5%),linear-gradient(115deg,transparent 0 25%,rgba(255,255,255,.75) 25.5% 28%,transparent 28.5% 58%,rgba(255,255,255,.7) 58.5% 61%,transparent 61.5%),linear-gradient(0deg,rgba(57,220,75,.08),rgba(0,0,0,.02));}
 .map:before{content:"";position:absolute;inset:-20%;background:repeating-linear-gradient(32deg,transparent 0 105px,rgba(160,174,180,.32) 106px 110px,transparent 111px 190px),repeating-linear-gradient(-42deg,transparent 0 130px,rgba(160,174,180,.24) 131px 134px,transparent 135px 220px);transform:rotate(5deg)}
 .map-label{position:absolute;font-size:11px;color:#5d696d;font-weight:700;z-index:1}.l1{left:18%;top:22%}.l2{left:55%;top:15%}.l3{left:32%;top:57%}.l4{left:72%;top:62%}.l5{left:58%;top:39%}.road{position:absolute;z-index:0;height:9px;background:#fff;box-shadow:0 0 0 1px #d6dddd;transform:rotate(-23deg);width:100%;top:42%;left:-5%}.road2{top:65%;transform:rotate(31deg);width:110%;left:-8%}.road3{top:23%;transform:rotate(4deg);width:110%;left:-4%}
@@ -21,11 +22,9 @@ header{height:70px;background:var(--dark);color:#fff}.nav{height:100%;display:fl
 .panel{background:#fff;border-left:1px solid var(--line);overflow:auto}.panel-head{padding:22px 20px 16px;border-bottom:1px solid var(--line)}.panel-head h1{font-size:20px;margin:0 0 5px;letter-spacing:-.5px}.panel-head p{margin:0;color:var(--muted);font-size:10px}.panel-tools{display:flex;gap:7px;margin-top:14px}.panel-tools button{height:33px;border:1px solid var(--line);background:#fff;border-radius:7px;font-size:10px;padding:0 10px;color:#59666d}.panel-tools button.active{background:#eefaf0;color:#159d2d;border-color:#c4ebca;font-weight:800}
 .cards{padding:14px 15px;display:grid;gap:12px}.card{display:grid;grid-template-columns:116px 1fr;gap:12px;border:1px solid var(--line);border-radius:9px;padding:7px;background:#fff;box-shadow:0 2px 7px #00000006}.photo{height:102px;border-radius:6px;background-size:cover;background-position:center;position:relative}.c1{background-image:url("https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=500&q=80")}.c2{background-image:url("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80")}.c3{background-image:url("https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=500&q=80")}.c4{background-image:url("https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=500&q=80")}.badge{position:absolute;left:6px;top:6px;background:#1a9746;color:#fff;border-radius:4px;padding:4px 6px;font-size:8px;font-weight:800}.heart{position:absolute;right:6px;top:6px;width:25px;height:25px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:12px}.info{padding:4px 2px}.price{font-size:15px;font-weight:850}.type{font-size:9px;color:#159d2d;font-weight:750;margin:4px 0}.title{font-size:11px;font-weight:750;line-height:1.3}.loc{font-size:9px;color:#6b777e;margin-top:6px}.meta{font-size:8px;color:#67747b;margin-top:8px;display:flex;gap:8px}
 .radius{padding:13px 15px;background:#f6f9fa;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.radius-title{display:flex;justify-content:space-between;font-size:10px;font-weight:750;margin-bottom:9px}.radius input{width:100%;accent-color:var(--green)}
-@media(max-width:850px){.menu{display:none}.main{grid-template-columns:1fr;height:auto}.map{height:520px}.panel{border-left:0}.actions{display:none}}
+@media(max-width:850px){.main{grid-template-columns:1fr;height:auto}.map{height:520px}.panel{border-left:0}}
 @media(max-width:600px){.container{width:calc(100% - 24px)}.search{display:block;height:auto;padding:5px}.field{height:40px;border-right:0;border-bottom:1px solid #edf0f2}.search button{width:100%;height:40px;margin-top:5px}.map{height:430px}.card{grid-template-columns:105px 1fr}}
 
-header a{color:inherit}.actions a{color:inherit}
-.logo i{display:inline-grid;place-items:center;width:25px;height:25px;border:2px solid var(--g,var(--green));border-radius:6px;color:var(--g,var(--green));font-style:normal;font-size:14px;margin-right:7px}
 
 footer{background:#06121b;color:#aebbc2;padding:26px 0;font-size:11px}.foot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}.links{display:flex;gap:22px;flex-wrap:wrap}
 a.page{display:inline-grid;place-items:center}
@@ -42,13 +41,48 @@ form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+
+/* ===== cabeçalho idêntico ao da home ===== */
+:root{--g:#39e44b;--ink:#071421}
+header{position:relative;z-index:1000;width:100%;background:var(--g);color:var(--ink);box-shadow:0 2px 14px #0002}
+header a{color:inherit}
+header .container{width:min(1110px,calc(100% - 48px));margin:auto}
+.nav{height:88px;display:flex;align-items:center;gap:40px}
+.logo{font-size:28px;font-weight:800;letter-spacing:-1.5px;display:inline-flex;align-items:center}
+.logo img{display:block;width:auto}header .logo img{filter:brightness(0)}
+.accent{color:var(--g)}header .accent{color:#fff}
+.mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--g);border-radius:7px;color:var(--g);margin-right:7px}
+header .mark{border-color:var(--ink);color:var(--ink)}
+.menu{display:flex;gap:30px;margin-left:auto;font-size:14px;font-weight:600}
+.actions{display:flex;gap:20px;margin-left:12px;font-size:14px}
+.actions a{white-space:nowrap}.actions .anunciar{display:none}
+.menu a:hover,.actions a:hover{color:#fff}
+.actions .anunciar{background:var(--ink)!important;color:#fff!important}
+header a:focus-visible,header button:focus-visible{outline:3px solid var(--g);outline-offset:2px;border-radius:6px}
+.burger{display:none;width:44px;height:44px;margin-left:6px;padding:0;border:0;background:transparent;border-radius:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+.burger span{display:block;width:25px;height:2.5px;background:var(--ink);border-radius:2px;transition:transform .2s,opacity .2s}
+.burger[aria-expanded=true] span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+.burger[aria-expanded=true] span:nth-child(2){opacity:0}
+.burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+.mnav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);border-top:1px solid #ffffff1f;box-shadow:0 16px 30px #0007;padding:8px 0 14px}
+.mnav.on{display:block}
+.mnav a{display:block;padding:15px 22px;font-size:16px;font-weight:650;color:#fff}
+.mnav a:active{background:#ffffff14}
+.mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
+@media(max-width:1000px){.menu{gap:15px}}
+@media(max-width:700px){header .container{width:calc(100% - 28px)}.menu,.actions .near{display:none}.actions{margin-left:auto}.nav{height:76px;gap:10px}.nav .logo img{height:52px!important}.actions .anunciar{display:inline-block;font-weight:800;padding:9px 15px;border-radius:20px}.burger{display:flex;margin-left:0}.actions a:not(.anunciar){display:none}}
+@media(min-width:701px){.mnav{display:none!important}}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-<header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}<i>⌂</i>Imovel<span>Onde</span>{% endif %}</a>
-<nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
-<div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
+{%- endmacro %}
+<header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
+<nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
+<div class="actions"><a class="anunciar" href="{{ url_for('home') }}#anunciar">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
+<nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
 <div class="searchbar"><div class="container"><form class="search" id="filtros" onsubmit="return false" style="grid-template-columns:2.3fr 1fr 1.15fr 1fr 78px">
 <label class="field">⌖ <input id="onde" value="Minha localização" readonly aria-label="Localização"></label>
 <label class="field">◉ <select id="finalidade"><option value="">Comprar ou alugar</option><option value="venda">Comprar</option><option value="aluguel">Alugar</option></select></label>
@@ -101,5 +135,12 @@ document.querySelectorAll('.panel-tools button').forEach(function(b){b.onclick=f
 if(navigator.geolocation){navigator.geolocation.getCurrentPosition(function(p){definePos([p.coords.latitude,p.coords.longitude],false)},function(){definePos(SP,true)},{timeout:8000})}else{definePos(SP,true)}
 
 </script>
+<script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
+function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
+b.onclick=function(){set(!m.classList.contains('on'))};
+m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
+document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
+window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
 </body>
 </html>
