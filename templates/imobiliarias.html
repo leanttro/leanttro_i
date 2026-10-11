@@ -76,6 +76,7 @@ header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 .pc-ph{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#071521,#12362a);color:var(--g);font-size:54px;font-weight:850}
 .pc-ver{position:absolute;z-index:2;font-size:10px;font-weight:850;border-radius:7px;padding:5px 9px;letter-spacing:.3px}
 .pc-ver{left:12px;bottom:12px;background:var(--g);color:#06150c}
+.pc-dest{position:absolute;z-index:2;left:12px;top:12px;font-size:10px;font-weight:850;border-radius:7px;padding:5px 9px;letter-spacing:.3px;background:#071521;color:var(--g)}
 .pc-lbl{font-size:11px;font-weight:800;color:var(--m);letter-spacing:.4px;text-transform:uppercase;padding:12px 14px 6px}
 .pc-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 10px}
 .pc-thumbs a{position:relative;display:block;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#e9eef0}
@@ -124,7 +125,7 @@ header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
 <div class="top"><div><h2>{{ 'Resultados da busca' if q else ('Imobiliárias em destaque' if pros else 'Imobiliárias e corretores') }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no OndeImóveis</p></div></div>
 {% if pros %}<div class="pgrid">
 {% for t in pros %}<article class="pc">
-<a class="pc-cover" href="{{ url_for('imobiliaria', slug=t.slug) }}" aria-label="Ver página de {{ t.nome }}">{% if t.logo_grande %}<img src="{{ t.logo_grande }}" alt="{{ t.nome }}" loading="lazy">{% else %}<div class="pc-ph">{{ t.nome|iniciais }}</div>{% endif %}{% if t.verificada %}<span class="pc-ver">✓ Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}</span>{% endif %}</a>
+<a class="pc-cover" href="{{ url_for('imobiliaria', slug=t.slug) }}" aria-label="Ver página de {{ t.nome }}">{% if t.logo_grande %}<img src="{{ t.logo_grande }}" alt="{{ t.nome }}" loading="lazy">{% else %}<div class="pc-ph">{{ t.nome|iniciais }}</div>{% endif %}<span class="pc-dest">★ Destaque</span>{% if t.verificada %}<span class="pc-ver">✓ Verificad{{ 'a' if t.tipo == 'imobiliaria' else 'o' }}</span>{% endif %}</a>
 {% if t.galeria %}<div class="pc-lbl">Alguns imóveis</div><div class="pc-thumbs">{% for g in t.galeria %}<a href="{{ g.url }}" aria-label="{{ g.titulo }}"><img src="{{ g.thumb }}" alt="{{ g.titulo }}" loading="lazy">{% if loop.last and t.mais %}<span class="pc-more">+{{ t.mais }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
 <div class="pc-body"><div class="pc-head"><div><div class="pc-name">{{ t.nome }}</div><div class="pc-city">⌖ {{ t.cidade or '—' }}{{ ' — ' ~ t.uf if t.uf }}</div></div></div>
 <div class="pc-desc">{{ (t.descricao or 'Confira os imóveis anunciados no OndeImóveis.')[:140] }}</div>
