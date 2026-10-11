@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Meu perfil</title>
+<title>OndeImóveis — Meu perfil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 
 :root{
@@ -105,13 +107,28 @@ form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+
+/* ===== cabeçalho igual ao da home ===== */
+:root{--g:#39e44b;--ink:#071421}
+.topbar{height:auto;padding:0;display:block;gap:0;position:relative;top:auto;z-index:1000;background:var(--g);color:var(--ink);box-shadow:0 2px 14px #0002}
+.topbar .hnav{width:min(1110px,calc(100% - 48px));margin:auto;height:88px;display:flex;align-items:center;gap:40px}
+.topbar .logo{font-size:28px;font-weight:800;letter-spacing:-1.5px;display:inline-flex;align-items:center;color:var(--ink);white-space:nowrap;text-decoration:none}
+.topbar .logo img{display:block;width:auto;filter:brightness(0)}
+.topbar .accent{color:#fff}
+.topbar .mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--ink);border-radius:7px;color:var(--ink);margin-right:7px}
+.topbar .avatar{background:var(--ink);color:#fff}
+.layout{min-height:calc(100vh - 88px)}
+@media(max-width:760px){.topbar .hnav{width:calc(100% - 28px);height:76px;gap:10px}.topbar .logo img{height:52px!important}.sidebar{top:0}.layout{min-height:0}}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-<header class="topbar"><a class="logo" href="{{ url_for('home') }}">Imove<span>Londe</span></a>
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
+{%- endmacro %}
+<header class="topbar"><div class="hnav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
 <form class="search" action="{{ url_for('buscar') }}" method="get"><input name="q" placeholder="Buscar imóveis, bairros ou cidades..."></form>
-<div class="top-actions"><div class="avatar">{{ usuario.nome|iniciais }}</div></div></header>
+<div class="top-actions"><div class="avatar">{{ usuario.nome|iniciais }}</div></div></div></header>
 <div class="layout"><aside class="sidebar"><div class="user-mini"><strong>{{ usuario.nome }}</strong><small>Minha conta</small></div><div class="nav"><div class="nav-label">Minha área</div><a href="{{ url_for('minha_area') }}"><span>▦</span> <span>Visão geral</span></a><a href="{{ url_for('favoritos') }}"><span>♡</span> <span>Favoritos</span></a><a href="{{ url_for('minha_area_lista', aba='visitados') }}"><span>⌂</span> <span>Imóveis visitados</span></a><a href="{{ url_for('minha_area_lista', aba='contatos') }}"><span>💬</span> <span>Meus contatos</span></a><a href="{{ url_for('minha_area_lista', aba='visitas') }}"><span>◷</span> <span>Visitas agendadas</span></a><div class="nav-label">Conta</div><a class="active" href="{{ url_for('minha_area_perfil') }}"><span>♙</span> <span>Meu perfil</span></a><a href="{{ url_for('sair') }}"><span>↩</span> <span>Sair</span></a></div></aside><main class="main"><div class="container">
 <div class="heading"><div><h1>Meu perfil</h1><p>Mantenha seus dados atualizados.</p></div></div>
 <section class="panel"><div class="panel-head"><h2>Dados pessoais</h2></div><form method="post" action="{{ url_for('minha_area_perfil') }}" style="padding:20px;max-width:520px">{{ csrf() }}
