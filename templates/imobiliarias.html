@@ -7,6 +7,8 @@
 {% set seo_desc = 'Conheça imobiliárias e corretores que anunciam no ImovelOnde, veja os imóveis de cada um e fale direto pelo WhatsApp.' %}
 {% if q %}{% set seo_robots = 'noindex,follow' %}{% set seo_canonical = 'none' %}{% endif %}
 {% include '_seo.html' %}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 
 :root{--g:#39dc4b;--g2:#20bd38;--d:#071521;--t:#101d26;--m:#68757d;--l:#e4eaed}
@@ -35,13 +37,46 @@ form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+
+/* cabeçalho idêntico ao da home */
+header{--g:#39e44b;--ink:#071421;position:relative;z-index:5;height:auto;background:var(--g);color:var(--ink);box-shadow:0 2px 14px #0002}
+header a{color:inherit}
+header .container{width:min(1110px,calc(100% - 48px));margin:auto}
+header .nav{height:88px;display:flex;align-items:center;gap:40px}
+header .logo{display:inline-flex;align-items:center;font-size:28px;font-weight:800;letter-spacing:-1.5px}
+header .logo img{display:block;width:auto;filter:brightness(0)}
+header .accent{color:#fff}
+header .mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--ink);border-radius:7px;color:var(--ink);margin-right:7px}
+header .menu{display:flex;gap:30px;margin-left:auto;font-size:14px;font-weight:600}
+header .actions{display:flex;gap:20px;margin-left:12px;font-size:14px}
+header .actions a{white-space:nowrap}
+header .actions .anunciar{display:none;background:var(--ink)!important;color:#fff!important}
+header .menu a:hover,header .actions a:hover{color:#fff}
+header a:focus-visible,header button:focus-visible{outline:3px solid var(--g);outline-offset:2px;border-radius:6px}
+header .burger{display:none;width:44px;height:44px;margin-left:6px;padding:0;border:0;background:transparent;border-radius:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+header .burger span{display:block;width:25px;height:2.5px;background:var(--ink);border-radius:2px;transition:transform .2s,opacity .2s}
+header .burger[aria-expanded=true] span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+header .burger[aria-expanded=true] span:nth-child(2){opacity:0}
+header .burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+header .mnav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);border-top:1px solid #ffffff1f;box-shadow:0 16px 30px #0007;padding:8px 0 14px}
+header .mnav.on{display:block}
+header .mnav a{display:block;padding:15px 22px;font-size:16px;font-weight:650;color:#fff}
+header .mnav a:active{background:#ffffff14}
+header .mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
+@media(max-width:1000px){header .menu{gap:15px}}
+@media(max-width:700px){header .container{width:calc(100% - 28px)}header .nav{height:76px;gap:10px}header .nav .logo img{height:52px!important}header .menu,header .actions .near{display:none}header .actions{margin-left:auto}header .actions a:not(.anunciar){display:none}header .actions .anunciar{display:inline-block;font-weight:800;padding:9px 15px;border-radius:20px}header .burger{display:flex;margin-left:0}}
+@media(min-width:701px){header .mnav{display:none!important}}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
-<header><div class="c container nav"><a class="logo" href="{{ url_for('home') }}">{% if SITE.logo %}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" style="height:34px;width:auto;display:block">{% else %}<i>⌂</i>Imovel<span>Onde</span>{% endif %}</a>
-<nav class="menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
-<div class="actions"><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div></div></header>
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Imóvel<span class="accent">Onde</span>{%- endif -%}
+{%- endmacro %}
+<header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
+<nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
+<div class="actions"><a class="anunciar" href="{{ url_for('anuncie') }}">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
+<nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
 <section class="hero"><div class="container"><h1>Encontre uma imobiliária</h1><p>Conheça imobiliárias e corretores cadastrados no ImovelOnde e encontre o profissional ideal para você.</p>
 <form class="search" method="get" action="{{ url_for('imobiliarias') }}" style="grid-template-columns:1fr 80px"><label class="field">⌕ <input name="q" value="{{ q }}" placeholder="Nome da imobiliária ou cidade"></label><button>Buscar</button></form></div></section>
 <main class="container content"><div class="top"><div><h2>{{ 'Resultados da busca' if q else 'Imobiliárias em destaque' }}</h2><p>{{ lista|length }} profissiona{{ 'l' if lista|length == 1 else 'is' }} no ImovelOnde</p></div></div>
@@ -53,5 +88,13 @@ form.inline{display:inline;margin:0}
 {% else %}<div class="empty">Nenhuma imobiliária encontrada.</div>{% endfor %}</div>
 <section class="cta"><div><h3>Você é corretor ou imobiliária?</h3><p>Cadastre seus imóveis gratuitamente e comece a receber contatos pelo ImovelOnde.</p></div><a href="{{ url_for('cadastrar', tipo='imobiliaria') }}"><button>Quero anunciar meus imóveis</button></a></section></main>
 <footer><div class="container c foot"><span>© {{ ano }} {{ SITE.nome }}</span><div class="links"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></div></div></footer>
+<script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
+function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
+b.onclick=function(){set(!m.classList.contains('on'))};
+m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
+document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
+window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
+{% include '_chatbot.html' %}
 </body>
 </html>
