@@ -5,7 +5,8 @@ Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
   PAGBANK_TOKEN, PAGBANK_SANDBOX, PAGBANK_WEBHOOK_TOKEN, PRECO_PROFISSIONAL, DEBUG, PORT
   Chatbot (Groq): GROQ_API_KEY, GROQ_API_KEY_2 (reserva), GROQ_MODEL (opcional)
-  Avisos por e-mail (opcional): SMTP_USER, SMTP_SENHA, EMAIL_AVISOS, SMTP_HOST, SMTP_PORT
+  E-mail (Zoho): SMTP_USER (e-mail completo), SMTP_SENHA (senha de aplicativo), EMAIL_AVISOS, SMTP_HOST (padrão smtp.zoho.com), SMTP_PORT (587)
+  Verificação de e-mail no cadastro (código de 6 dígitos): liga sozinha quando o SMTP está configurado; VERIFICAR_EMAIL=0 desliga
 Fotos: ficam num volume (UPLOAD_DIR) e são servidas por /assets/<id>?w=640 (redimensiona e guarda em cache).
 Os templates (templates/*.html) são HTML único, com CSS e JS no mesmo arquivo.
 """
@@ -58,11 +59,14 @@ PAGBANK_WEBHOOK_TOKEN = os.environ.get("PAGBANK_WEBHOOK_TOKEN", "").strip()
 PRECO_PROFISSIONAL = float(os.environ.get("PRECO_PROFISSIONAL", "149.90"))
 TZ = ZoneInfo(os.environ.get("TZ_PORTAL", "America/Sao_Paulo"))
 # Avisos por e-mail (Gmail + senha de app de 16 dígitos). Sem SMTP_USER/SMTP_SENHA, os avisos ficam desligados.
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip()
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.zoho.com").strip()
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "").strip()
 SMTP_SENHA = os.environ.get("SMTP_SENHA", "").replace(" ", "")
 EMAIL_AVISOS = os.environ.get("EMAIL_AVISOS", "").strip() or ADMIN_EMAIL
+# Sem SMTP não há como mandar o código: a verificação fica desligada para ninguém ficar trancado fora.
+VERIFICAR_EMAIL = _bool("VERIFICAR_EMAIL", bool(SMTP_USER and SMTP_SENHA))
+CONSENTIMENTO_VERSAO = "2026-10-10"      # mude quando alterar o texto do aceite (fica gravado junto da data)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("imovelonde")
@@ -232,6 +236,15 @@ CREATE TABLE IF NOT EXISTS pagamentos (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (provedor, evento_id));
 CREATE TABLE IF NOT EXISTS newsletter (email TEXT PRIMARY KEY, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
 ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS rua TEXT;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_verificado_em TIMESTAMPTZ;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone_verificado_em TIMESTAMPTZ;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_em TIMESTAMPTZ;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_versao TEXT;
+CREATE TABLE IF NOT EXISTS verificacoes (
+  id BIGSERIAL PRIMARY KEY, usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  codigo_hash TEXT NOT NULL, expira_em TIMESTAMPTZ NOT NULL, tentativas INT NOT NULL DEFAULT 0,
+  usado BOOLEAN NOT NULL DEFAULT FALSE, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX IF NOT EXISTS ix_verif_usuario ON verificacoes (usuario_id, id DESC);
 """
 
 
@@ -278,6 +291,9 @@ CREATE TABLE IF NOT EXISTS leads (
 CREATE INDEX IF NOT EXISTS ix_leads_data ON leads (criado_em DESC);
 CREATE INDEX IF NOT EXISTS ix_leads_tenant ON leads (tenant_id, criado_em DESC);
 CREATE INDEX IF NOT EXISTS ix_leads_usuario ON leads (usuario_id, canal, criado_em);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS email_verificado BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS telefone_verificado BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS consentimento_em TIMESTAMPTZ;
 -- importa UMA vez os contatos antigos (eventos de logados) para a tabela de leads
 INSERT INTO leads (usuario_id, tenant_id, imovel_id, origem, canal, nome, email, telefone, cidade, tenant_nome,
                    imovel_titulo, finalidade, tipo_imovel, preco, cidade_imovel, bairro_imovel, quartos, detalhe, criado_em)
@@ -815,7 +831,7 @@ def _contexto():
                CATEGORIAS_PROXIMO=CATEGORIAS_PROXIMO, ICONES_PROXIMO=ICONES_PROXIMO, CARACTERISTICAS=CARACTERISTICAS,
                PLANOS=PLANOS, PRECO_PROFISSIONAL=PRECO_PROFISSIONAL, wa_link=wa_link, url_foto=url_foto,
                SITE=_site_ctx(), canonical_url=canonical_url, tem_rota=lambda n: n in app.view_functions,
-               ano=datetime.now(TZ).year,
+               ano=datetime.now(TZ).year, email_ok=email_ok(g.get("usuario")),
                csrf=lambda: Markup(f'<input type="hidden" name="_csrf" value="{_token_csrf()}">'))
     if g.get("usuario") and g.usuario["tipo"] == "admin" and request.endpoint and request.endpoint.startswith("admin_"):
         n = query_one("SELECT (SELECT COUNT(*) FROM imoveis WHERE status = 'pendente') + "
@@ -927,24 +943,27 @@ def _smtp_enviar(msg):
     raise ultimo
 
 
-def _enviar_email(assunto, corpo):
-    """Envia um e-mail de aviso em segundo plano (nunca trava nem derruba a requisição)."""
-    if not (SMTP_USER and SMTP_SENHA and EMAIL_AVISOS):
+def _enviar_email(assunto, corpo, para=None, html=None):
+    """Envia e-mail em segundo plano (nunca trava nem derruba a requisição). Sem `para`, vai para EMAIL_AVISOS (admin)."""
+    destino = para or EMAIL_AVISOS
+    if not (SMTP_USER and SMTP_SENHA and destino):
         return
 
     def _job():
         try:
             msg = EmailMessage()
             msg["Subject"] = " ".join(assunto.split())[:150]
-            msg["From"] = f"{SITE_NOME} <{SMTP_USER}>"
-            msg["To"] = EMAIL_AVISOS
+            msg["From"] = f"{SITE_NOME} <{SMTP_USER}>"       # o Zoho exige que o remetente seja a própria conta
+            msg["To"] = destino
             msg.set_content(corpo)
+            if html:
+                msg.add_alternative(html, subtype="html")
             _smtp_enviar(msg)
         except smtplib.SMTPAuthenticationError as e:
-            log.error("E-mail de aviso: o servidor recusou o login de %s (%s %s). Confira SMTP_USER e a senha de app.",
+            log.error("E-mail: o servidor recusou o login de %s (%s %s). Confira SMTP_USER (e-mail completo) e a senha de aplicativo do Zoho.",
                       SMTP_USER, e.smtp_code, e.smtp_error)
         except Exception:
-            log.exception("Falha ao enviar e-mail de aviso (%s como %s)", SMTP_HOST, SMTP_USER)
+            log.exception("Falha ao enviar e-mail (%s como %s)", SMTP_HOST, SMTP_USER)
 
     threading.Thread(target=_job, daemon=True).start()
 
@@ -963,12 +982,14 @@ def avisar_novo_anuncio(imovel_id, editado=False):
         f"Local: {i['bairro']}, {i['cidade']}\n\nRevisar agora: {link}\n")
 
 
-def criar_usuario(nome, email, senha, tipo="visitante", telefone=None, cidade=None):
+def criar_usuario(nome, email, senha, tipo="visitante", telefone=None, cidade=None, consentimento=False):
     """Cria o usuário (e o 'tenant' se for anunciante). Devolve o id do usuário."""
     nome = sanitize_input(nome)[:120]
     uid = execute_returning(
-        "INSERT INTO usuarios (nome, email, senha_hash, tipo, telefone, cidade) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-        (nome, email.lower().strip(), generate_password_hash(senha), tipo, so_digitos(telefone) or None, sanitize_input(cidade or "") or None))
+        "INSERT INTO usuarios (nome, email, senha_hash, tipo, telefone, cidade, consentimento_em, consentimento_versao) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+        (nome, email.lower().strip(), generate_password_hash(senha), tipo, so_digitos(telefone) or None,
+         sanitize_input(cidade or "") or None, agora() if consentimento else None, CONSENTIMENTO_VERSAO if consentimento else None))
     if tipo in TIPOS_TENANT:
         execute("INSERT INTO tenants (usuario_id, nome, slug, tipo, telefone, whatsapp, cidade) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                 (uid, nome, slug_unico("tenants", gerar_slug(nome)), tipo, so_digitos(telefone) or None,
@@ -990,6 +1011,50 @@ def _limite_login():
     return n >= 10
 
 
+def email_ok(u):
+    """Pode ver contatos? Admin sempre; os demais, só com e-mail confirmado (se a verificação estiver ligada)."""
+    return bool(u) and (u["tipo"] == "admin" or not VERIFICAR_EMAIL or bool(u.get("email_verificado_em")))
+
+
+def verificado_required(f):
+    @wraps(f)
+    @login_required
+    def w(*a, **k):
+        if not email_ok(g.usuario):
+            flash("Confirme seu e-mail para ver o contato.", "error")
+            volta = request.full_path.rstrip("?") if request.method == "GET" else (request.referrer and urlparse(request.referrer).path)
+            return redirect(url_for("verificar", next=volta if seguro_next(volta or "") else ""))
+        return f(*a, **k)
+    return w
+
+
+def _hash_codigo(uid, codigo):
+    return hashlib.sha256(f"{app.secret_key}:{uid}:{codigo}".encode()).hexdigest()
+
+
+def enviar_codigo_verificacao(u):
+    """Gera e envia o código de 6 dígitos. Devolve (ok, erro). Limites: 1 envio por minuto, 5 por hora."""
+    ult = query_one("SELECT criado_em FROM verificacoes WHERE usuario_id = %s ORDER BY id DESC LIMIT 1", (u["id"],))
+    if ult and (agora() - ult["criado_em"]).total_seconds() < 60:
+        return False, "Aguarde um minuto para pedir outro código."
+    if query_one("SELECT COUNT(*) AS n FROM verificacoes WHERE usuario_id = %s AND criado_em > NOW() - INTERVAL '1 hour'",
+                 (u["id"],))["n"] >= 5:
+        return False, "Você pediu muitos códigos. Tente de novo daqui a uma hora."
+    codigo = f"{secrets.randbelow(10 ** 6):06d}"
+    execute("UPDATE verificacoes SET usado = TRUE WHERE usuario_id = %s AND NOT usado", (u["id"],))
+    execute("INSERT INTO verificacoes (usuario_id, codigo_hash, expira_em) VALUES (%s,%s,NOW() + INTERVAL '15 minutes')",
+            (u["id"], _hash_codigo(u["id"], codigo)))
+    nome = (u["nome"] or "").split()[0] if u.get("nome") else ""
+    texto = (f"Olá{', ' + nome if nome else ''}!\n\nSeu código de verificação do {SITE_NOME} é: {codigo}\n\n"
+             f"Ele vale por 15 minutos. Se não foi você que criou a conta, ignore este e-mail.\n")
+    html = (f'<div style="font-family:Arial,sans-serif;max-width:460px;margin:auto;color:#071421">'
+            f'<h2 style="margin:0 0 12px">Confirme seu e-mail</h2><p>Olá{", " + nome if nome else ""}! Use este código no {SITE_NOME}:</p>'
+            f'<p style="font-size:34px;letter-spacing:8px;font-weight:800;background:#f2fbf3;border-radius:12px;padding:16px;text-align:center;margin:18px 0">{codigo}</p>'
+            f'<p style="color:#68757d;font-size:13px">Vale por 15 minutos. Se não foi você que criou a conta, ignore este e-mail.</p></div>')
+    _enviar_email(f"{codigo} é o seu código do {SITE_NOME}", texto, para=u["email"], html=html)
+    return True, None
+
+
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -1009,6 +1074,8 @@ def entrar():
             session.clear()
             session["uid"] = u["id"]
             session.permanent = bool(request.form.get("lembrar"))
+            if u["tipo"] == "visitante" and not email_ok(u):
+                return redirect(url_for("verificar", next=nxt))
             return redirect(nxt or url_for("painel"))
         flash("E-mail ou senha incorretos.", "error")
     return render_template("entrar.html", next=nxt, email=email)
@@ -1031,21 +1098,78 @@ def cadastrar():
             erro = "Informe um e-mail válido."
         elif len(senha) < 8:
             erro = "A senha precisa ter pelo menos 8 caracteres."
-        elif tipo in TIPOS_TENANT and len(so_digitos(f["telefone"])) < 10:
-            erro = "Anunciantes precisam informar um WhatsApp com DDD."
+        elif len(so_digitos(f["telefone"])) < 10:
+            erro = "Informe um WhatsApp com DDD."
+        elif not request.form.get("aceite"):
+            erro = "Para criar a conta, aceite os termos e a política de privacidade."
         elif query_one("SELECT 1 FROM usuarios WHERE email = %s", (email,)):
             erro = "Já existe uma conta com esse e-mail. Tente entrar."
         if erro:
             flash(erro, "error")
         else:
-            uid = criar_usuario(nome, email, senha, tipo, f["telefone"])
+            uid = criar_usuario(nome, email, senha, tipo, f["telefone"], consentimento=True)
             session.clear()
             session["uid"] = uid
             flash("Conta criada! Bem-vindo ao ImóvelOnde.", "success")
             if tipo in TIPOS_TENANT:
                 flash("Complete a página do seu negócio e cadastre o primeiro imóvel.", "success")
+            if VERIFICAR_EMAIL:
+                enviar_codigo_verificacao({"id": uid, "nome": nome, "email": email})
+                return redirect(url_for("verificar", next=nxt))
             return redirect(nxt or url_for("painel"))
     return render_template("cadastro.html", next=nxt, **f)
+
+
+@app.route("/verificar", methods=["GET", "POST"])
+@login_required
+def verificar():
+    nxt = request.values.get("next", "")
+    nxt = nxt if seguro_next(nxt) else ""
+    destino = nxt or url_for("painel")
+    u = g.usuario
+    if email_ok(u):
+        return redirect(destino)
+    if request.method == "POST":
+        cod = so_digitos(request.form.get("codigo", ""))[:6]
+        v = query_one("SELECT * FROM verificacoes WHERE usuario_id = %s AND NOT usado ORDER BY id DESC LIMIT 1", (u["id"],))
+        erro = None
+        if not v or v["expira_em"] < agora():
+            erro = "Esse código expirou. Peça um novo."
+        elif v["tentativas"] >= 5:
+            erro = "Muitas tentativas erradas. Peça um novo código."
+        elif len(cod) != 6 or not hmac.compare_digest(v["codigo_hash"], _hash_codigo(u["id"], cod)):
+            execute("UPDATE verificacoes SET tentativas = tentativas + 1 WHERE id = %s", (v["id"],))
+            erro = "Código incorreto. Confira o e-mail e tente de novo."
+        if erro:
+            flash(erro, "error")
+        else:
+            execute("UPDATE verificacoes SET usado = TRUE WHERE id = %s", (v["id"],))
+            execute("UPDATE usuarios SET email_verificado_em = NOW() WHERE id = %s", (u["id"],))
+            flash("E-mail confirmado! Agora você pode ver os contatos.", "success")
+            return redirect(destino)
+    else:
+        # chegou aqui sem um código válido (ex.: conta antiga ou login em outro aparelho): manda um automaticamente
+        ativo = query_one("SELECT 1 FROM verificacoes WHERE usuario_id = %s AND NOT usado AND expira_em > NOW() AND tentativas < 5", (u["id"],))
+        if not ativo:
+            ok, msg = enviar_codigo_verificacao(u)
+            if ok:
+                flash("Enviamos um código para o seu e-mail.", "success")
+            elif msg:
+                flash(msg, "error")
+    e = u["email"]
+    mascarado = e[0] + "•" * max(1, e.index("@") - 1) + e[e.index("@"):] if "@" in e and e.index("@") > 1 else e
+    return render_template("verificar.html", next=nxt, email=mascarado)
+
+
+@app.route("/verificar/reenviar", methods=["POST"])
+@login_required
+def verificar_reenviar():
+    nxt = request.form.get("next", "")
+    nxt = nxt if seguro_next(nxt) else ""
+    if not email_ok(g.usuario):
+        ok, msg = enviar_codigo_verificacao(g.usuario)
+        flash("Enviamos um novo código para o seu e-mail." if ok else msg, "success" if ok else "error")
+    return redirect(url_for("verificar", next=nxt))
 
 
 @app.route("/sair")
@@ -1332,19 +1456,21 @@ def registrar_lead(origem, canal, tenant_id, imovel=None, detalhe=None):
     ip = hashlib.sha256((app.secret_key + (request.remote_addr or "")).encode()).hexdigest()[:24]
     execute(
         "INSERT INTO leads (usuario_id, tenant_id, imovel_id, origem, canal, nome, email, telefone, cidade, tenant_nome, "
-        "imovel_titulo, finalidade, tipo_imovel, preco, cidade_imovel, bairro_imovel, quartos, detalhe, cookies, ip_hash, user_agent) "
-        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        "imovel_titulo, finalidade, tipo_imovel, preco, cidade_imovel, bairro_imovel, quartos, detalhe, cookies, ip_hash, user_agent, "
+        "email_verificado, telefone_verificado, consentimento_em) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
         (u["id"], tenant_id, imovel_id, origem, canal, u["nome"], u["email"], u["telefone"], u["cidade"],
          t["nome"] if t else None,
          imovel["titulo"] if imovel else None, imovel["finalidade"] if imovel else None,
          imovel["tipo"] if imovel else None, imovel["preco"] if imovel else None,
          imovel["cidade"] if imovel else None, imovel["bairro"] if imovel else None,
          imovel["dormitorios"] if imovel else None, detalhe,
-         request.cookies.get("io_cookies"), ip, (request.user_agent.string or "")[:300]))
+         request.cookies.get("io_cookies"), ip, (request.user_agent.string or "")[:300],
+         bool(u.get("email_verificado_em")), bool(u.get("telefone_verificado_em")), u.get("consentimento_em")))
 
 
 @app.route("/imovel/<slug>/whatsapp")
-@login_required          # contato só para quem tem conta: quem não tem é levado ao cadastro/entrada e volta para o imóvel
+@verificado_required
 def imovel_whatsapp(slug):
     i, numero = _contato_imovel(slug)
     if not so_digitos(numero):
@@ -1359,7 +1485,7 @@ def imovel_whatsapp(slug):
 
 
 @app.route("/imovel/<slug>/visita", methods=["POST"])
-@login_required
+@verificado_required
 def imovel_visita(slug):
     i, numero = _contato_imovel(slug)
     quando = sanitize_input(request.form.get("quando", "").strip())[:40]
@@ -1447,7 +1573,7 @@ def imobiliaria(slug):
     enriquecer_tenant(t)
     lista, total, pagina, paginas, f = consulta_imoveis(request.args, "i.tenant_id = %s", (t["id"],), por_pagina=9)
     dono = bool(g.tenant and g.tenant["id"] == t["id"]) or bool(g.usuario and g.usuario["tipo"] == "admin")
-    tel_ok = dono or (bool(g.usuario) and slug in session.get("_tel", []))
+    tel_ok = dono or (email_ok(g.usuario) and slug in session.get("_tel", []))
     return render_template("imobiliaria.html", tn=t, imoveis=lista, total=total, pagina=pagina, paginas=paginas,
                            faixa=_faixa_paginas(pagina, paginas), f=f, qs=_montar_qs(request.args),
                            pro=t["plano_efetivo"] == "profissional", tel_ok=tel_ok)
@@ -1461,7 +1587,7 @@ def _tenant_contato(slug):
 
 
 @app.route("/imobiliarias/<slug>/whatsapp")
-@login_required
+@verificado_required
 def imobiliaria_whatsapp(slug):
     t = _tenant_contato(slug)
     if not so_digitos(t["whatsapp"]):
@@ -1473,7 +1599,7 @@ def imobiliaria_whatsapp(slug):
 
 
 @app.route("/imobiliarias/<slug>/telefone", methods=["POST"])
-@login_required
+@verificado_required
 def imobiliaria_telefone(slug):
     t = _tenant_contato(slug)
     registrar_lead("imobiliaria", "telefone", t["id"])
@@ -2400,7 +2526,10 @@ def _leads_filtro(args):
         where.append("l.criado_em >= NOW() - %s * INTERVAL '1 day'"); params.append(int(dias))
     else:
         dias = "todos"
-    return " AND ".join(where), params, dict(q=q, canal=canal, origem=origem, dias=dias, anunciante=tenant_id or "")
+    verificado = "1" if args.get("verificado") == "1" else ""
+    if verificado:
+        where.append("l.email_verificado")
+    return " AND ".join(where), params, dict(q=q, canal=canal, origem=origem, dias=dias, anunciante=tenant_id or "", verificado=verificado)
 
 
 _LEADS_SQL = ("SELECT l.*, u.criado_em AS cadastro_em FROM leads l LEFT JOIN usuarios u ON u.id = l.usuario_id "
@@ -2413,7 +2542,7 @@ def admin_leads():
     where, params, f = _leads_filtro(request.args)
     pagina = max(1, request.args.get("pagina", 1, type=int))
     resumo = query_one(
-        f"SELECT COUNT(*) AS total, COUNT(DISTINCT l.usuario_id) AS pessoas, COUNT(DISTINCT l.tenant_id) AS anunciantes, "
+        f"SELECT COUNT(*) AS total, COUNT(DISTINCT l.usuario_id) AS pessoas, COUNT(DISTINCT l.tenant_id) AS anunciantes, COUNT(*) FILTER (WHERE l.email_verificado) AS verificados, "
         f"COUNT(*) FILTER (WHERE l.criado_em >= NOW() - INTERVAL '7 days') AS ult7 FROM leads l WHERE {where}", params)
     lista = query_all(_LEADS_SQL.format(where=where) + " LIMIT %s OFFSET %s",
                       params + [LEADS_POR_PAGINA, (pagina - 1) * LEADS_POR_PAGINA])
@@ -2436,14 +2565,15 @@ def admin_leads_exportar():
     linhas = query_all(_LEADS_SQL.format(where=where) + " LIMIT 50000", params)
     cab = ["Data do contato", "Nome", "E-mail", "Telefone", "Cidade do lead", "Cadastro do lead em", "Origem", "Canal",
            "Imóvel", "Finalidade", "Tipo", "Preço (R$)", "Quartos", "Cidade do imóvel", "Bairro do imóvel", "Anunciante",
-           "Detalhe (visita)", "Cookies"]
+           "Detalhe (visita)", "Cookies", "E-mail verificado", "Telefone verificado", "Consentimento (LGPD) em"]
 
     def linha(r):
         return [_local_naive(r["criado_em"]), r["nome"], r["email"], r["telefone"], r["cidade"], _local_naive(r["cadastro_em"]),
                 ORIGENS_LEAD.get(r["origem"], r["origem"]), CANAIS_LEAD.get(r["canal"], r["canal"]),
                 r["imovel_titulo"], FINALIDADES.get(r["finalidade"], r["finalidade"]), TIPOS_IMOVEL.get(r["tipo_imovel"], r["tipo_imovel"]),
                 float(r["preco"]) if r["preco"] is not None else None, r["quartos"], r["cidade_imovel"], r["bairro_imovel"],
-                r["tenant_nome"], r["detalhe"], COOKIES_LEAD.get(r["cookies"], "—")]
+                r["tenant_nome"], r["detalhe"], COOKIES_LEAD.get(r["cookies"], "—"),
+                "Sim" if r["email_verificado"] else "Não", "Sim" if r["telefone_verificado"] else "Não", _local_naive(r["consentimento_em"])]
 
     nome = f"leads-imovelonde-{datetime.now(TZ).strftime('%Y-%m-%d')}"
     try:
@@ -2469,11 +2599,11 @@ def admin_leads_exportar():
         c.alignment = Alignment(vertical="center")
     for r in linhas:
         ws.append(linha(r))
-    larguras = [17, 26, 32, 16, 18, 17, 22, 12, 36, 11, 13, 14, 8, 18, 18, 26, 30, 14]
+    larguras = [17, 26, 32, 16, 18, 17, 22, 12, 36, 11, 13, 14, 8, 18, 18, 26, 30, 14, 16, 17, 22]
     for k, w_ in enumerate(larguras, 1):
         ws.column_dimensions[get_column_letter(k)].width = w_
     for row in ws.iter_rows(min_row=2):
-        row[0].number_format = row[5].number_format = "dd/mm/yyyy hh:mm"
+        row[0].number_format = row[5].number_format = row[20].number_format = "dd/mm/yyyy hh:mm"
         row[11].number_format = '#,##0.00'
         row[3].number_format = "@"
     ws.freeze_panes = "A2"
