@@ -35,6 +35,9 @@ form.inline{display:inline;margin:0}
 .pg{display:flex;gap:6px;align-items:center;justify-content:center;padding:16px 19px;font-size:11px}.pg a,.pg span{min-width:32px;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:#fff;font-weight:700}.pg span{background:var(--dark);color:#fff;border-color:var(--dark)}
 .leadstats{grid-template-columns:repeat(4,1fr)}@media(max-width:900px){.leadstats{grid-template-columns:repeat(2,1fr)}}
 .xl{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+.bar{height:8px;border-radius:99px;background:#e6ece8;overflow:hidden}.bar>i{display:block;height:100%;border-radius:99px;background:var(--green);min-width:0}.bar.warn>i{background:#e9a62c}.bar.crit>i{background:var(--red)}.bar.thin{height:5px;margin-top:6px;max-width:190px}
+.usagestats{grid-template-columns:repeat(4,1fr)}.usocell{white-space:nowrap}.usocell b{font-size:11px}details.card>summary{cursor:pointer;list-style:none}details.card>summary::-webkit-details-marker{display:none}details.card>summary h2:before{content:"▸";display:inline-block;margin-right:8px;color:var(--muted);transition:transform .15s}details.card[open]>summary h2:before{transform:rotate(90deg)}details.card[open]>summary{border-bottom:1px solid #edf1ef}details.card:not([open])>summary{border-bottom:0}
+@media(max-width:1150px){.usagestats{grid-template-columns:repeat(2,1fr)}}@media(max-width:480px){.usagestats{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -103,7 +106,26 @@ form.inline{display:inline;margin:0}
 {{ volbox(vol) }}
 <div class="welcome"><div><h1>Arquivos</h1><p>{{ resumo.n|num }} arquivo{{ '' if resumo.n == 1 else 's' }} · {{ (resumo.bytes / 1048576)|num(1) }} MB no volume · {{ orfaos }} órfão{{ '' if orfaos == 1 else 's' }}.</p></div>
 <form class="inline" method="post" action="{{ url_for('admin_arquivos_limpar') }}" onsubmit="return confirm('Remover os arquivos órfãos (sem imóvel/logo) com mais de 1 hora?')">{{ csrf() }}<button class="primary" style="border:0">Limpar órfãos</button></form></div>
-<div class="card"><div class="grid-files">{% for a in lista %}<div class="fileb"><img loading="lazy" src="{{ url_foto(a.id, 200) }}" alt=""><div><b style="color:{{ '#168e29' if a.em_uso else '#c33e3e' }}">{{ 'em uso' if a.em_uso else 'órfão' }}</b> · {{ (a.tamanho / 1024)|round|int }} KB<br>{{ a.largura }}×{{ a.altura }} · {{ a.criado_em|data }}</div></div>{% else %}<div class="empty" style="grid-column:1/-1">Nenhum arquivo.</div>{% endfor %}</div></div>{% elif pagina_ativa == 'midia' %}
+{% macro barra(pct, aviso=80, critico=100) %}{% set p = [[(pct or 0), 0]|max, 100]|min %}<div class="bar thin {{ 'crit' if p >= critico else 'warn' if p >= aviso }}"><i style="width:{{ p }}%"></i></div>{% endmacro %}
+{% set dp = [[(disco.pct_usado if disco else 0), 0]|max, 100]|min %}
+<section class="stats usagestats">
+<div class="stat"><div class="stat-top"><span>Disco</span><div class="stat-icon">◉</div></div>{% if disco %}<strong>{{ disco.usado|bytes_h }} <span style="font-size:12px;color:var(--muted);font-weight:700">/ {{ disco.total|bytes_h }}</span></strong><div class="bar {{ 'crit' if dp >= 90 else 'warn' if dp >= 70 }}" style="margin-top:10px"><i style="width:{{ dp }}%"></i></div><small style="color:{{ '#c33e3e' if dp >= 90 else '#c98a16' if dp >= 70 else '#1cae32' }}">{{ dp|num(1) }}% usado · {{ disco.livre|bytes_h }} livres</small>{% else %}<strong style="font-size:17px;color:var(--muted)">indisponível</strong><small style="color:var(--muted)">não foi possível ler o disco</small>{% endif %}</div>
+<div class="stat"><div class="stat-top"><span>Originais</span><div class="stat-icon">▣</div></div><strong>{{ originais_bytes|bytes_h }}</strong><small>{{ resumo.n|num }} arquivo{{ '' if resumo.n == 1 else 's' }} guardados</small></div>
+<div class="stat"><div class="stat-top"><span>Cache de variantes</span><div class="stat-icon">▤</div></div><strong>{{ cache_bytes|bytes_h }}</strong><small style="color:var(--muted)">pode ser apagado, se recria sozinho</small></div>
+<div class="stat {{ 'alert' if orfaos }}"><div class="stat-top"><span>Órfãos</span><div class="stat-icon">◷</div></div><strong>{{ orfaos|num }}</strong><small>{{ 'sem imóvel ou logo — podem ser limpos' if orfaos else 'nenhum órfão' }}</small></div>
+</section>
+<div class="card"><div class="card-head"><h2>Uso por anunciante</h2><span class="mono">{{ uso_anunciantes|length }} anunciante{{ '' if uso_anunciantes|length == 1 else 's' }}</span></div>
+{% if uso_anunciantes %}<div class="filters"><input type="search" id="usoBusca" placeholder="Buscar anunciante pelo nome..." autocomplete="off"></div>
+<div class="table-wrap" style="overflow-x:auto"><table class="table" id="usoTabela" style="min-width:680px"><thead><tr><th>Anunciante</th><th>Imóveis</th><th>Fotos</th><th>Espaço</th></tr></thead><tbody>
+{% for u in uso_anunciantes %}<tr data-nome="{{ (u.nome or '')|lower }}"><td><a class="link" style="font-size:11px" target="_blank" rel="noopener" href="{{ url_for('imobiliaria', slug=u.slug) }}">{{ u.nome }}</a> <span class="badge {{ 'pro' if u.plano_efetivo == 'profissional' else 'free' }}">{{ PLANOS[u.plano_efetivo]|upper }}</span></td>
+<td class="usocell"><b>{{ u.n_imoveis|num }}</b> / {{ u.limite_imoveis|num }}{{ barra(u.pct_imoveis) }}</td>
+<td class="usocell"><b>{{ u.n_fotos|num }}</b> / {{ u.limite_fotos_total|num }}<small class="mono"> ({{ u.limite_imoveis|num }} × {{ u.limite_fotos|num }})</small>{{ barra(u.pct_fotos) }}</td>
+<td><b>{{ u.bytes|bytes_h }}</b></td></tr>{% endfor %}
+<tr id="usoVazio" style="display:none"><td colspan="4"><div class="empty">Nenhum anunciante encontrado para essa busca.</div></td></tr>
+</tbody></table></div>
+<script>(function(){var q=document.getElementById('usoBusca'),t=document.getElementById('usoTabela');if(!q||!t)return;var linhas=t.querySelectorAll('tbody tr[data-nome]'),vazio=document.getElementById('usoVazio');function n(x){x=(x||'').toLowerCase();return x.normalize?x.normalize('NFD').replace(/[\u0300-\u036f]/g,''):x}q.addEventListener('input',function(){var v=n(q.value.trim()),achou=0;for(var i=0;i<linhas.length;i++){var ok=!v||n(linhas[i].getAttribute('data-nome')).indexOf(v)>-1;linhas[i].style.display=ok?'':'none';if(ok)achou++}vazio.style.display=achou?'none':''})})();</script>
+{% else %}<div class="empty">Nenhum anunciante com arquivos ainda.</div>{% endif %}</div>
+<details class="card"><summary class="card-head"><h2>Últimos arquivos enviados</h2><span class="mono">{{ lista|length }} mais recentes</span></summary><div class="grid-files">{% for a in lista %}<div class="fileb"><img loading="lazy" src="{{ url_foto(a.id, 200) }}" alt=""><div><b style="color:{{ '#168e29' if a.em_uso else '#c33e3e' }}">{{ 'em uso' if a.em_uso else 'órfão' }}</b> · {{ (a.tamanho / 1024)|round|int }} KB<br>{{ a.largura }}×{{ a.altura }} · {{ a.criado_em|data }}</div></div>{% else %}<div class="empty" style="grid-column:1/-1">Nenhum arquivo.</div>{% endfor %}</div></details>{% elif pagina_ativa == 'midia' %}
 {{ volbox(vol) }}
 <div class="welcome"><div><h1>Imagens do site</h1><p>Envie e já aparece no site.</p></div></div>
 <div class="slots">{% for s in slots %}<div class="card"><div class="card-head"><h2>{{ s.nome }}</h2><span class="badge {{ 'active' if s.url else 'free' }}">{{ 'ENVIADO' if s.url else 'PADRÃO' }}</span></div><div class="slot-body">
