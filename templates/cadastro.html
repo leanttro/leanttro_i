@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ImoveLonde — Criar conta</title>
+<title>OndeImóveis — Criar conta</title>
 <style>
 
 :root{
@@ -22,8 +22,11 @@ body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--text);background:va
 .visual img{width:100%;height:100%;object-fit:cover;opacity:.54}
 .visual:after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(7,21,33,.96) 5%,rgba(7,21,33,.62) 50%,rgba(7,21,33,.25))}
 .visual-content{position:absolute;z-index:2;inset:0;padding:48px 58px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
-.logo{font-size:29px;font-weight:900;letter-spacing:-1.5px}
-.logo span{color:var(--green)}
+.logo,.mobile-logo{text-decoration:none;font-size:28px;font-weight:800;letter-spacing:-1.5px;display:inline-flex;align-items:center}
+.logo img,.mobile-logo img{display:block;width:auto}
+.logo img{filter:brightness(0) invert(1)}.mobile-logo img{filter:brightness(0)}
+.mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--g,#39e44b);border-radius:7px;color:var(--g,#39e44b);margin-right:7px}
+.accent{color:#39e44b}
 .visual-bottom{max-width:550px}
 .visual-bottom .eyebrow{display:inline-block;color:var(--green);font-size:11px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:15px}
 .visual-bottom h2{font-size:43px;line-height:1.05;letter-spacing:-1.8px;margin:0 0 17px}
@@ -60,8 +63,9 @@ body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--text);background:va
  .page{grid-template-columns:1fr}
  .visual{display:none}
  .form-side{min-height:100vh;padding:30px 22px}
- .mobile-logo{display:block;text-align:center;font-size:27px;font-weight:900;letter-spacing:-1.4px;margin-bottom:38px}
- .mobile-logo span{color:var(--green-dark)}
+ .mobile-logo{display:flex;justify-content:center;margin-bottom:38px}
+ .mobile-logo .mark{border-color:var(--dark);color:var(--dark)}
+ .mobile-logo .accent{color:var(--green-dark)}
  .form-wrap{max-width:430px}
 }
 @media(max-width:430px){
@@ -86,11 +90,14 @@ form.inline{display:inline;margin:0}
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
+{%- endmacro %}
 <div class="page">
 <section class="visual">
   <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=85" alt="Imóvel">
   <div class="visual-content">
-    <a class="logo" href="{{ url_for('home') }}" style="color:#fff">Imove<span>Londe</span></a>
+    <a class="logo" href="{{ url_for('home') }}" style="color:#fff" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
     <div class="visual-bottom">
       <span class="eyebrow" id="v-eyebrow">Sua busca começa aqui</span>
       <h2 id="v-h2">Encontre um lugar para chamar de seu.</h2>
@@ -104,7 +111,7 @@ form.inline{display:inline;margin:0}
     </div>
   </div>
 </section>
-<section class="form-side"><div class="form-wrap"><a class="mobile-logo" href="{{ url_for('home') }}" style="color:inherit">Imove<span>Londe</span></a>
+<section class="form-side"><div class="form-wrap"><a class="mobile-logo" href="{{ url_for('home') }}" style="color:inherit" aria-label="{{ SITE.nome }} — página inicial">{{ marca(52) }}</a>
 {% set anunciar = tipo in ('proprietario', 'corretor', 'imobiliaria') %}
 <div class="form-head"><h1>Crie sua conta</h1><p id="sub">É gratuito e leva 1 minuto.</p></div><form class="form" method="post" action="{{ url_for('cadastrar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}"><input type="hidden" name="tipo" id="tipo" value="{{ tipo }}">
 <div class="seg" role="tablist" aria-label="Tipo de conta"><button type="button" role="tab" data-m="visitante" class="{{ 'on' if not anunciar }}" aria-selected="{{ 'false' if anunciar else 'true' }}">Sou visitante</button><button type="button" role="tab" data-m="anunciar" class="{{ 'on' if anunciar }}" aria-selected="{{ 'true' if anunciar else 'false' }}">Quero anunciar</button></div>
@@ -114,7 +121,7 @@ form.inline{display:inline;margin:0}
 <div class="field"><label for="tel">WhatsApp (com DDD)</label><input id="tel" name="telefone" required inputmode="tel" value="{{ telefone or '' }}" placeholder="(11) 99999-9999" autocomplete="tel"></div>
 <div class="field"><label for="password">Senha (mínimo 8 caracteres)</label><div class="password-wrap"><input id="password" name="senha" type="password" required minlength="8" autocomplete="new-password"><button type="button" class="show" onclick="togglePassword()" aria-label="Mostrar senha">◉</button></div></div>
 <label class="consent"><input type="checkbox" name="aceite" value="1" required><span>Li e aceito os {% if tem_rota('termos') %}<a href="{{ url_for('termos') }}" target="_blank" rel="noopener">Termos de uso</a>{% else %}Termos de uso{% endif %} e a {% if tem_rota('privacidade') %}<a href="{{ url_for('privacidade') }}" target="_blank" rel="noopener">Política de Privacidade</a>{% else %}Política de Privacidade{% endif %}. Autorizo o compartilhamento do meu nome, e-mail e telefone com os anunciantes dos imóveis em que eu pedir contato.</span></label>
-<button class="submit" type="submit">Criar minha conta</button><p class="notice" style="margin:0">Enviaremos um código de 6 dígitos para o seu e-mail para confirmar a conta.</p></form><div class="signup">Já tenho conta. <a href="{{ url_for('entrar', next=next) }}">Entrar</a></div><div class="back"><a href="{{ url_for('home') }}">← Voltar para o ImoveLonde</a></div></div></section></div>
+<button class="submit" type="submit">Criar minha conta</button><p class="notice" style="margin:0">Enviaremos um código de 6 dígitos para o seu e-mail para confirmar a conta.</p></form><div class="signup">Já tenho conta. <a href="{{ url_for('entrar', next=next) }}">Entrar</a></div><div class="back"><a href="{{ url_for('home') }}">← Voltar para o OndeImóveis</a></div></div></section></div>
 <script>
 function togglePassword(){var i=document.getElementById('password');i.type=i.type==='password'?'text':'password'}
 (function(){
