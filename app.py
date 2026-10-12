@@ -12,7 +12,7 @@ Fotos: ficam num volume (UPLOAD_DIR) e são servidas por /assets/<id>?w=640 (red
 Os templates (templates/*.html) são HTML único, com CSS e JS no mesmo arquivo.
 Guia/blog: /guia (público, SEO) e /admin/guia (editor, categorias, autores). Tabelas guia_* criadas por init_db (só CREATE IF NOT EXISTS).
 """
-import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging, unicodedata, smtplib, ssl, threading, shutil
+import os, re, io, json, math, time, hmac, uuid, glob, hashlib, secrets, logging, unicodedata, smtplib, ssl, threading, shutil, calendar
 from email.message import EmailMessage
 from email.utils import format_datetime
 from html import unescape as html_unescape
@@ -88,6 +88,11 @@ FINALIDADES = {"venda": "Venda", "aluguel": "Aluguel"}
 STATUS_IMOVEL = {"publicado": "Publicado", "pendente": "Em análise", "pausado": "Pausado", "rejeitado": "Rejeitado"}
 PLANOS = {"gratis": "Grátis", "profissional": "Profissional"}
 LIMITES = {"gratis": {"imoveis": 3, "fotos": 8, "destaques": 0}, "profissional": {"imoveis": 50, "fotos": 20, "destaques": 3}}
+# Períodos do Profissional. É só o "seed" da tabela planos_pro: depois que ela existe, preço e liga/desliga são editados em /admin/planos.
+# (codigo, nome, meses, fator sobre o preço mensal, nasce ativo?). Só o mensal nasce ligado: os outros começam desligados, com preço
+# provisório (desconto de exemplo), para ninguém comprar por um valor que você ainda não conferiu.
+PLANOS_PRO_PADRAO = (("mensal", "Mensal", 1, 1.00, True), ("trimestral", "Trimestral", 3, 0.95, False),
+                     ("semestral", "Semestral", 6, 0.90, False), ("anual", "Anual", 12, 0.85, False))
 RENOVAR_ANTES_DIAS = 10     # o Pro ativo pode renovar (pagamento avulso de 30 dias) quando faltarem tantos dias ou menos
 TIPOS_CONTA = {"visitante": "Visitante", "proprietario": "Proprietário", "corretor": "Corretor", "imobiliaria": "Imobiliária"}
 TIPOS_TENANT = ("proprietario", "corretor", "imobiliaria")
@@ -268,6 +273,11 @@ CREATE TABLE IF NOT EXISTS verificacoes (
   codigo_hash TEXT NOT NULL, expira_em TIMESTAMPTZ NOT NULL, tentativas INT NOT NULL DEFAULT 0,
   usado BOOLEAN NOT NULL DEFAULT FALSE, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
 CREATE INDEX IF NOT EXISTS ix_verif_usuario ON verificacoes (usuario_id, id DESC);
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS plano_codigo TEXT;
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS meses INT;
+CREATE TABLE IF NOT EXISTS planos_pro (
+  codigo TEXT PRIMARY KEY, nome TEXT NOT NULL, meses INT NOT NULL CHECK (meses > 0),
+  valor NUMERIC(10,2) NOT NULL CHECK (valor > 0), ativo BOOLEAN NOT NULL DEFAULT TRUE);
 """
 
 
@@ -391,6 +401,9 @@ def init_db():
             cur.execute(SCHEMA_CHAT)
             cur.execute(SCHEMA_LEADS)
             cur.execute(SCHEMA_GUIA)
+            for cod, nome, meses, fator, ativo in PLANOS_PRO_PADRAO:     # só cria o que falta: nunca sobrescreve o que o admin editou
+                cur.execute("INSERT INTO planos_pro (codigo, nome, meses, valor, ativo) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (codigo) DO NOTHING",
+                            (cod, nome, meses, round(PRECO_PROFISSIONAL * meses * fator, 2), ativo))
             cur.execute("SELECT pg_advisory_unlock(727274)")
         c.commit()
     finally:
@@ -1094,7 +1107,7 @@ def _site_ctx():
 def _contexto():
     ctx = dict(usuario=g.get("usuario"), TIPOS_IMOVEL=TIPOS_IMOVEL, FINALIDADES=FINALIDADES, STATUS_IMOVEL=STATUS_IMOVEL,
                CATEGORIAS_PROXIMO=CATEGORIAS_PROXIMO, ICONES_PROXIMO=ICONES_PROXIMO, CARACTERISTICAS=CARACTERISTICAS,
-               PLANOS=PLANOS, PRECO_PROFISSIONAL=PRECO_PROFISSIONAL, wa_link=wa_link, url_foto=url_foto,
+               PLANOS=PLANOS, PRECO_PROFISSIONAL=preco_mensal(), wa_link=wa_link, url_foto=url_foto,
                SITE=_site_ctx(), canonical_url=canonical_url, tem_rota=lambda n: n in app.view_functions,
                ano=datetime.now(TZ).year, email_ok=email_ok(g.get("usuario")),
                csrf=lambda: Markup(f'<input type="hidden" name="_csrf" value="{_token_csrf()}">'))
@@ -3235,8 +3248,9 @@ def _painel(ativa, **form):
                template_atual=t.get("template") if t.get("template") in listar_templates_pagina() else TEMPLATE_PADRAO)
     ctx.update(
         recorrente_ativo=PAGBANK_RECORRENTE,
+        planos_assinar=_planos_para_assinar(),
         assinatura_recorrente=query_one(
-            "SELECT proxima_cobranca, vencimento FROM assinaturas WHERE tenant_id = %s AND recorrente AND status = 'ativa' "
+            "SELECT proxima_cobranca, vencimento, valor, meses FROM assinaturas WHERE tenant_id = %s AND recorrente AND status = 'ativa' "
             "AND vencimento >= %s ORDER BY id DESC LIMIT 1", (t["id"], hoje())),
         assinatura_atrasada=query_one(
             "SELECT 1 AS x FROM assinaturas a WHERE a.tenant_id = %s AND a.recorrente AND a.status = 'atrasada' AND NOT EXISTS "
@@ -3592,20 +3606,20 @@ class pagbank:
         return bool(PAGBANK_TOKEN)
 
     @staticmethod
-    def criar_cobranca(tenant, assinatura_id, valor, recorrente=False):
+    def criar_cobranca(tenant, assinatura_id, valor, recorrente=False, meses=1, nome_plano="Mensal"):
         """Cria o checkout. recorrente=True → Checkout Recorrente (só cartão): a 1ª cobrança é na hora e o PagBank cobra as
         seguintes sozinho. Devolve (id_do_checkout, link_de_pagamento, id_do_plano_recorrente | None)."""
         host = "https://sandbox.api.pagseguro.com" if PAGBANK_SANDBOX else "https://api.pagseguro.com"
         base = BASE_URL or request.host_url.rstrip("/")
         corpo = {
             "reference_id": f"assin-{assinatura_id}",
-            "items": [{"name": "OndeImóveis — Plano Profissional (mensal)" if recorrente else "OndeImóveis — Plano Profissional (30 dias)",
+            "items": [{"name": f"OndeImóveis — Plano Profissional ({nome_plano})",
                        "quantity": 1, "unit_amount": int(round(valor * 100))}],
             "redirect_url": base + url_for("anunciante_assinatura"),
             "payment_notification_urls": [base + url_for("webhook_pagbank") + (f"?t={quote(PAGBANK_WEBHOOK_TOKEN)}" if PAGBANK_WEBHOOK_TOKEN else "")],
         }
-        if recorrente:      # sem billing_cycles = não expira (cobra todo mês até cancelar)
-            corpo["recurrence_plan"] = {"name": "OndeImóveis — Plano Profissional", "interval": {"unit": "MONTH", "length": 1}}
+        if recorrente:      # sem billing_cycles = não expira (cobra a cada `meses` meses até cancelar)
+            corpo["recurrence_plan"] = {"name": f"OndeImóveis — Plano Profissional {nome_plano}", "interval": {"unit": "MONTH", "length": meses}}
         r = requests.post(f"{host}/checkouts", json=corpo, timeout=20,
                           headers={"Authorization": f"Bearer {PAGBANK_TOKEN}", "Content-Type": "application/json"})
         r.raise_for_status()
@@ -3676,19 +3690,56 @@ def sincronizar_planos(tenant_id=None):
     return pausados, reativados
 
 
-def ativar_profissional(tenant_id, dias=30, assinatura_id=None, provedor=None):
-    """Regra de negócio: ativa/renova o Profissional. Chamada pelo webhook e pelo admin."""
+def _somar_meses(d, n):
+    """Soma n meses de calendário a uma data (31/01 + 1 mês = 28/02, nunca 03/03)."""
+    m = d.month - 1 + n
+    ano, mes = d.year + m // 12, m % 12 + 1
+    return d.replace(year=ano, month=mes, day=min(d.day, calendar.monthrange(ano, mes)[1]))
+
+
+def planos_pro(so_ativos=True):
+    """Períodos do Profissional (tabela planos_pro, editável em /admin/planos). Uma consulta por requisição."""
+    if "planos_pro" not in g:
+        g.planos_pro = [dict(r, valor=float(r["valor"])) for r in query_all("SELECT * FROM planos_pro ORDER BY meses")]
+    return [p for p in g.planos_pro if p["ativo"]] if so_ativos else list(g.planos_pro)
+
+
+def plano_pro(codigo, so_ativo=True):
+    return next((p for p in planos_pro(so_ativo) if p["codigo"] == codigo), None)
+
+
+def preco_mensal():
+    """Preço do plano mensal (o que aparece como 'R$ x /mês'). Se a tabela falhar, cai no PRECO_PROFISSIONAL do .env."""
+    try:
+        p = plano_pro("mensal", so_ativo=False)
+        return p["valor"] if p else PRECO_PROFISSIONAL
+    except Exception:
+        return PRECO_PROFISSIONAL
+
+
+def _planos_para_assinar():
+    """Períodos ativos prontos pro painel: preço, valor por mês e % de economia sobre o mensal."""
+    base = preco_mensal()
+    return [dict(p, por_mes=p["valor"] / p["meses"],
+                 economia=max(0, round((1 - p["valor"] / (base * p["meses"])) * 100)) if p["meses"] > 1 and base else 0)
+            for p in planos_pro()]
+
+
+def ativar_profissional(tenant_id, dias=30, assinatura_id=None, provedor=None, meses=None, valor=None, plano_codigo=None):
+    """Regra de negócio: ativa/renova o Profissional. Chamada pelo webhook e pelo admin.
+    `meses` (planos trimestral/semestral/anual) soma meses de calendário; sem ele vale `dias` (30), como antes."""
     t = query_one("SELECT plano, plano_vencimento FROM tenants WHERE id = %s", (tenant_id,))
     inicio = max(hoje(), t["plano_vencimento"]) if (t["plano_vencimento"] and t["plano"] == "profissional") else hoje()
-    venc = inicio + timedelta(days=dias)
+    venc = _somar_meses(inicio, meses) if meses else inicio + timedelta(days=dias)
     execute("UPDATE tenants SET plano = 'profissional', assinatura_status = 'ativa', plano_vencimento = %s WHERE id = %s",
             (venc, tenant_id))
     if assinatura_id:
         execute("UPDATE assinaturas SET status = 'ativa', vencimento = %s, atualizado_em = NOW() WHERE id = %s",
                 (venc, assinatura_id))
     else:
-        execute("INSERT INTO assinaturas (tenant_id, plano, status, valor, vencimento, provedor_pagamento) "
-                "VALUES (%s,'profissional','ativa',%s,%s,%s)", (tenant_id, PRECO_PROFISSIONAL, venc, provedor or "manual"))
+        execute("INSERT INTO assinaturas (tenant_id, plano, status, valor, vencimento, provedor_pagamento, plano_codigo, meses) "
+                "VALUES (%s,'profissional','ativa',%s,%s,%s,%s,%s)",
+                (tenant_id, valor if valor is not None else preco_mensal(), venc, provedor or "manual", plano_codigo, meses))
     sincronizar_planos(tenant_id)                      # reativa os imóveis que estavam pausados por falta de plano
     return venc
 
@@ -3736,22 +3787,27 @@ def anunciante_assinar():
     if not pagbank.configurado():
         flash("O pagamento online ainda não está ativo. Fale com o suporte para contratar o Profissional.", "error")
         return redirect(url_for("anunciante_assinatura"))
-    # modo: "recorrente" (cartão, renova sozinho) ou "avulso" (30 dias; Pix, boleto ou cartão). Sem o campo no formulário vale o padrão
+    # modo: "recorrente" (cartão, renova sozinho) ou "avulso" (período escolhido, pago uma vez; Pix, boleto ou cartão). Sem o campo no formulário vale o padrão
     # do servidor (PAGBANK_RECORRENTE).
     modo = (request.form.get("modo") or ("recorrente" if PAGBANK_RECORRENTE else "avulso")).lower()
     recorrente = modo == "recorrente" and PAGBANK_RECORRENTE
-    aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento, recorrente) "
-                            "VALUES (%s,'profissional','pendente',%s,'pagbank',%s) RETURNING id", (t["id"], PRECO_PROFISSIONAL, recorrente))
+    plano = plano_pro(request.form.get("plano") or "mensal")           # só períodos ativos; sem o campo vale o mensal
+    if not plano:
+        flash("Escolha um dos planos disponíveis.", "error")
+        return redirect(url_for("anunciante_assinatura"))
+    aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento, recorrente, plano_codigo, meses) "
+                            "VALUES (%s,'profissional','pendente',%s,'pagbank',%s,%s,%s) RETURNING id",
+                            (t["id"], plano["valor"], recorrente, plano["codigo"], plano["meses"]))
     try:
         try:
-            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, PRECO_PROFISSIONAL, recorrente=recorrente)
+            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, plano["valor"], recorrente=recorrente, meses=plano["meses"], nome_plano=plano["nome"])
         except Exception:
             if not recorrente:
                 raise
             log.exception("PagBank recusou o checkout recorrente; abrindo cobrança avulsa no lugar")
             recorrente = False
             execute("UPDATE assinaturas SET recorrente = FALSE WHERE id = %s", (aid,))
-            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, PRECO_PROFISSIONAL, recorrente=False)
+            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, plano["valor"], recorrente=False, meses=plano["meses"], nome_plano=plano["nome"])
     except Exception:
         log.exception("Falha ao criar cobrança no PagBank")
         flash("Não consegui abrir o pagamento agora. Tente de novo em instantes.", "error")
@@ -3875,7 +3931,7 @@ def webhook_pagbank():
                     json.dumps(dados)))
     if novo and ass:                       # evento repetido não renova de novo (idempotente)
         if ev["status"] == "pago":
-            ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="pagbank")
+            ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="pagbank", meses=ass.get("meses"))
         elif ev["status"] == "falhou" and ass["status"] == "ativa":
             desativar_profissional(ass["tenant_id"], "atrasada")
     return jsonify(ok=True)
@@ -3992,7 +4048,7 @@ def admin_anunciantes():
         params)
     for t in lista:
         t["plano_efetivo"] = plano_efetivo(t)
-    return render_template("admin.html", lista=lista, q=q, plano=plano, status=status, pagina_ativa="anunciantes")
+    return render_template("admin.html", lista=lista, q=q, plano=plano, status=status, planos_admin=planos_pro(False), pagina_ativa="anunciantes")
 
 
 @app.route("/admin/anunciantes/<int:tenant_id>/<acao>", methods=["POST"])
@@ -4007,7 +4063,29 @@ def admin_anunciante_acao(tenant_id, acao):
     elif acao == "verificar":
         execute("UPDATE tenants SET verificada = NOT verificada WHERE id = %s", (tenant_id,))
     elif acao == "ativar_pro":
-        ativar_profissional(tenant_id, provedor="manual")
+        p = plano_pro(request.form.get("plano", ""), so_ativo=False)       # admin pode usar até um período desligado
+        if p:
+            ativar_profissional(tenant_id, provedor="manual", meses=p["meses"], valor=p["valor"], plano_codigo=p["codigo"])
+        else:
+            ativar_profissional(tenant_id, provedor="manual")
+    elif acao == "definir_vencimento":
+        try:
+            nova = date.fromisoformat(request.form.get("vencimento", ""))
+        except ValueError:
+            nova = None
+        pro = query_one("SELECT plano FROM tenants WHERE id = %s", (tenant_id,))["plano"] == "profissional"
+        if not pro or not nova or not (hoje() <= nova <= hoje() + timedelta(days=3660)):
+            flash("Data inválida (use uma data de hoje em diante) ou o anunciante não está no Profissional.", "error")
+            return _admin_voltar("admin_anunciantes")
+        execute("UPDATE tenants SET plano_vencimento = %s WHERE id = %s", (nova, tenant_id))
+        execute("UPDATE assinaturas SET vencimento = %s WHERE id = (SELECT id FROM assinaturas WHERE tenant_id = %s AND status = 'ativa' "
+                "ORDER BY id DESC LIMIT 1)", (nova, tenant_id))
+        sincronizar_planos(tenant_id)
+    elif acao == "pro_sem_vencimento":
+        execute("UPDATE tenants SET plano = 'profissional', assinatura_status = 'ativa', plano_vencimento = NULL WHERE id = %s", (tenant_id,))
+        execute("INSERT INTO assinaturas (tenant_id, plano, status, valor, vencimento, provedor_pagamento, plano_codigo) "
+                "VALUES (%s,'profissional','ativa',0,NULL,'manual','sem_vencimento')", (tenant_id,))
+        sincronizar_planos(tenant_id)
     elif acao == "voltar_gratis":
         execute("UPDATE tenants SET plano = 'gratis', plano_vencimento = NULL WHERE id = %s", (tenant_id,))
         desativar_profissional(tenant_id)
@@ -4093,6 +4171,30 @@ def admin_proximo_acao(prox_id, acao):
         abort(404)
     flash("Feito.", "success")
     return _admin_voltar("admin_aprovacoes")
+
+
+@app.route("/admin/planos", methods=["GET", "POST"])
+@admin_required
+def admin_planos():
+    """Preço e liga/desliga de cada período do Profissional. Muda o que se cobra de quem assinar dali pra frente, então pede a senha
+    do admin de novo. Assinaturas de cartão já criadas no PagBank NÃO mudam de valor. O mensal é obrigatório (não desliga)."""
+    if request.method == "POST":
+        if not check_password_hash(g.usuario["senha_hash"], request.form.get("senha_atual", "")):
+            flash("Senha incorreta — nada foi salvo.", "error")
+            return redirect(url_for("admin_planos"))
+        novos = {}
+        for p in planos_pro(False):
+            valor = num_br(request.form.get(f"valor_{p['codigo']}"))
+            if valor is None or not (1 <= valor <= 100000):
+                flash(f"Preço inválido em {p['nome']}: nada foi salvo.", "error")
+                return redirect(url_for("admin_planos"))
+            novos[p["codigo"]] = (round(valor, 2), p["codigo"] == "mensal" or request.form.get(f"ativo_{p['codigo']}") == "1")
+        for cod, (valor, ativo) in novos.items():
+            execute("UPDATE planos_pro SET valor = %s, ativo = %s WHERE codigo = %s", (valor, ativo, cod))
+        g.pop("planos_pro", None)
+        flash("Planos atualizados. O novo preço vale para quem assinar a partir de agora; assinaturas de cartão já ativas mantêm o valor antigo.", "success")
+        return redirect(url_for("admin_planos"))
+    return render_template("admin.html", planos=planos_pro(False), pagina_ativa="planos")
 
 
 @app.route("/admin/assinaturas")
