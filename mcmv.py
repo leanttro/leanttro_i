@@ -271,6 +271,7 @@ function mostra(r){
   o.appendChild(g);
   if(r.depende_cidade)o.appendChild(el('p','small','Em cidades menores o limite da faixa pode ser menor (a partir de '+brl(r.teto_min)+').'));
   var a=el('a','go','Ver imóveis até '+brl(r.busca_preco));a.href=BUSCA+'?finalidade=venda&preco_max='+r.busca_preco;o.appendChild(a);
+  var b=el('a','go','Só os que aceitam MCMV');b.href=BUSCA+'?finalidade=venda&mcmv=1&preco_max='+r.busca_preco;b.style.background='var(--green,#188f43)';o.appendChild(b);
   res.replaceChildren(o)}
 function run(){
   var renda=document.getElementById('renda').value,ent=document.getElementById('entrada').value;
