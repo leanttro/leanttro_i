@@ -17,7 +17,7 @@ from email.message import EmailMessage
 from email.utils import format_datetime
 from html import unescape as html_unescape
 from html.parser import HTMLParser
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps, lru_cache
 from urllib.parse import quote, urlparse
 from xml.sax.saxutils import escape as xml_escape
@@ -63,6 +63,10 @@ PAGBANK_TOKEN = os.environ.get("PAGBANK_TOKEN", "").strip()
 PAGBANK_SANDBOX = _bool("PAGBANK_SANDBOX", True)
 PAGBANK_WEBHOOK_TOKEN = os.environ.get("PAGBANK_WEBHOOK_TOKEN", "").strip()
 PRECO_PROFISSIONAL = float(os.environ.get("PRECO_PROFISSIONAL", "89.90"))
+# Cobrança recorrente no cartão (Checkout Recorrente do PagBank). Se o PagBank recusar criar o checkout recorrente, cai no avulso.
+PAGBANK_RECORRENTE = _bool("PAGBANK_RECORRENTE", True)
+# Folga depois da data da próxima cobrança, para o PagBank tentar de novo o cartão sem derrubar o Pro no mesmo dia.
+RECORRENCIA_TOLERANCIA_DIAS = int(os.environ.get("RECORRENCIA_TOLERANCIA_DIAS", "3"))
 TZ = ZoneInfo(os.environ.get("TZ_PORTAL", "America/Sao_Paulo"))
 # Avisos por e-mail (Gmail + senha de app de 16 dígitos). Sem SMTP_USER/SMTP_SENHA, os avisos ficam desligados.
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.zoho.com").strip()
@@ -250,6 +254,12 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_em TIMESTAMPTZ;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS consentimento_versao TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS template TEXT;
 ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS destaque_anunciante BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS pausado_plano BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS ix_imoveis_pausado_plano ON imoveis (tenant_id) WHERE pausado_plano;
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS recorrente BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS plano_externo_id TEXT;
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS assinatura_externa_id TEXT;
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS proxima_cobranca DATE;
 CREATE TABLE IF NOT EXISTS avisos_assinatura (
   id SERIAL PRIMARY KEY, tenant_id INT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, tipo TEXT NOT NULL,
   vencimento DATE NOT NULL, enviado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (tenant_id, tipo, vencimento));
@@ -1608,7 +1618,7 @@ def home():
         f"WHERE i.status = 'publicado' AND t.status = 'ativo' AND {sql_destaque()} ORDER BY i.criado_em DESC LIMIT 4")
     imobs = [enriquecer_tenant(t) for t in query_all(
         f"SELECT t.* FROM tenants t WHERE t.status = 'ativo' AND t.tipo IN ('imobiliaria', 'corretor') AND {sql_pro_ativo('t')} "
-        "AND EXISTS (SELECT 1 FROM imoveis i WHERE i.tenant_id = t.id AND i.status = 'publicado') ORDER BY random() LIMIT 6")]
+        "AND EXISTS (SELECT 1 FROM imoveis i WHERE i.tenant_id = t.id AND i.status = 'publicado') ORDER BY random() LIMIT 60")]
     total = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE status = 'publicado'")["n"]
     return render_template("home.html", destaques=preparar_imoveis(destaques, 640), imobs=imobs, total=total, cidades=cidades_home())
 
@@ -3208,6 +3218,8 @@ def _painel(ativa, **form):
     """Painel do anunciante: UMA página só (anunciante.html) com todas as seções.
     `ativa` = seção aberta ao carregar: geral | imoveis | form | interessados | pagina | assinatura."""
     t = g.tenant
+    if not t["pro"]:
+        sincronizar_planos(t["id"])                               # Pro venceu por data (sem evento): pausa o excedente já
     venc = t.get("plano_vencimento") if t["pro"] else None       # só o Pro ativo tem contagem regressiva
     dias_restantes = (venc - hoje()).days if venc else None
     pode_renovar = dias_restantes is not None and dias_restantes <= RENOVAR_ANTES_DIAS
@@ -3401,8 +3413,14 @@ def anunciante_imovel_editar(imovel_id):
 def anunciante_imovel_pausar(imovel_id):
     im = _meu_imovel(imovel_id)
     novo = {"publicado": "pausado", "pausado": "publicado"}.get(im["status"])
+    if novo == "publicado" and not g.tenant["pro"]:        # Grátis: reativar só se couber nos imóveis no ar
+        no_ar = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE tenant_id = %s AND status IN ('publicado', 'pendente')",
+                          (g.tenant["id"],))["n"]
+        if no_ar >= g.tenant["limites"]["imoveis"]:
+            flash(f"No plano Grátis só {g.tenant['limites']['imoveis']} imóveis ficam no ar. Pause outro antes ou assine o Profissional.", "error")
+            return redirect(url_for("anunciante_imoveis"))
     if novo:
-        execute("UPDATE imoveis SET status = %s, atualizado_em = NOW() WHERE id = %s", (novo, imovel_id))
+        execute("UPDATE imoveis SET status = %s, pausado_plano = FALSE, atualizado_em = NOW() WHERE id = %s", (novo, imovel_id))
     return redirect(url_for("anunciante_imoveis"))
 
 
@@ -3560,16 +3578,20 @@ class pagbank:
         return bool(PAGBANK_TOKEN)
 
     @staticmethod
-    def criar_cobranca(tenant, assinatura_id, valor):
+    def criar_cobranca(tenant, assinatura_id, valor, recorrente=False):
+        """Cria o checkout. recorrente=True → Checkout Recorrente (só cartão): a 1ª cobrança é na hora e o PagBank cobra as
+        seguintes sozinho. Devolve (id_do_checkout, link_de_pagamento, id_do_plano_recorrente | None)."""
         host = "https://sandbox.api.pagseguro.com" if PAGBANK_SANDBOX else "https://api.pagseguro.com"
         base = BASE_URL or request.host_url.rstrip("/")
         corpo = {
             "reference_id": f"assin-{assinatura_id}",
-            "items": [{"name": "OndeImóveis — Plano Profissional (30 dias)", "quantity": 1,
-                       "unit_amount": int(round(valor * 100))}],
+            "items": [{"name": "OndeImóveis — Plano Profissional (mensal)" if recorrente else "OndeImóveis — Plano Profissional (30 dias)",
+                       "quantity": 1, "unit_amount": int(round(valor * 100))}],
             "redirect_url": base + url_for("anunciante_assinatura"),
             "payment_notification_urls": [base + url_for("webhook_pagbank") + (f"?t={quote(PAGBANK_WEBHOOK_TOKEN)}" if PAGBANK_WEBHOOK_TOKEN else "")],
         }
+        if recorrente:      # sem billing_cycles = não expira (cobra todo mês até cancelar)
+            corpo["recurrence_plan"] = {"name": "OndeImóveis — Plano Profissional", "interval": {"unit": "MONTH", "length": 1}}
         r = requests.post(f"{host}/checkouts", json=corpo, timeout=20,
                           headers={"Authorization": f"Bearer {PAGBANK_TOKEN}", "Content-Type": "application/json"})
         r.raise_for_status()
@@ -3577,7 +3599,7 @@ class pagbank:
         link = next((l["href"] for l in dados.get("links", []) if l.get("rel") == "PAY"), None)
         if not link:
             raise RuntimeError("PagBank não devolveu o link de pagamento.")
-        return dados.get("id"), link
+        return dados.get("id"), link, (dados.get("recurrence_plan") or {}).get("id")
 
     @staticmethod
     def autentico(corpo_bruto):
@@ -3603,7 +3625,41 @@ class pagbank:
             valor = cobrancas[0]["amount"]["value"] / 100
         evento_id = (cobrancas[0].get("id") if cobrancas else None) or dados.get("id") or hashlib.sha1(
             json.dumps(dados, sort_keys=True).encode()).hexdigest()
-        return {"evento_id": f"{evento_id}:{status_bruto}", "referencia": referencia, "status": status, "valor": valor}
+        marca = "PAID" if status == "pago" else status_bruto            # AUTHORIZED e PAID da mesma cobrança = 1 evento só
+        return {"evento_id": f"{evento_id}:{marca}", "referencia": referencia, "status": status, "valor": valor}
+
+    @staticmethod
+    def interpretar_assinatura(dados):
+        """Aviso de assinatura (subscription.*) → {evento, assinatura_id, plano_id, reference_id, status, proxima, atualizado, valor}."""
+        r = dados.get("resource") or {}
+        try:
+            proxima = date.fromisoformat(str(r.get("next_invoice_at") or "")[:10])
+        except ValueError:
+            proxima = None
+        valor = (r.get("amount") or {}).get("value")
+        return {"evento": str(dados.get("event") or ""), "assinatura_id": r.get("id"), "plano_id": (r.get("plan") or {}).get("id"),
+                "reference_id": r.get("reference_id"), "status": str(r.get("status") or "").upper(), "proxima": proxima,
+                "atualizado": str(r.get("updated_at") or r.get("created_at") or ""),
+                "valor": valor / 100 if isinstance(valor, (int, float)) else None}
+
+
+def sincronizar_planos(tenant_id=None):
+    """Põe os imóveis de acordo com o plano. Sem tenant_id, vale para todos (cron).
+    • Grátis (inclusive Pro vencido): só os N mais recentes ficam publicados (N = limite do Grátis); o excedente vira 'pausado' com
+      pausado_plano = TRUE. Nada é apagado.
+    • Pro ativo: os pausados por plano voltam a 'publicado'. Os que o próprio anunciante pausou não mexem.
+    Idempotente: pode rodar quantas vezes quiser. Devolve (pausados, reativados)."""
+    filtro, p = ("AND t.id = %s", (tenant_id,)) if tenant_id else ("", ())
+    pro = f"COALESCE({sql_pro_ativo('t')}, FALSE)"
+    reativados = execute(f"UPDATE imoveis i SET status = 'publicado', pausado_plano = FALSE, atualizado_em = NOW() FROM tenants t "
+                         f"WHERE t.id = i.tenant_id AND i.pausado_plano AND i.status = 'pausado' AND {pro} {filtro}", p)
+    pausados = execute(
+        f"UPDATE imoveis SET status = 'pausado', pausado_plano = TRUE, atualizado_em = NOW() WHERE id IN ("
+        f"SELECT id FROM (SELECT i.id, ROW_NUMBER() OVER (PARTITION BY i.tenant_id ORDER BY i.criado_em DESC, i.id DESC) AS rn "
+        f"FROM imoveis i JOIN tenants t ON t.id = i.tenant_id WHERE i.status = 'publicado' AND NOT {pro} {filtro}) x WHERE rn > %s)",
+        p + (LIMITES["gratis"]["imoveis"],))
+    execute("UPDATE imoveis SET pausado_plano = FALSE WHERE pausado_plano AND status <> 'pausado'")   # limpa marca de quem mudou de status
+    return pausados, reativados
 
 
 def ativar_profissional(tenant_id, dias=30, assinatura_id=None, provedor=None):
@@ -3619,6 +3675,23 @@ def ativar_profissional(tenant_id, dias=30, assinatura_id=None, provedor=None):
     else:
         execute("INSERT INTO assinaturas (tenant_id, plano, status, valor, vencimento, provedor_pagamento) "
                 "VALUES (%s,'profissional','ativa',%s,%s,%s)", (tenant_id, PRECO_PROFISSIONAL, venc, provedor or "manual"))
+    sincronizar_planos(tenant_id)                      # reativa os imóveis que estavam pausados por falta de plano
+    return venc
+
+
+def renovar_ate(tenant_id, ate, assinatura_id=None, proxima=None):
+    """Recorrência: o Pro vale até a data paga (próxima cobrança + folga). Só avança, nunca encurta. Idempotente:
+    receber o mesmo aviso duas vezes (ou fora de ordem) dá o mesmo resultado."""
+    if ate < hoje():
+        return None
+    t = query_one("SELECT plano, assinatura_status, plano_vencimento FROM tenants WHERE id = %s", (tenant_id,))
+    atual = t["plano_vencimento"] if t["plano"] == "profissional" and t["assinatura_status"] == "ativa" else None
+    venc = max(ate, atual) if atual else ate
+    execute("UPDATE tenants SET plano = 'profissional', assinatura_status = 'ativa', plano_vencimento = %s WHERE id = %s", (venc, tenant_id))
+    if assinatura_id:
+        execute("UPDATE assinaturas SET status = 'ativa', vencimento = %s, proxima_cobranca = %s, atualizado_em = NOW() WHERE id = %s",
+                (venc, proxima, assinatura_id))
+    sincronizar_planos(tenant_id)
     return venc
 
 
@@ -3626,12 +3699,17 @@ def desativar_profissional(tenant_id, status="cancelada"):
     execute("UPDATE tenants SET assinatura_status = %s WHERE id = %s", (status, tenant_id))
     execute("UPDATE assinaturas SET status = %s, atualizado_em = NOW() WHERE tenant_id = %s AND status = 'ativa'",
             (status, tenant_id))
+    sincronizar_planos(tenant_id)                      # voltou ao Grátis: o excedente é pausado agora
 
 
 @app.route("/painel/assinatura/assinar", methods=["POST"])
 @anunciante_required
 def anunciante_assinar():
     t = g.tenant
+    if query_one("SELECT 1 FROM assinaturas WHERE tenant_id = %s AND recorrente AND status = 'ativa' AND vencimento >= %s",
+                 (t["id"], hoje())):
+        flash("Sua assinatura renova sozinha no cartão. Para cancelar a renovação automática, fale com o suporte.", "success")
+        return redirect(url_for("anunciante_assinatura"))
     if t["plano_efetivo"] == "profissional":
         # Pro ativo: só abre cobrança de renovação perto do vencimento (o webhook soma 30 dias ao vencimento atual)
         venc = t.get("plano_vencimento")
@@ -3644,15 +3722,27 @@ def anunciante_assinar():
     if not pagbank.configurado():
         flash("O pagamento online ainda não está ativo. Fale com o suporte para contratar o Profissional.", "error")
         return redirect(url_for("anunciante_assinatura"))
-    aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento) "
-                            "VALUES (%s,'profissional','pendente',%s,'pagbank') RETURNING id", (t["id"], PRECO_PROFISSIONAL))
+    # modo: "recorrente" (cartão, renova sozinho) ou "avulso" (30 dias; Pix, boleto ou cartão). Sem o campo no formulário vale o padrão
+    # do servidor (PAGBANK_RECORRENTE).
+    modo = (request.form.get("modo") or ("recorrente" if PAGBANK_RECORRENTE else "avulso")).lower()
+    recorrente = modo == "recorrente" and PAGBANK_RECORRENTE
+    aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento, recorrente) "
+                            "VALUES (%s,'profissional','pendente',%s,'pagbank',%s) RETURNING id", (t["id"], PRECO_PROFISSIONAL, recorrente))
     try:
-        ref, link = pagbank.criar_cobranca(t, aid, PRECO_PROFISSIONAL)
+        try:
+            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, PRECO_PROFISSIONAL, recorrente=recorrente)
+        except Exception:
+            if not recorrente:
+                raise
+            log.exception("PagBank recusou o checkout recorrente; abrindo cobrança avulsa no lugar")
+            recorrente = False
+            execute("UPDATE assinaturas SET recorrente = FALSE WHERE id = %s", (aid,))
+            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, PRECO_PROFISSIONAL, recorrente=False)
     except Exception:
         log.exception("Falha ao criar cobrança no PagBank")
         flash("Não consegui abrir o pagamento agora. Tente de novo em instantes.", "error")
         return redirect(url_for("anunciante_assinatura"))
-    execute("UPDATE assinaturas SET referencia_externa = %s WHERE id = %s", (ref, aid))
+    execute("UPDATE assinaturas SET referencia_externa = %s, plano_externo_id = %s WHERE id = %s", (ref, plano_ext, aid))
     return redirect(link)
 
 
@@ -3662,15 +3752,15 @@ def _email_renovacao(tipo, nome, venc, dias, link):
     if tipo == "vencido":
         assunto = "Seu plano Profissional venceu"
         abre = f"O plano Profissional de {nome} venceu em {data}."
-        fecha = "Você pode reativar quando quiser: ao renovar, os destaques e a personalização voltam como estavam."
+        fecha = "Você pode reativar quando quiser: ao renovar, os imóveis pausados voltam ao ar e os destaques e a personalização voltam como estavam."
     else:
         quando = "hoje" if dias == 0 else "amanhã" if dias == 1 else f"em {dias} dias"
         assunto = f"Seu plano Profissional vence {quando}"
         abre = f"O plano Profissional de {nome} vence {quando} ({data})."
         fecha = "Renove para manter tudo como está."
     perde = ("Sem a renovação, a conta volta ao plano Grátis: o limite cai para "
-             f"{LIMITES['gratis']['imoveis']} imóveis e {LIMITES['gratis']['fotos']} fotos por imóvel, e logo, cor, template da página "
-             "e imóveis em destaque deixam de valer.")
+             f"{LIMITES['gratis']['imoveis']} imóveis e {LIMITES['gratis']['fotos']} fotos por imóvel, os imóveis acima disso ficam pausados "
+             "(nada é apagado; voltam ao ar quando você renovar) e logo, cor, template da página e imóveis em destaque deixam de valer.")
     texto = f"Olá, {nome}!\n\n{abre}\n\n{perde}\n\n{fecha}\nRenovar: {link}\n\n— {SITE_NOME}\n"
     html = (f"<p>Olá, {html_escape(nome)}!</p><p>{html_escape(abre)}</p><p>{html_escape(perde)}</p><p>{html_escape(fecha)}</p>"
             f'<p><a href="{html_escape(link)}">Renovar meu plano</a></p><p>— {html_escape(SITE_NOME)}</p>')
@@ -3716,17 +3806,24 @@ def tarefa_renovacao():
     """Cron diário (externo): avisa por e-mail quem está perto de vencer ou venceu. Idempotente (avisos_assinatura)."""
     if not _tarefa_autorizada():
         abort(403)
+    pausados, reativados = sincronizar_planos()        # Pro vencido → excedente pausado (não depende de SMTP)
+    _conn().commit()
     if not (SMTP_USER and SMTP_SENHA):
-        return jsonify(ok=False, erro="SMTP não configurado: nada foi enviado nem marcado como enviado."), 503
+        return jsonify(ok=False, pausados=pausados, reativados=reativados,
+                       erro="SMTP não configurado: nenhum e-mail foi enviado nem marcado como enviado."), 503
     link = base_url() + url_for("anunciante_assinatura")
     h = hoje()
     enviados, erros = {"aviso_5d": 0, "aviso_1d": 0, "vencido": 0}, 0
-    for r in query_all("SELECT t.id, t.nome, t.plano_vencimento, u.email FROM tenants t JOIN usuarios u ON u.id = t.usuario_id "
+    for r in query_all("SELECT t.id, t.nome, t.plano_vencimento, u.email, EXISTS (SELECT 1 FROM assinaturas a WHERE a.tenant_id = t.id "
+                       f"AND a.recorrente AND a.status = 'ativa' AND a.vencimento >= '{h.isoformat()}'::date) AS recorrente "
+                       "FROM tenants t JOIN usuarios u ON u.id = t.usuario_id "
                        "WHERE t.plano = 'profissional' AND t.assinatura_status = 'ativa' AND t.plano_vencimento IS NOT NULL "
                        "AND t.status = 'ativo'"):
         dias = (r["plano_vencimento"] - h).days
         tipo = "aviso_5d" if 2 <= dias <= 5 else "aviso_1d" if 0 <= dias <= 1 else "vencido" if -3 <= dias < 0 else None
         if not tipo or not r["email"]:
+            continue
+        if r["recorrente"] and tipo != "vencido":        # renova sozinho no cartão: só avisa se a renovação falhar
             continue
         try:
             novo = execute_returning("INSERT INTO avisos_assinatura (tenant_id, tipo, vencimento) VALUES (%s,%s,%s) "
@@ -3743,7 +3840,7 @@ def tarefa_renovacao():
                 _conn().rollback()
             except Exception:
                 pass
-    return jsonify(ok=True, enviados=enviados, total=sum(enviados.values()), erros=erros)
+    return jsonify(ok=True, enviados=enviados, total=sum(enviados.values()), erros=erros, pausados=pausados, reativados=reativados)
 
 
 @app.route("/webhooks/pagbank", methods=["POST"])
@@ -3767,6 +3864,64 @@ def webhook_pagbank():
             ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="pagbank")
         elif ev["status"] == "falhou" and ass["status"] == "ativa":
             desativar_profissional(ass["tenant_id"], "atrasada")
+    return jsonify(ok=True)
+
+
+def _assinatura_da_notificacao(ev):
+    """Acha a linha de `assinaturas` de um aviso: pelo id da assinatura, pelo id do plano (cada checkout cria o seu) ou pela referência."""
+    if ev["assinatura_id"]:
+        a = query_one("SELECT * FROM assinaturas WHERE assinatura_externa_id = %s ORDER BY id DESC LIMIT 1", (ev["assinatura_id"],))
+        if a:
+            return a
+    if ev["plano_id"]:
+        a = query_one("SELECT * FROM assinaturas WHERE plano_externo_id = %s ORDER BY id DESC LIMIT 1", (ev["plano_id"],))
+        if a:
+            return a
+    m = re.match(r"^assin-(\d+)$", ev["reference_id"] or "")
+    return query_one("SELECT * FROM assinaturas WHERE id = %s", (int(m.group(1)),)) if m else None
+
+
+def _aplicar_evento_assinatura(ass, ev):
+    """O Pro vale até a data já paga. Cancelar/suspender/atrasar NÃO derruba na hora: só deixa de estender."""
+    evt, st = ev["evento"], ev["status"]
+    if evt in ("subscription.canceled", "subscription.expired") or st in ("CANCELED", "EXPIRED"):
+        execute("UPDATE assinaturas SET status = %s, atualizado_em = NOW() WHERE id = %s",
+                ("cancelada" if "CANCEL" in (evt + st).upper() else "expirada", ass["id"]))
+    elif evt == "subscription.suspended" or st == "SUSPENDED":
+        execute("UPDATE assinaturas SET status = 'suspensa', atualizado_em = NOW() WHERE id = %s", (ass["id"],))
+    elif st == "OVERDUE":                               # cobrança negada (o PagBank tenta de novo conforme as retentativas)
+        execute("UPDATE assinaturas SET status = 'atrasada', atualizado_em = NOW() WHERE id = %s", (ass["id"],))
+    elif st == "ACTIVE" and ev["proxima"]:
+        renovar_ate(ass["tenant_id"], ev["proxima"] + timedelta(days=RECORRENCIA_TOLERANCIA_DIAS), ass["id"], ev["proxima"])
+
+
+@app.route("/webhooks/pagbank-assinaturas", methods=["POST"])
+def webhook_pagbank_assinaturas():
+    """Avisos de assinatura do PagBank (subscription.recurrence etc.). Cadastre esta URL, com ?t=<PAGBANK_WEBHOOK_TOKEN>,
+    nas preferências de notificação do Painel de Recorrência."""
+    bruto = request.get_data()
+    if not pagbank.autentico(bruto):
+        abort(403)
+    try:
+        dados = json.loads(bruto or b"{}")
+    except ValueError:
+        abort(400)
+    ev = pagbank.interpretar_assinatura(dados)
+    if not ev["evento"].startswith("subscription."):
+        return jsonify(ok=True, ignorado=ev["evento"])
+    ass = _assinatura_da_notificacao(ev)
+    evento_id = f"{ev['evento']}:{ev['assinatura_id']}:{ev['atualizado'] or ev['proxima'] or ''}:{ev['status']}"
+    novo = execute("INSERT INTO pagamentos (tenant_id, provedor, evento_id, referencia, status, valor, payload) "
+                   "VALUES (%s,'pagbank-assinatura',%s,%s,%s,%s,%s) ON CONFLICT (provedor, evento_id) DO NOTHING",
+                   (ass["tenant_id"] if ass else None, evento_id, ev["assinatura_id"], ev["status"].lower() or "?", ev["valor"], json.dumps(dados)))
+    if not novo:
+        return jsonify(ok=True, repetido=True)
+    if not ass:
+        log.warning("Aviso de assinatura sem anunciante correspondente: %s (%s)", ev["assinatura_id"], ev["evento"])
+        return jsonify(ok=True, sem_anunciante=True)
+    if ev["assinatura_id"] and not ass.get("assinatura_externa_id"):
+        execute("UPDATE assinaturas SET assinatura_externa_id = %s WHERE id = %s", (ev["assinatura_id"], ass["id"]))
+    _aplicar_evento_assinatura(ass, ev)
     return jsonify(ok=True)
 
 
@@ -3885,7 +4040,7 @@ def admin_imovel_acao(imovel_id, acao):
         motivo = sanitize_input(request.form.get("motivo", "").strip())[:300] or "Não atende às regras do portal."
         execute("UPDATE imoveis SET status = 'rejeitado', motivo_rejeicao = %s, atualizado_em = NOW() WHERE id = %s", (motivo, imovel_id))
     elif acao == "pausar":
-        execute("UPDATE imoveis SET status = 'pausado', atualizado_em = NOW() WHERE id = %s", (imovel_id,))
+        execute("UPDATE imoveis SET status = 'pausado', pausado_plano = FALSE, atualizado_em = NOW() WHERE id = %s", (imovel_id,))
     elif acao == "destaque":
         execute("UPDATE imoveis SET destaque = NOT destaque WHERE id = %s", (imovel_id,))
     elif acao == "excluir":
