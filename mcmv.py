@@ -5,22 +5,29 @@ COMO LIGAR no app.py (cole no fim do arquivo, logo ANTES de `if DATABASE_URL: _b
 
     try:
         import mcmv
-        mcmv.init(app)
+        mcmv.init(app, query_all=query_all, query_one=query_one, preparar=preparar_imoveis,
+                  capa_sql=CAPA_SQL, gerar_slug=gerar_slug, base_url=base_url)
     except Exception:
         log.exception("MCMV: o módulo não carregou (o resto do site segue normal)")
 
+Sem os argumentos de banco (query_all etc.) o módulo funciona só com o simulador, sem as páginas de cidade.
 Coloque o mcmv.py na mesma pasta do app.py (se o seu Docker copia só o app.py, inclua este arquivo também).
 
 O que ele cria (sem banco, sem tabela nova, sem mexer em nada que já existe):
     GET /minha-casa-minha-vida                 página com o simulador, faixas e perguntas frequentes
+    GET /minha-casa-minha-vida/<cidade>        imóveis com o selo "Aceita MCMV" naquela cidade (SEO local; 404 se não houver nenhum)
     GET /api/mcmv/simular?renda=4500&entrada=0 JSON do simulador (a página e, no futuro, a Duda usam a mesma conta)
     link para o menu: {% if tem_rota('mcmv.pagina') %}<a href="{{ url_for('mcmv.pagina') }}">Minha Casa Minha Vida</a>{% endif %}
 
 QUANDO A REGRA DO PROGRAMA MUDAR: edite só o bloco REGRAS logo abaixo (e ATUALIZADO_EM).
 """
+import logging
+import math
 import re
 
-from flask import Blueprint, jsonify, redirect, render_template_string, request, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template_string, request, url_for
+
+log = logging.getLogger("ondeimoveis")
 
 # ═══════════════════════════════════════════════════════════════
 # REGRAS DO PROGRAMA — único lugar a editar quando o governo mudar algo
@@ -109,7 +116,7 @@ PAGINA = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{% set seo_title = 'Minha Casa Minha Vida ' ~ ano ~ ': simulador, faixas e imóveis | ' ~ SITE.nome %}
+{% set seo_title = (seo_titulo ~ ' | ' ~ SITE.nome) if seo_titulo else ('Minha Casa Minha Vida ' ~ ano ~ ': simulador, faixas e imóveis | ' ~ SITE.nome) %}
 {% include '_seo.html' %}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
@@ -183,6 +190,23 @@ details p{color:var(--muted);line-height:1.65;margin:10px 0 0;max-width:720px}
 footer{background:#f3f6f5;padding:18px 0;color:#687583;font-size:11px}
 footer .container{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}
 footer nav{display:flex;gap:16px;flex-wrap:wrap}footer a:hover{color:var(--gd)}
+.crumb{font-size:13px;color:#aebbc2;margin:0 0 14px}.crumb a{color:#dfe8ec}.crumb a:hover{text-decoration:underline}
+.hero.sm{padding:40px 0 44px}.hero.sm h1{max-width:820px}.hero.sm p{max-width:700px}
+.cta{display:inline-flex;align-items:center;height:48px;padding:0 22px;border-radius:10px;background:var(--g);color:#06130b;font-weight:850;font-size:14px;margin-top:22px}
+.im-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:20px}
+.im{display:block;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff;transition:box-shadow .2s,transform .2s}
+.im:hover{box-shadow:0 14px 34px #07142122;transform:translateY(-2px)}
+.im .ph{position:relative;aspect-ratio:4/3;background:#e9eef0}.im .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.im .tg{position:absolute;top:10px;left:10px;background:#0b3d91;color:#fff;border-radius:999px;padding:5px 10px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.im .bd{padding:14px 16px 16px}.im .pr{font-size:21px;font-weight:850;letter-spacing:-.6px}
+.im .tt{font-size:14px;font-weight:650;margin:4px 0 6px;line-height:1.35}.im .sp,.im .lc{font-size:12px;color:var(--muted);line-height:1.5}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.chip2{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:9px 15px;font-size:14px;font-weight:650;background:#fff}
+.chip2:hover{border-color:var(--g);background:var(--mint)}.chip2 b{font-size:12px;color:var(--muted)}
+.pager{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:28px;font-weight:700;font-size:14px}
+.pager a{border:1px solid var(--line);border-radius:10px;padding:10px 16px}.pager a:hover{border-color:var(--g)}
+@media(max-width:850px){.im-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.im-grid{grid-template-columns:1fr}}
 @media(max-width:850px){.hero-in{grid-template-columns:1fr;gap:28px}.hero{padding:36px 0 40px}.big{font-size:30px}section{padding:34px 0}}
 @media(max-width:480px){.card{padding:20px}.grid{grid-template-columns:1fr}footer .container{flex-direction:column}}
 </style>
@@ -230,6 +254,12 @@ footer nav{display:flex;gap:16px;flex-wrap:wrap}footer a:hover{color:var(--gd)}
   <p class="small" style="margin-top:12px">Nas faixas 1 e 2 o valor máximo do imóvel depende da cidade (de {{ teto_min }} a {{ teto_max }}).</p>
 </div></section>
 
+{% if cidades %}<section><div class="container">
+  <h2 class="t">Imóveis que aceitam MCMV por cidade</h2>
+  <p class="lead">Anúncios com o selo "Aceita Minha Casa Minha Vida", organizados por cidade.</p>
+  <div class="chips">{% for c in cidades %}<a class="chip2" href="{{ url_for('mcmv.cidade', cidade=c.slug) }}">{{ c.nome }}{% if c.uf %}/{{ c.uf }}{% endif %} <b>{{ c.n }}</b></a>{% endfor %}</div>
+</div></section>{% endif %}
+
 <section style="background:var(--soft)"><div class="container">
   <h2 class="t">Perguntas frequentes</h2>
   <div style="margin-top:14px">{% for q, a in faq %}<details><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div>
@@ -249,6 +279,7 @@ m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
 window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)});
 
+if(document.getElementById('sim')){
 var f=document.getElementById('sim'),res=document.getElementById('res'),btn=document.getElementById('go');
 var API={{ api|tojson }},BUSCA={{ busca|tojson }};
 function brl(n){return 'R$ '+Math.round(n).toLocaleString('pt-BR')}
@@ -284,11 +315,139 @@ function run(){
     .then(function(){btn.disabled=false})}
 f.addEventListener('submit',function(e){e.preventDefault();run()});
 if(document.getElementById('renda').value)run();
+}
 })();
 </script>
 </body>
 </html>
 """
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# PÁGINA POR CIDADE (SEO local) — precisa do banco, que o app.py entrega em init()
+# ═══════════════════════════════════════════════════════════════
+_dep = {}                 # query_all, query_one, preparar, capa_sql, gerar_slug, base_url (preenchido em init)
+POR_PAGINA_CIDADE = 12
+_BASE = "i.status = 'publicado' AND t.status = 'ativo' AND i.finalidade = 'venda' AND i.aceita_mcmv"
+_JOIN = "FROM imoveis i JOIN tenants t ON t.id = i.tenant_id"
+
+_CORPO_CIDADE = r"""
+<section class="hero sm"><div class="container">
+  <nav class="crumb" aria-label="Você está em"><a href="{{ url_for('home') }}">Início</a> › <a href="{{ url_for('mcmv.pagina') }}">Minha Casa Minha Vida</a> › <span>{{ nome }}</span></nav>
+  <h1>Imóveis Minha Casa Minha Vida em {{ nome }}{% if uf %}/{{ uf }}{% endif %}</h1>
+  <p>{{ intro }}</p>
+  <a class="cta" href="{{ url_for('mcmv.pagina') }}#sim">Simular meu financiamento</a>
+</div></section>
+
+<section><div class="container">
+  <h2 class="t">{{ total }} imóve{{ 'l' if total == 1 else 'is' }} com o selo "Aceita MCMV" em {{ nome }}</h2>
+  <div class="im-grid">{% for i in imoveis %}
+    <a class="im" href="{{ url_for('imovel', slug=i.slug) }}"><div class="ph"><img src="{{ i.foto }}" alt="{{ TIPOS_IMOVEL[i.tipo] }} à venda em {{ i.bairro }}, {{ i.cidade }} — {{ i.titulo }}" width="480" height="360" loading="{{ 'eager' if loop.first else 'lazy' }}" decoding="async"><span class="tg">Aceita MCMV</span></div>
+      <div class="bd"><div class="pr">{{ i|preco }}</div><div class="tt">{{ i.titulo }}</div>
+      <div class="sp">{{ TIPOS_IMOVEL[i.tipo] }}{% if i.dormitorios %} · {{ i.dormitorios }} quarto{{ 's' if i.dormitorios != 1 }}{% endif %}{% if i.vagas %} · {{ i.vagas }} vaga{{ 's' if i.vagas != 1 }}{% endif %}{% if i.area %} · {{ i.area|num }} m²{% endif %}</div>
+      <div class="lc">⌖ {{ i.bairro }} - {{ i.cidade }}{% if i.uf %}/{{ i.uf }}{% endif %}</div></div></a>{% endfor %}
+  </div>
+  {% if paginas > 1 %}<nav class="pager" aria-label="Páginas">{% if pagina > 1 %}<a href="{{ url_pag(pagina - 1) }}" rel="prev">‹ Anterior</a>{% endif %}<span>Página {{ pagina }} de {{ paginas }}</span>{% if pagina < paginas %}<a href="{{ url_pag(pagina + 1) }}" rel="next">Próxima ›</a>{% endif %}</nav>{% endif %}
+  <p style="margin-top:22px"><a class="chip2" href="{{ busca_url }}">Refinar a busca (preço, quartos, bairro) →</a></p>
+</div></section>
+
+{% if bairros %}<section style="background:var(--soft)"><div class="container">
+  <h2 class="t">Por bairro em {{ nome }}</h2>
+  <div class="chips">{% for b in bairros %}<a class="chip2" href="{{ b.url }}">{{ b.nome }} <b>{{ b.n }}</b></a>{% endfor %}</div>
+</div></section>{% endif %}
+
+<section><div class="container">
+  <h2 class="t">Limites do programa</h2>
+  <p class="lead">Confira se o imóvel cabe na sua faixa. Valores de referência atualizados em {{ atualizado }}.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Faixa</th><th>Renda familiar</th><th>Imóvel de até</th><th>Subsídio</th></tr></thead>
+    <tbody>{% for r in regras %}<tr><td><b>Faixa {{ r.faixa }}</b></td><td>até {{ r.renda }}</td><td>{{ r.teto }}</td><td>{{ r.subsidio }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="small" style="margin-top:12px">Nas faixas 1 e 2 o valor máximo do imóvel depende da cidade. <a href="{{ url_for('mcmv.pagina') }}" style="text-decoration:underline">Veja as perguntas frequentes e simule sua parcela</a>.</p>
+</div></section>
+
+<div class="aviso"><div class="container">O {{ SITE.nome }} não é a Caixa nem faz parte do governo. O selo "Aceita MCMV" é informado pela nossa equipe a partir do anúncio, mas a aprovação do financiamento, o enquadramento do imóvel no programa, os juros e o subsídio dependem da análise de crédito da Caixa ou do banco operador. Confirme com o anunciante e com o banco antes de fechar negócio.</div></div>
+"""
+_i0 = PAGINA.index("<main>") + len("<main>")
+_i1 = PAGINA.index("</main>")
+PAGINA_CIDADE = PAGINA[:_i0] + _CORPO_CIDADE + PAGINA[_i1:]
+
+
+def cidades(limite=60):
+    """Cidades que têm imóvel à venda com o selo, da maior para a menor. Nunca derruba a página principal."""
+    if not _dep:
+        return []
+    try:
+        return _dep["query_all"](
+            "SELECT i.cidade_slug AS slug, MIN(i.cidade) AS nome, MIN(i.uf) AS uf, COUNT(*) AS n " + _JOIN +
+            " WHERE " + _BASE + " AND i.cidade_slug <> '' GROUP BY i.cidade_slug ORDER BY n DESC, nome LIMIT %s", (limite,))
+    except Exception:
+        log.exception("MCMV: não consegui listar as cidades")
+        return []
+
+
+def slugs_cidades():
+    """Para o sitemap: os slugs das cidades que têm página."""
+    return [c["slug"] for c in cidades(1000)]
+
+
+def _plural(n, um, varios):
+    return um if n == 1 else varios
+
+
+@bp.route("/minha-casa-minha-vida/<cidade>", strict_slashes=False)
+def cidade(cidade):
+    if not _dep:
+        abort(404)
+    q, slug = _dep["query_one"], _dep["gerar_slug"](cidade)
+    if not slug:
+        abort(404)
+    if request.path != url_for("mcmv.cidade", cidade=slug):      # barra no fim / maiúsculas -> 301 para a URL única
+        return redirect(url_for("mcmv.cidade", cidade=slug, **request.args), 301)
+    st = q("SELECT COUNT(*) AS n, MIN(i.preco) AS pmin, MAX(i.preco) AS pmax, MIN(i.cidade) AS cidade, MIN(i.uf) AS uf " + _JOIN +
+           " WHERE " + _BASE + " AND i.cidade_slug = %s", (slug,))
+    if not st or not st["n"]:
+        abort(404)                                               # sem imóvel não existe página (evita conteúdo vazio no Google)
+    total, nome, uf = st["n"], st["cidade"], (st["uf"] or "").upper()
+    paginas = max(1, math.ceil(total / POR_PAGINA_CIDADE))
+    pagina = min(max(1, request.args.get("pagina", 1, type=int)), paginas)
+    lista = _dep["query_all"](
+        f"SELECT i.*, {_dep['capa_sql']} AS capa " + _JOIN + " WHERE " + _BASE + " AND i.cidade_slug = %s "
+        "ORDER BY i.criado_em DESC, i.id DESC LIMIT %s OFFSET %s", (slug, POR_PAGINA_CIDADE, (pagina - 1) * POR_PAGINA_CIDADE))
+    imoveis = _dep["preparar"](lista, 480)
+    bairros = [dict(nome=b["nome"], n=b["n"], url=url_for("buscar", finalidade="venda", cidade=slug, bairro=b["slug"], mcmv=1))
+               for b in _dep["query_all"](
+                   "SELECT MIN(i.bairro) AS nome, i.bairro_slug AS slug, COUNT(*) AS n " + _JOIN + " WHERE " + _BASE +
+                   " AND i.cidade_slug = %s AND i.bairro_slug <> '' GROUP BY i.bairro_slug ORDER BY n DESC, nome LIMIT 12", (slug,))]
+    local = nome + (f"/{uf}" if uf else "")
+    preco = (f"Os preços vão de {_brl(st['pmin'])} a {_brl(st['pmax'])}." if st["pmin"] != st["pmax"]
+             else f"O preço é de {_brl(st['pmin'])}.")
+    intro = (f"{'Há' if total == 1 else 'Temos'} {total} {_plural(total, 'imóvel à venda', 'imóveis à venda')} em {local} "
+             f"{_plural(total, 'que aceita', 'que aceitam')} o Minha Casa Minha Vida. {preco} "
+             "Veja os anúncios e simule a parcela para saber se cabe no seu orçamento.")
+    base = (_dep.get("base_url") or (lambda: request.url_root.rstrip("/")))()
+    jsonld = [
+        {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Início", "item": base + "/"},
+            {"@type": "ListItem", "position": 2, "name": "Minha Casa Minha Vida", "item": base + url_for("mcmv.pagina")},
+            {"@type": "ListItem", "position": 3, "name": nome, "item": base + url_for("mcmv.cidade", cidade=slug)}]},
+        {"@context": "https://schema.org", "@type": "ItemList", "itemListElement": [
+            {"@type": "ListItem", "position": (pagina - 1) * POR_PAGINA_CIDADE + k, "url": base + url_for("imovel", slug=i["slug"])}
+            for k, i in enumerate(imoveis, 1)]}]
+    topo, f12 = REGRAS[-1]["renda_max"], REGRAS[1]
+    return render_template_string(
+        PAGINA_CIDADE, nome=nome, uf=uf, total=total, imoveis=imoveis, bairros=bairros, intro=intro,
+        pagina=pagina, paginas=paginas, url_pag=lambda p: url_for("mcmv.cidade", cidade=slug, **({"pagina": p} if p > 1 else {})),
+        busca_url=url_for("buscar", finalidade="venda", cidade=slug, mcmv=1), atualizado=ATUALIZADO_EM,
+        regras=[dict(faixa=r["faixa"], renda=_brl(r["renda_max"]), teto=("até " + _brl(r["teto"])),
+                     subsidio=("até " + _brl(r["subsidio"]) if r["subsidio"] else "não tem")) for r in REGRAS],
+        cidades=[], faq=[], topo=_brl(topo), anos=PRAZO_MESES // 12, subsidio=_brl(f12["subsidio"]),
+        teto_min=_brl(f12["teto_min"]), teto_max=_brl(f12["teto"]), renda0="", entrada0="",
+        api=url_for("mcmv.api_simular"), busca=url_for("buscar"),
+        seo_titulo=f"Imóveis Minha Casa Minha Vida em {local}: {total} {_plural(total, 'anúncio', 'anúncios')}",
+        seo_desc=f"{total} {_plural(total, 'imóvel aceita', 'imóveis aceitam')} o Minha Casa Minha Vida em {local}. {preco} Veja fotos, bairros e simule sua parcela.",
+        seo_jsonld=jsonld)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -310,7 +469,7 @@ def pagina():
                      subsidio=("até " + _brl(r["subsidio"]) if r["subsidio"] else "não tem")) for r in REGRAS],
         renda0=f"{renda0:.0f}" if renda0 and 0 < renda0 <= 1_000_000 else "",
         entrada0=f"{entrada0:.0f}" if entrada0 and 0 < entrada0 <= 100_000_000 else "",
-        api=url_for("mcmv.api_simular"), busca=url_for("buscar"),
+        api=url_for("mcmv.api_simular"), busca=url_for("buscar"), cidades=cidades(),
         seo_desc=f"Simule o Minha Casa Minha Vida: veja sua faixa, a parcela e até quanto de imóvel cabe. Renda de até {_brl(topo)}, "
                  f"subsídio de até {_brl(f12['subsidio'])} e até {PRAZO_MESES // 12} anos para pagar.",
         seo_jsonld=jsonld)
@@ -328,6 +487,10 @@ def api_simular():
     return resp
 
 
-def init(app):
-    """Liga o módulo ao app (chame uma vez, no fim do app.py)."""
+def init(app, **deps):
+    """Liga o módulo ao app (chame uma vez, no fim do app.py). `deps` = funções de banco do app.py (ver topo do arquivo)."""
+    if all(k in deps for k in ("query_all", "query_one", "preparar", "capa_sql", "gerar_slug")):
+        _dep.update(deps)
+    else:
+        log.warning("MCMV: sem acesso ao banco; as páginas por cidade ficam desligadas (o simulador funciona normal).")
     app.register_blueprint(bp)
