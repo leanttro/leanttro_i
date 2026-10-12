@@ -3091,6 +3091,13 @@ def sitemap():
     for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia", "para_empresas", "empresas_sites", "empresas_trafego", "mcmv.pagina"):
         if ep in app.view_functions:
             itens.append((base + url_for(ep), None))
+    if "mcmv.cidade" in app.view_functions:      # páginas /minha-casa-minha-vida/<cidade> (só cidades com imóvel marcado)
+        try:
+            import mcmv
+            for slug in mcmv.slugs_cidades():
+                itens.append((base + url_for("mcmv.cidade", cidade=slug), None))
+        except Exception:
+            log.exception("MCMV: cidades fora do sitemap")
     # guia/blog: posts no ar (sem noindex), categorias e autores que têm post
     for r in query_all(f"SELECT p.slug, p.atualizado_em FROM guia_posts p WHERE {GUIA_PUB} AND NOT p.noindex "
                        "ORDER BY p.publicado_em DESC LIMIT 5000"):
@@ -5335,7 +5342,8 @@ def _bootstrap():
 # Minha Casa Minha Vida: módulo separado (mcmv.py, na mesma pasta). Se faltar ou der erro, o resto do site segue normal.
 try:
     import mcmv
-    mcmv.init(app)
+    mcmv.init(app, query_all=query_all, query_one=query_one, preparar=preparar_imoveis,
+              capa_sql=CAPA_SQL, gerar_slug=gerar_slug, base_url=base_url)
 except Exception:
     log.exception("MCMV: o módulo não carregou (o resto do site segue normal)")
 
