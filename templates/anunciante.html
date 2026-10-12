@@ -177,6 +177,7 @@ form.inline{display:inline;margin:0}
 <div class="fld"><label>Bairro *</label><input name="bairro" required value="{{ val.get('bairro', '') }}"></div>
 <div class="fld s4"><label>Descrição</label><textarea name="descricao" rows="5" maxlength="4000" placeholder="Conte o que torna este imóvel especial…">{{ val.get('descricao') or '' }}</textarea></div>
 <div class="fld s2"><label>WhatsApp deste imóvel</label><input name="whatsapp" inputmode="tel" value="{{ val.get('whatsapp') or '' }}" placeholder="Deixe como está para usar o da sua página"><small>Quem clicar em “Falar no WhatsApp” será levado para esse número.</small></div></div>
+<div class="section-t">Financiamento</div><div class="checks" style="padding-top:12px;grid-template-columns:1fr"><label><input type="checkbox" name="aceita_mcmv" value="1" {{ 'checked' if val.get('aceita_mcmv') }}> Este imóvel aceita Minha Casa Minha Vida (só vale para venda)</label></div>
 <div class="section-t">Características</div><div class="checks" style="padding-top:12px">{% for c in CARACTERISTICAS %}<label><input type="checkbox" name="caracteristicas" value="{{ c }}" {{ 'checked' if c in sel }}> {{ c }}</label>{% endfor %}</div></div>
 
 <div class="card" style="margin-top:18px"><div class="card-head"><h2>Localização no mapa</h2></div><div class="fgrid">
