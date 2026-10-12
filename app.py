@@ -3345,6 +3345,7 @@ def _ler_form_imovel():
     val["rua"] = _rua_sem_numero(sanitize_input(f.get("rua", ""))[:150]) or None   # só o nome da rua, nunca o número
     val["descricao"] = sanitize_input(f.get("descricao", ""))[:4000] or None
     val["whatsapp"] = so_digitos(f.get("whatsapp")) or None
+    val["aceita_mcmv"] = f.get("aceita_mcmv") == "1" and val["finalidade"] == "venda"   # MCMV é financiamento de compra
     for k in ("lat", "lng"):
         v = num_br(f.get(k))
         val[k] = v
@@ -3423,7 +3424,7 @@ def anunciante_imovel_novo():
              val["condominio"], val["iptu"], val["cidade"], gerar_slug(val["cidade"]), val["uf"], val["bairro"], gerar_slug(val["bairro"]),
              val["dormitorios"], val["suites"], val["banheiros"], val["vagas"], val["area"], val["descricao"], "|".join(sel),
              val["whatsapp"], val["lat"], val["lng"]))
-        execute("UPDATE imoveis SET rua = %s WHERE id = %s", (val["rua"], iid))
+        execute("UPDATE imoveis SET rua = %s, aceita_mcmv = %s WHERE id = %s", (val["rua"], val["aceita_mcmv"], iid))
         _gravar_proximos(iid, prox)
         _salvar_fotos(iid, t)
         avisar_novo_anuncio(iid)
@@ -3452,7 +3453,7 @@ def anunciante_imovel_editar(imovel_id):
              gerar_slug(val["cidade"]), val["uf"], val["bairro"], gerar_slug(val["bairro"]), val["dormitorios"], val["suites"],
              val["banheiros"], val["vagas"], val["area"], val["descricao"], "|".join(sel), val["whatsapp"], val["lat"], val["lng"],
              status, imovel_id))
-        execute("UPDATE imoveis SET rua = %s WHERE id = %s", (val["rua"], imovel_id))
+        execute("UPDATE imoveis SET rua = %s, aceita_mcmv = %s WHERE id = %s", (val["rua"], val["aceita_mcmv"], imovel_id))
         _gravar_proximos(imovel_id, prox)
         _salvar_fotos(imovel_id, t)
         if im["status"] != "pendente":      # já estava na fila? não manda aviso repetido
