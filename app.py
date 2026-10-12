@@ -62,7 +62,7 @@ SEED_DEMO = _bool("SEED_DEMO")
 PAGBANK_TOKEN = os.environ.get("PAGBANK_TOKEN", "").strip()
 PAGBANK_SANDBOX = _bool("PAGBANK_SANDBOX", True)
 PAGBANK_WEBHOOK_TOKEN = os.environ.get("PAGBANK_WEBHOOK_TOKEN", "").strip()
-PRECO_PROFISSIONAL = float(os.environ.get("PRECO_PROFISSIONAL", "149.90"))
+PRECO_PROFISSIONAL = float(os.environ.get("PRECO_PROFISSIONAL", "89.90"))
 TZ = ZoneInfo(os.environ.get("TZ_PORTAL", "America/Sao_Paulo"))
 # Avisos por e-mail (Gmail + senha de app de 16 dígitos). Sem SMTP_USER/SMTP_SENHA, os avisos ficam desligados.
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.zoho.com").strip()
@@ -83,7 +83,7 @@ TIPOS_IMOVEL = {"apartamento": "Apartamento", "casa": "Casa", "cobertura": "Cobe
 FINALIDADES = {"venda": "Venda", "aluguel": "Aluguel"}
 STATUS_IMOVEL = {"publicado": "Publicado", "pendente": "Em análise", "pausado": "Pausado", "rejeitado": "Rejeitado"}
 PLANOS = {"gratis": "Grátis", "profissional": "Profissional"}
-LIMITES = {"gratis": {"imoveis": 3, "fotos": 8, "destaques": 0}, "profissional": {"imoveis": 100, "fotos": 20, "destaques": 3}}
+LIMITES = {"gratis": {"imoveis": 3, "fotos": 8, "destaques": 0}, "profissional": {"imoveis": 50, "fotos": 20, "destaques": 3}}
 RENOVAR_ANTES_DIAS = 10     # o Pro ativo pode renovar (pagamento avulso de 30 dias) quando faltarem tantos dias ou menos
 TIPOS_CONTA = {"visitante": "Visitante", "proprietario": "Proprietário", "corretor": "Corretor", "imobiliaria": "Imobiliária"}
 TIPOS_TENANT = ("proprietario", "corretor", "imobiliaria")
@@ -535,8 +535,13 @@ LARGURAS = (120, 200, 240, 320, 480, 640, 960, 1200, 1600)
 MIME_OK = {"JPEG", "PNG", "WEBP"}
 
 
-FOTO_MAX_PX = 1600      # maior lado (px) das imagens guardadas em originais/ (fotos, logos, guia, demo)
-FOTO_QUALIDADE = 82     # qualidade JPEG ao gravar
+FOTO_MAX_PX = 1280      # maior lado (px) das imagens guardadas em originais/ (fotos, logos, guia, demo)
+FOTO_QUALIDADE = 80     # qualidade JPEG ao gravar
+IMG_MAX_PIXELS = 100_000_000                 # recusa imagens acima disso (proteção contra "bomba de descompressão")
+Image.MAX_IMAGE_PIXELS = IMG_MAX_PIXELS
+# Processar imagem é o que mais gasta RAM. Poucas por vez (por processo): uploads simultâneos esperam na fila
+# em vez de somarem os picos de memória. Ajuste com IMG_CONCORRENCIA no .env.
+_IMG_SEM = threading.BoundedSemaphore(max(1, int(os.environ.get("IMG_CONCORRENCIA", "2"))))
 
 
 class storage:
@@ -547,25 +552,42 @@ class storage:
     @staticmethod
     def salvar_imagem(origem, nome="foto.jpg", pasta="imoveis", max_px=FOTO_MAX_PX, qualidade=FOTO_QUALIDADE):
         """origem: PIL.Image | bytes | arquivo aberto. Valida, corrige rotação, converte p/ JPEG e grava. Devolve o id."""
+        with _IMG_SEM:
+            return storage._salvar_imagem(origem, nome, pasta, max_px, qualidade)
+
+    @staticmethod
+    def _salvar_imagem(origem, nome, pasta, max_px, qualidade):
         if isinstance(origem, Image.Image):
             img = origem
         else:
-            dados = origem if isinstance(origem, bytes) else origem.read()
-            if not dados:
+            fonte = io.BytesIO(origem) if isinstance(origem, bytes) else origem
+            if not (hasattr(fonte, "seekable") and fonte.seekable()):
+                fonte = io.BytesIO(fonte.read())
+            fonte.seek(0, os.SEEK_END)
+            if fonte.tell() == 0:
                 raise ValueError("arquivo vazio")
-            Image.open(io.BytesIO(dados)).verify()
-            img = Image.open(io.BytesIO(dados))
+            fonte.seek(0)
+            Image.open(fonte).verify()
+            fonte.seek(0)
+            img = Image.open(fonte)
             if img.format not in MIME_OK:
                 raise ValueError("formato não suportado")
+            if img.width * img.height > IMG_MAX_PIXELS:
+                raise ValueError("imagem grande demais")
+            if img.format == "JPEG":
+                # o decodificador já entrega a foto reduzida (1/2, 1/4 ou 1/8): uma foto de 48 MP deixa de ocupar ~150 MB
+                img.draft("RGB", (max_px, max_px))
         img = ImageOps.exif_transpose(img)
-        if img.mode in ("RGBA", "LA", "P"):
+        if img.mode == "P":                    # paleta não redimensiona bem
+            img = img.convert("RGBA")
+        img.thumbnail((max_px, max_px), Image.LANCZOS)      # reduz ANTES de converter (menos pixels para copiar)
+        if img.mode in ("RGBA", "LA"):
             fundo = Image.new("RGB", img.size, (255, 255, 255))
             img = img.convert("RGBA")
             fundo.paste(img, mask=img.split()[-1])
             img = fundo
         else:
             img = img.convert("RGB")
-        img.thumbnail((max_px, max_px), Image.LANCZOS)
         fid = uuid.uuid4().hex
         caminho = os.path.join(storage.orig, fid + ".jpg")
         img.save(caminho, "JPEG", quality=qualidade, optimize=True, progressive=True)
@@ -594,12 +616,17 @@ class storage:
         ext = "webp" if webp else "jpg"
         destino = os.path.join(storage.cache, f"{fid}_{largura}.{ext}")
         if not os.path.exists(destino):
-            with Image.open(origem) as im:
-                if im.width > largura:
-                    im = im.resize((largura, round(im.height * largura / im.width)), Image.LANCZOS)
-                tmp = destino + f".{uuid.uuid4().hex[:6]}.tmp"
-                im.save(tmp, "WEBP" if webp else "JPEG", quality=80, **({} if webp else {"optimize": True, "progressive": True}))
-                os.replace(tmp, destino)
+            with Image.open(origem) as im:                      # só o cabeçalho é lido aqui
+                if not webp and im.width <= largura:
+                    return origem, "image/jpeg"                 # já cabe: serve o original (não cria cópia igual no cache)
+                with _IMG_SEM:
+                    if im.format == "JPEG":
+                        im.draft("RGB", (largura, largura))
+                    if im.width > largura:
+                        im = im.resize((largura, round(im.height * largura / im.width)), Image.LANCZOS)
+                    tmp = destino + f".{uuid.uuid4().hex[:6]}.tmp"
+                    im.save(tmp, "WEBP" if webp else "JPEG", quality=80, **({} if webp else {"optimize": True, "progressive": True}))
+                    os.replace(tmp, destino)
         return destino, "image/webp" if webp else "image/jpeg"
 
 
@@ -3650,11 +3677,44 @@ def _email_renovacao(tipo, nome, venc, dias, link):
     return f"[{SITE_NOME}] {assunto}", texto, html
 
 
+def _tarefa_autorizada():
+    enviado = request.args.get("t") or request.headers.get("X-Tarefas-Token", "")
+    return bool(TAREFAS_TOKEN and enviado and hmac.compare_digest(enviado.encode(), TAREFAS_TOKEN.encode()))
+
+
+@app.route("/tarefas/limpar-cache", methods=["GET", "POST"])
+def tarefa_limpar_cache():
+    """Cron (ex.: 1x/semana): apaga do cache as variantes de imagem sem uso há N dias (?dias=60, mín. 7). É seguro:
+    elas são recriadas sob demanda no próximo acesso. Também remove .tmp esquecidos."""
+    if not _tarefa_autorizada():
+        abort(403)
+    dias = max(7, min(365, request.args.get("dias", 60, type=int) or 60))
+    corte, corte_tmp = time.time() - dias * 86400, time.time() - 86400
+    apagados = liberado = 0
+    try:
+        with os.scandir(storage.cache) as it:
+            for e in it:
+                try:
+                    if not e.is_file(follow_symlinks=False):
+                        continue
+                    st = e.stat(follow_symlinks=False)
+                    velho = (st.st_mtime < corte_tmp) if e.name.endswith(".tmp") else (max(st.st_atime, st.st_mtime) < corte)
+                    if velho:
+                        os.remove(e.path)
+                        apagados += 1
+                        liberado += st.st_size
+                except OSError:
+                    continue
+    except OSError:
+        pass
+    _CACHE_BYTES["t"] = 0.0
+    return jsonify(ok=True, dias=dias, apagados=apagados, liberado=fmt_bytes(liberado))
+
+
 @app.route("/tarefas/renovacao", methods=["GET", "POST"])
 def tarefa_renovacao():
     """Cron diário (externo): avisa por e-mail quem está perto de vencer ou venceu. Idempotente (avisos_assinatura)."""
-    enviado = request.args.get("t") or request.headers.get("X-Tarefas-Token", "")
-    if not TAREFAS_TOKEN or not enviado or not hmac.compare_digest(enviado.encode(), TAREFAS_TOKEN.encode()):
+    if not _tarefa_autorizada():
         abort(403)
     if not (SMTP_USER and SMTP_SENHA):
         return jsonify(ok=False, erro="SMTP não configurado: nada foi enviado nem marcado como enviado."), 503
@@ -3942,7 +4002,16 @@ def _local_naive(dt):
 @admin_required
 def admin_leads_exportar():
     where, params, _ = _leads_filtro(request.args)
-    linhas = query_all(_LEADS_SQL.format(where=where) + " LIMIT 50000", params)
+    sql = _LEADS_SQL.format(where=where) + " LIMIT 50000"
+
+    def linhas():
+        """Lê do banco em lotes (cursor no servidor): as 50 mil linhas nunca ficam todas na memória ao mesmo tempo."""
+        with _conn().cursor(name="leads_exportar", cursor_factory=psycopg2.extras.RealDictCursor) as c:
+            c.itersize = 1000
+            c.execute(sql, params)
+            for r in c:
+                yield r
+
     cab = ["Data do contato", "Nome", "E-mail", "Telefone", "Cidade do lead", "Cadastro do lead em", "Origem", "Canal",
            "Imóvel", "Finalidade", "Tipo", "Preço (R$)", "Quartos", "Cidade do imóvel", "Bairro do imóvel", "Anunciante",
            "Detalhe (visita)", "Cookies", "E-mail verificado", "Telefone verificado", "Consentimento (LGPD) em"]
@@ -3958,6 +4027,7 @@ def admin_leads_exportar():
     nome = f"leads-imovelonde-{datetime.now(TZ).strftime('%Y-%m-%d')}"
     try:
         from openpyxl import Workbook
+        from openpyxl.cell import WriteOnlyCell
         from openpyxl.styles import Alignment, Font, PatternFill
         from openpyxl.utils import get_column_letter
     except ImportError:                       # sem openpyxl no servidor: CSV que o Excel abre direto (; e acentos ok)
@@ -3965,29 +4035,39 @@ def admin_leads_exportar():
         buf = io.StringIO()
         w = csv.writer(buf, delimiter=";")
         w.writerow(cab)
-        for r in linhas:
+        for r in linhas():
             w.writerow([v.strftime("%d/%m/%Y %H:%M") if isinstance(v, datetime) else ("" if v is None else v) for v in linha(r)])
         return Response("\ufeff" + buf.getvalue(), mimetype="text/csv; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Leads"
-    ws.append(cab)
-    for c in ws[1]:
-        c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="071521")
-        c.alignment = Alignment(vertical="center")
-    for r in linhas:
-        ws.append(linha(r))
+    # write_only: grava linha a linha em disco temporário (a planilha inteira não vive na RAM)
+    wb = Workbook(write_only=True)
+    ws = wb.create_sheet("Leads")
     larguras = [17, 26, 32, 16, 18, 17, 22, 12, 36, 11, 13, 14, 8, 18, 18, 26, 30, 14, 16, 17, 22]
     for k, w_ in enumerate(larguras, 1):
         ws.column_dimensions[get_column_letter(k)].width = w_
-    for row in ws.iter_rows(min_row=2):
-        row[0].number_format = row[5].number_format = row[20].number_format = "dd/mm/yyyy hh:mm"
-        row[11].number_format = '#,##0.00'
-        row[3].number_format = "@"
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
+    topo = []
+    for titulo in cab:
+        c = WriteOnlyCell(ws, value=titulo)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="071521")
+        c.alignment = Alignment(vertical="center")
+        topo.append(c)
+    ws.append(topo)
+    formatos = {0: "dd/mm/yyyy hh:mm", 5: "dd/mm/yyyy hh:mm", 20: "dd/mm/yyyy hh:mm", 11: "#,##0.00", 3: "@"}
+    n = 1
+    for r in linhas():
+        saida = []
+        for k, v in enumerate(linha(r)):
+            if k in formatos:
+                c = WriteOnlyCell(ws, value=v)
+                c.number_format = formatos[k]
+                saida.append(c)
+            else:
+                saida.append(v)
+        ws.append(saida)
+        n += 1
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(cab))}{n}"
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
