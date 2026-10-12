@@ -3083,7 +3083,7 @@ def robots():
 def sitemap():
     base = base_url()
     itens = [(base + "/", None)]
-    for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia", "para_empresas", "empresas_sites", "empresas_trafego"):
+    for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia", "para_empresas", "empresas_sites", "empresas_trafego", "mcmv.pagina"):
         if ep in app.view_functions:
             itens.append((base + url_for(ep), None))
     # guia/blog: posts no ar (sem noindex), categorias e autores que têm post
@@ -5321,6 +5321,13 @@ def _bootstrap():
         if SEED_DEMO:
             seed_demo()
 
+
+# Minha Casa Minha Vida: módulo separado (mcmv.py, na mesma pasta). Se faltar ou der erro, o resto do site segue normal.
+try:
+    import mcmv
+    mcmv.init(app)
+except Exception:
+    log.exception("MCMV: o módulo não carregou (o resto do site segue normal)")
 
 if DATABASE_URL:
     _bootstrap()
