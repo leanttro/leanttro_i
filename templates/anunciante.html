@@ -98,6 +98,7 @@ form.inline{display:inline;margin:0}
 .ghost[disabled]{opacity:.5;cursor:not-allowed}
 .pay{display:grid;gap:14px;margin-top:6px}.pay small{display:block;font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}.pay .primary,.pay .ghost{width:100%;text-align:center;padding:12px 15px;font-size:12px}
 .rec-ok{margin-top:6px;border:1px solid #bfe9c5;background:#eaf9ec;border-radius:10px;padding:13px 15px;font-size:12px;line-height:1.5;color:#16742a}.rec-ok small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.periodos{display:grid;gap:8px}.per{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px;cursor:pointer}.per:has(input:checked){border-color:var(--green);background:#f4fcf5}.per input{accent-color:#1cae32}.pay .per small{margin-top:2px}
 </style>
 </head>
 <body>
@@ -236,10 +237,12 @@ form.inline{display:inline;margin:0}
 <div class="plan"><div class="plan-box"><p>{{ em_uso }} de {{ t.limites.imoveis }} imóveis utilizados · até {{ t.limites.fotos }} fotos por imóvel.</p><div class="progress"><i style="width:{{ [100, (em_uso / t.limites.imoveis * 100)|round]|min }}%"></i></div></div></div>
 <div class="plans"><div class="plancard {{ 'cur' if t.plano_efetivo == 'gratis' }}"><h3>Grátis</h3><div class="price-big">R$ 0</div><ul><li>Página no portal</li><li>Até {{ gratis_limites.imoveis }} imóveis · {{ gratis_limites.fotos }} fotos por imóvel</li><li>Contato por WhatsApp</li><li>Presença nas buscas</li></ul></div>
 <div class="plancard {{ 'cur' if t.plano_efetivo == 'profissional' }}"><h3>Profissional</h3><div class="price-big">R$ {{ PRECO_PROFISSIONAL|num(2) }}<small> /mês</small></div><ul><li>Até {{ pro_limites.imoveis }} imóveis · {{ pro_limites.fotos }} fotos por imóvel</li><li>Escolha de template para a página</li><li>Até {{ pro_limites.destaques }} imóveis em destaque</li><li>Prioridade na lista de imobiliárias</li><li>Logo e cor personalizadas</li><li>Página com a sua identidade</li><li>Mais recursos para divulgação</li></ul>
-{% if assinatura_recorrente %}<div class="rec-ok"><b>✓ Renova sozinho no cartão</b>{% if assinatura_recorrente.proxima_cobranca %} • próxima cobrança em {{ assinatura_recorrente.proxima_cobranca|data }}{% endif %}<small>Cobrança mensal de R$ {{ PRECO_PROFISSIONAL|num(2) }} no cartão de crédito. Para cancelar a renovação automática, fale com o suporte.</small></div>
-{% elif t.plano_efetivo != 'profissional' or pode_renovar %}{% set renovando = t.plano_efetivo == 'profissional' %}<div class="pay">
-{% if recorrente_ativo %}<div><form method="post" action="{{ url_for('anunciante_assinar') }}">{{ csrf() }}<input type="hidden" name="modo" value="recorrente"><button class="primary">{{ 'Renovar' if renovando else ('Assinar de novo' if atrasado else 'Assinar') }} no cartão · renova sozinho todo mês</button></form><small>Só cartão de crédito. Cobra R$ {{ PRECO_PROFISSIONAL|num(2) }} todo mês sem você precisar lembrar. Para cancelar a renovação, fale com o suporte.</small></div>{% endif %}
-<div><form method="post" action="{{ url_for('anunciante_assinar') }}">{{ csrf() }}<input type="hidden" name="modo" value="avulso"><button class="{{ 'ghost' if recorrente_ativo else 'primary' }}">{{ 'Renovar' if renovando else 'Pagar' }} 30 dias com Pix, boleto ou débito · R$ {{ PRECO_PROFISSIONAL|num(2) }}</button></form><small>Pagamento único: <b>não renova sozinho</b>. Avisamos por e-mail antes de vencer.{% if renovando %} Os 30 dias são somados ao vencimento atual: você não perde nenhum dia.{% endif %}</small></div></div>
+{% if assinatura_recorrente %}<div class="rec-ok"><b>✓ Renova sozinho no cartão</b>{% if assinatura_recorrente.proxima_cobranca %} • próxima cobrança em {{ assinatura_recorrente.proxima_cobranca|data }}{% endif %}<small>Cobrança de R$ {{ assinatura_recorrente.valor|num(2) }}{% if assinatura_recorrente.meses and assinatura_recorrente.meses > 1 %} a cada {{ assinatura_recorrente.meses }} meses{% else %} por mês{% endif %} no cartão de crédito. Para cancelar a renovação automática, fale com o suporte.</small></div>
+{% elif t.plano_efetivo != 'profissional' or pode_renovar %}{% set renovando = t.plano_efetivo == 'profissional' %}<form class="pay" id="fpag" method="post" action="{{ url_for('anunciante_assinar') }}">{{ csrf() }}
+{% if planos_assinar|length > 1 %}<div class="periodos">{% for p in planos_assinar %}<label class="per"><input type="radio" name="plano" value="{{ p.codigo }}" data-valor="{{ p.valor|num(2) }}" {{ 'checked' if loop.first }}><span><b>{{ p.nome }}</b> · R$ {{ p.valor|num(2) }}{% if p.meses > 1 %}<small>R$ {{ p.por_mes|num(2) }} por mês{% if p.economia %} · economize {{ p.economia }}%{% endif %}</small>{% endif %}</span></label>{% endfor %}</div>
+{% else %}<input type="hidden" name="plano" value="mensal">{% endif %}
+{% if recorrente_ativo %}<div><button class="primary" name="modo" value="recorrente">{{ 'Renovar' if renovando else ('Assinar de novo' if atrasado else 'Assinar') }} no cartão · renova sozinho · R$ <span class="pv">{{ (planos_assinar[0].valor if planos_assinar else PRECO_PROFISSIONAL)|num(2) }}</span></button><small>Só cartão de crédito. Cobra no mesmo período do plano escolhido, sem você precisar lembrar. Para cancelar a renovação, fale com o suporte.</small></div>{% endif %}
+<div><button class="{{ 'ghost' if recorrente_ativo else 'primary' }}" name="modo" value="avulso">{{ 'Renovar' if renovando else 'Pagar' }} com Pix, boleto ou débito · R$ <span class="pv">{{ (planos_assinar[0].valor if planos_assinar else PRECO_PROFISSIONAL)|num(2) }}</span></button><small>Pagamento único pelo período escolhido: <b>não renova sozinho</b>. Avisamos por e-mail antes de vencer.{% if renovando %} O período é somado ao vencimento atual: você não perde nenhum dia.{% endif %}</small></div></form>
 {% elif renovar_a_partir %}<p style="font-size:11px;color:var(--muted);margin-top:8px">Você poderá renovar a partir de {{ renovar_a_partir|data }}.</p>{% endif %}</div></div>
 <p style="padding:0 20px 20px;font-size:11px;color:var(--muted);line-height:1.6">Precisa de um site próprio, com domínio e layout exclusivos? Fale com o suporte sobre o <b>projeto personalizado</b>.</p></div>
 </div>
@@ -290,6 +293,8 @@ document.querySelectorAll('#filtro a').forEach(function(a){
     document.querySelectorAll('#pane-imoveis tbody tr[data-status]').forEach(function(r){r.hidden=!!f&&r.dataset.status!==f});
   });
 });
+var fp=document.getElementById('fpag');
+if(fp){var sync=function(){var r=fp.querySelector('input[name=plano]:checked');if(r)fp.querySelectorAll('.pv').forEach(function(s){s.textContent=r.dataset.valor})};fp.addEventListener('change',sync);sync()}
 show(fromHash()||ativa);
 })();
 </script>
