@@ -2217,6 +2217,21 @@ def anuncie():
     return render_template("anuncie.html", limites=LIMITES)
 
 
+@app.route("/para-empresas", strict_slashes=False)
+def para_empresas():
+    return render_template("para_empresas.html", seo_canonical=base_url() + url_for("para_empresas"))
+
+
+@app.route("/para-empresas/sites-imobiliarios", strict_slashes=False)
+def empresas_sites():
+    return render_template("empresas_sites.html", seo_canonical=base_url() + url_for("empresas_sites"))
+
+
+@app.route("/para-empresas/trafego-pago", strict_slashes=False)
+def empresas_trafego():
+    return render_template("empresas_trafego.html", seo_canonical=base_url() + url_for("empresas_trafego"))
+
+
 # ═══════════════════════════════════════════════════════════════
 # 4b. GUIA / BLOG — artigos, notícias e guias de bairro (feito para SEO)
 #     Tabelas: guia_posts, guia_categorias, guia_tags, guia_post_tags, guia_autores, guia_redirecionamentos.
@@ -3068,7 +3083,7 @@ def robots():
 def sitemap():
     base = base_url()
     itens = [(base + "/", None)]
-    for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia", "para_empresas"):
+    for ep in ("buscar", "imobiliarias", "anuncie", "como_funciona", "guia", "para_empresas", "empresas_sites", "empresas_trafego"):
         if ep in app.view_functions:
             itens.append((base + url_for(ep), None))
     # guia/blog: posts no ar (sem noindex), categorias e autores que têm post
