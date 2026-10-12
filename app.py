@@ -3202,8 +3202,11 @@ def _ctx_imoveis():
     em_uso = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE tenant_id = %s AND status <> 'rejeitado'", (t["id"],))["n"]
     destaques_usados = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE tenant_id = %s AND destaque_anunciante AND status <> 'rejeitado'",
                                  (t["id"],))["n"]
+    pausados_plano = sum(1 for i in lista if i["pausado_plano"] and i["status"] == "pausado")
+    no_ar = sum(1 for i in lista if i["status"] in ("publicado", "pendente"))
+    gratis_lotado = (not t["pro"]) and no_ar >= t["limites"]["imoveis"]      # mesma regra que anunciante_imovel_pausar usa pra recusar
     return dict(imoveis=lista, em_uso=em_uso, destaques_usados=destaques_usados,
-                destaques_limite=LIMITES["profissional"]["destaques"])
+                destaques_limite=LIMITES["profissional"]["destaques"], pausados_plano=pausados_plano, gratis_lotado=gratis_lotado)
 
 
 def _ctx_interessados():
@@ -3230,6 +3233,17 @@ def _painel(ativa, **form):
                dias_restantes=dias_restantes, pode_renovar=pode_renovar, renovar_a_partir=renovar_a_partir,
                templates_pagina=metadados_templates_pagina(),
                template_atual=t.get("template") if t.get("template") in listar_templates_pagina() else TEMPLATE_PADRAO)
+    ctx.update(
+        recorrente_ativo=PAGBANK_RECORRENTE,
+        assinatura_recorrente=query_one(
+            "SELECT proxima_cobranca, vencimento FROM assinaturas WHERE tenant_id = %s AND recorrente AND status = 'ativa' "
+            "AND vencimento >= %s ORDER BY id DESC LIMIT 1", (t["id"], hoje())),
+        assinatura_atrasada=query_one(
+            "SELECT 1 AS x FROM assinaturas a WHERE a.tenant_id = %s AND a.recorrente AND a.status = 'atrasada' AND NOT EXISTS "
+            "(SELECT 1 FROM assinaturas b WHERE b.tenant_id = a.tenant_id AND b.status = 'ativa' AND b.id > a.id) LIMIT 1", (t["id"],)),
+        assinatura_pendente=query_one(
+            "SELECT 1 AS x FROM assinaturas WHERE tenant_id = %s AND status = 'pendente' "
+            "AND criado_em > NOW() - INTERVAL '3 hours' LIMIT 1", (t["id"],)))
     ctx.update(_ctx_geral())
     ctx.update(_ctx_imoveis())
     ctx.update(_ctx_interessados())
