@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% set seo_title = 'Site imobiliário profissional'~ ' | ' ~ SITE.nome %}
+{% set seo_desc = 'Sites e landing pages para imobiliárias, corretores e lançamentos: modernos, rápidos e feitos para gerar leads. Peça seu orçamento pelo WhatsApp. ' %}
+{% set wa_num = '5511976232235' %}
+{% set wa_orc = 'https://wa.me/' ~ wa_num ~ '?text=' ~ (('Olá! Vim pelo ' ~ SITE.nome ~ ' e quero um orçamento de site imobiliário.')|urlencode) %}
+{% set wa_geral = 'https://wa.me/' ~ wa_num ~ '?text=' ~ (('Olá! Vim pela página de sites imobiliários do ' ~ SITE.nome ~ ' e gostaria de tirar uma dúvida.')|urlencode) %}
+{# ── CASE REAL ──────────────────────────────────────────────────────────────
+   Quando tiver um case, troque "None" pelo dicionário abaixo e a seção aparece sozinha.
+   Todos os campos são opcionais (imagem, números e depoimento somem se ficarem vazios).
+   {% set case = {
+     'cliente': 'Nome da imobiliária (ou "Imobiliária em São Paulo")',
+     'servico': 'Site + tráfego pago',
+     'resumo':  'O que foi feito e qual era o problema.',
+     'numeros': [ {'valor': '000', 'texto': 'leads em 90 dias'} ],
+     'depoimento': 'Frase do cliente.',
+     'autor': 'Nome, cargo',
+     'imagem': 'https://…'
+   } %}
+────────────────────────────────────────────────────────────────────────── #}
+{% set case = None %}
+{% include '_seo.html' %}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+:root{--green:#19e64b;--green-dark:#08a92e;--muted:#526071;--line:#dfe6e9;--soft:#f5f8f6;--mint:#eef8f1}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#07111b;background:#fff}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer}
+.wrap{width:min(1120px,calc(100% - 48px));margin:auto}
+.hero{background:linear-gradient(90deg,#06131cf2 0%,#06131ccc 32%,#06131c40 62%,transparent 100%),url('https://testeeee.leanttro.com/site-media/img-c6ee5763-design-sem-nome-2026-10-11t220544-713.png') center/cover no-repeat #06131c;color:white;overflow:hidden;position:relative}
+.hero-inner{min-height:410px;display:grid;grid-template-columns:.92fr 1.08fr;align-items:center;gap:18px;position:relative}
+.hero-copy{padding:52px 0;position:relative;z-index:2}
+.eyebrow{display:inline-flex;align-items:center;border:1px solid var(--green);color:var(--green);border-radius:30px;padding:7px 13px;font-size:10px;font-weight:800;letter-spacing:.45px;text-transform:uppercase}
+.hero h1{font-size:clamp(38px,4.1vw,58px);line-height:.99;letter-spacing:-2.3px;margin:17px 0 17px;max-width:520px}
+.green{color:var(--green)}
+.hero p{font-size:15px;line-height:1.55;color:#e3e9ee;max-width:430px;margin:0 0 22px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:14px 21px;border:0;border-radius:10px;background:var(--green);color:#06130b;font-weight:850;font-size:14px;box-shadow:0 8px 24px #00c93b22;transition:transform .2s,filter .2s}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.04)}
+.hero-perks{display:flex;gap:19px;align-items:center;flex-wrap:wrap;margin-top:25px;color:#f3f6f8;font-size:11px;font-weight:650}
+.perk{display:flex;align-items:center;gap:8px}
+.perk b{color:var(--green);font-size:19px}
+.perk+.perk{border-left:1px solid #51616a;padding-left:19px}
+.hero-art{height:410px;position:relative;align-self:stretch}
+.pin{position:absolute;z-index:2;right:8%;top:12%;width:64px;height:78px;background:var(--green);border-radius:55% 55% 55% 8%;transform:rotate(-45deg);box-shadow:0 0 35px #14f04d77}
+.pin:after{content:"";position:absolute;width:25px;height:25px;background:#06402a;border-radius:50%;top:20px;left:20px}
+.float-card{position:absolute;z-index:3;background:white;color:#0c1720;border-radius:13px;padding:13px 16px;display:flex;gap:11px;align-items:center;box-shadow:0 12px 40px #0004;font-size:11px;font-weight:650}
+.float-card .mini-icon{font-size:23px;color:var(--green-dark)}
+.float-card.one{right:17%;top:18%}
+.float-card.two{right:3%;bottom:10%}
+.avatars{display:flex}
+.avatars i{width:24px;height:24px;border-radius:50%;border:2px solid white;margin-left:-6px;background:linear-gradient(145deg,#f0c7a5,#5e3826)}
+.avatars i:first-child{margin-left:0}
+section{padding:46px 0}
+.section-label{display:flex;align-items:center;gap:9px;text-transform:uppercase;font-size:14px;font-weight:600;color:#46545e;letter-spacing:.2px;margin:0 0 8px}
+.section-label:before{content:"";display:block;width:3px;height:18px;background:#12c42a}
+h2{font-size:clamp(28px,3.6vw,46px);line-height:1.05;letter-spacing:-1.8px;margin:0 0 10px;font-weight:800;color:#071421}
+h2 em{font-style:normal;color:#12b52a}
+.sub{color:#405064;font-size:15px;line-height:1.5;margin:0}
+.benefits-head{margin-bottom:24px}
+.benefits-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.card{border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:0 5px 15px #0a1a2510}
+.benefit{padding:21px 20px;min-height:166px}
+.icon-circle{width:46px;height:46px;border-radius:50%;background:#dcfce4;color:#08a52e;display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:800;margin-bottom:14px}
+.benefit h3{font-size:15px;margin:0 0 7px;letter-spacing:-.35px}
+.benefit p{font-size:12px;line-height:1.5;color:#425064;margin:0}
+.steps-section{background:linear-gradient(110deg,#f1faf4,#f6faf8)}
+.steps-top{margin-bottom:22px}
+.steps-grid{display:grid;grid-template-columns:1fr 26px 1fr 26px 1fr;gap:13px;align-items:center}
+.step{display:flex;gap:14px;align-items:flex-start;padding:20px 18px;min-height:126px}
+.num{flex:0 0 38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#dcfce4;color:#049e2b;font-weight:850}
+.step-icon{color:#00ad30;font-size:27px;margin-bottom:8px}
+.step h3{font-size:14px;margin:0 0 5px}
+.step p{font-size:11px;line-height:1.45;color:#425064;margin:0}
+.chevron{text-align:center;color:#5b6877;font-size:30px;font-weight:300}
+.wa-float{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:90;width:58px;height:58px;border-radius:50%;background:#25d366;color:#fff;display:grid;place-items:center;box-shadow:0 8px 24px #0004;transition:transform .2s}
+.wa-float:hover{transform:scale(1.07)}
+.wa-float svg{width:30px;height:30px}
+.closing{padding:0;background:#06131c;color:#fff;overflow:hidden}
+.closing-inner{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:48px;padding:64px 0;position:relative}
+.closing h2{font-size:clamp(30px,3.4vw,42px);max-width:none;color:#fff}
+.closing p{font-size:15px;line-height:1.5;color:#dce5e9;margin:12px 0 24px}
+.closing-art{height:300px;position:relative}
+.closing-art img{display:block;width:100%;height:100%;object-fit:cover;object-position:center;border-radius:22px;box-shadow:0 18px 50px #0007}
+footer{background:#f3f6f5;padding:18px 0;color:#687583;font-size:10px}
+footer .wrap{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}
+footer nav{display:flex;gap:16px;flex-wrap:wrap}
+footer a:hover{color:#08a92e}
+@media(max-width:850px){.wrap{width:min(100% - 32px,650px)}.hero-inner{grid-template-columns:1fr;min-height:auto}.hero-copy{padding:42px 0 24px}.hero h1{max-width:570px}.hero{background:linear-gradient(180deg,#06131cf2 0%,#06131cb3 45%,#06131c40 100%),url('https://testeeee.leanttro.com/site-media/img-c6ee5763-design-sem-nome-2026-10-11t220544-713.png') center/cover no-repeat #06131c}.hero-art{height:280px;margin:0 -16px}.float-card.one{right:10%;top:10%}.float-card.two{right:4%;bottom:7%}.benefits-grid{grid-template-columns:repeat(2,1fr)}.steps-grid{grid-template-columns:1fr;gap:10px}.chevron{transform:rotate(90deg);line-height:15px}.step{min-height:100px}.closing-inner{grid-template-columns:1fr;gap:28px;padding:44px 0 0}.closing-art{height:220px;margin:0 -16px}.closing-art img{border-radius:0;box-shadow:none}}
+@media(max-width:480px){.wa-float{width:54px;height:54px;right:14px}.hero h1{font-size:39px}.hero p{font-size:14px}.hero-perks{gap:12px}.perk+.perk{padding-left:12px}.benefits-grid{gap:10px}.benefit{padding:15px;min-height:180px}.benefit h3{font-size:13px}.benefit p{font-size:11px}.icon-circle{width:40px;height:40px}.section-label{font-size:12px}section{padding:35px 0}.closing h2{font-size:30px}footer .wrap{flex-direction:column}}
+/* ===== CABEÇALHO — idêntico à home ===== */
+:root{--g:#39e44b;--ink:#071421;--muted:#66737b}
+.container{width:min(1110px,calc(100% - 48px));margin:auto}
+.logo{display:inline-flex;align-items:center;font-size:28px;font-weight:800;letter-spacing:-1.5px}
+.logo img{display:block;width:auto}
+header{position:relative;top:0;z-index:5;width:100%;background:var(--g);color:var(--ink);box-shadow:0 2px 14px #0002}
+header a{color:inherit}
+header .logo img{filter:brightness(0)}
+header .accent{color:#fff}
+header .mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid var(--ink);border-radius:7px;color:var(--ink);margin-right:7px}
+.nav{height:88px;display:flex;align-items:center;gap:40px}
+.menu{display:flex;gap:30px;margin-left:auto;font-size:14px;font-weight:600}
+.actions{display:flex;gap:20px;margin-left:12px;font-size:14px}
+.actions a{white-space:nowrap}
+.actions .anunciar{display:none;background:var(--ink)!important;color:#fff!important}
+.menu a:hover,.actions a:hover{color:#fff}
+.burger{display:none;width:44px;height:44px;margin-left:6px;padding:0;border:0;background:transparent;border-radius:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+.burger span{display:block;width:25px;height:2.5px;background:var(--ink);border-radius:2px;transition:transform .2s,opacity .2s}
+.burger[aria-expanded=true] span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+.burger[aria-expanded=true] span:nth-child(2){opacity:0}
+.burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+.mnav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);border-top:1px solid #ffffff1f;box-shadow:0 16px 30px #0007;padding:8px 0 14px}
+.mnav.on{display:block}
+.mnav a{display:block;padding:15px 22px;font-size:16px;font-weight:650;color:#fff}
+.mnav a:active{background:#ffffff14}
+.mnav hr{border:0;border-top:1px solid #ffffff24;margin:8px 22px}
+@media(max-width:1000px){.menu{gap:15px}}
+@media(max-width:700px){
+.container{width:calc(100% - 28px)}
+.nav{height:76px;gap:10px}
+.nav .logo img{height:52px!important}
+.menu,.actions .near{display:none}
+.actions{margin-left:auto}
+.actions .anunciar{display:inline-block;font-weight:800;padding:9px 15px;border-radius:20px}
+.actions a:not(.anunciar){display:none}
+.burger{display:flex;margin-left:0}
+}
+@media(min-width:701px){.mnav{display:none!important}}
+a:focus-visible,button:focus-visible{outline:3px solid var(--g);outline-offset:2px;border-radius:6px}
+form.inline{display:inline;margin:0}
+.flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
+.flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
+.flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+
+/* ===== PÁGINAS PARA EMPRESAS ===== */
+.hero{background:linear-gradient(90deg,#06131cf2 0%,#06131ccc 32%,#06131c40 62%,transparent 100%),var(--hero-img) center/cover no-repeat #06131c}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.btn.ghost{background:transparent;border:1px solid #ffffff55;color:#fff;box-shadow:none}
+.btn.ghost:hover{background:#ffffff14}
+.back{display:inline-block;font-size:12px;font-weight:700;color:#cfe3d6;margin-bottom:14px}.back:hover{color:#fff}
+.kick{margin-top:22px;font-size:13px;font-weight:700;color:#d9e8df}
+.kick b{color:var(--green)}
+.svc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+.svc-grid.c4{grid-template-columns:repeat(4,1fr)}.svc-grid.c4 .svc{min-height:0}
+.svc{display:flex;flex-direction:column;padding:22px 20px;min-height:200px;transition:transform .2s,box-shadow .2s}
+a.svc:hover{transform:translateY(-3px);box-shadow:0 12px 28px #0a1a2518}
+.svc h3{font-size:16px;margin:0 0 7px;letter-spacing:-.35px;line-height:1.2}
+.svc p{font-size:13px;line-height:1.5;color:#425064;margin:0 0 14px}
+.svc .more{margin-top:auto;font-size:12px;font-weight:800;color:#0b8f3f}
+.head-block{margin-bottom:26px}
+.why-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.why-list{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.why-item{padding:18px;display:flex;gap:12px;align-items:center;font-size:14px;font-weight:700;line-height:1.3}
+.why-item .icon-circle{margin:0;flex:0 0 auto;width:42px;height:42px;font-size:20px}
+.steps5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.steps5.s4{grid-template-columns:repeat(4,1fr)}
+.s5{padding:22px 18px;min-height:150px}
+.s5 .num{width:38px;margin-bottom:12px}
+.s5 h3{font-size:15px;margin:0 0 6px}
+.s5 p{font-size:12.5px;line-height:1.5;color:#425064;margin:0}
+.fmt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.fmt{overflow:hidden}
+.fmt img{display:block;width:100%;height:170px;object-fit:cover}
+.fmt div{padding:20px}
+.fmt h3{font-size:17px;margin:0 0 6px;letter-spacing:-.35px}
+.fmt p{font-size:13px;line-height:1.5;color:#425064;margin:0}
+.case{display:grid;grid-template-columns:1fr 1fr;overflow:hidden}
+.case.noimg{grid-template-columns:1fr}
+.case-img img{display:block;width:100%;height:100%;min-height:260px;object-fit:cover}
+.case-body{padding:32px}
+.case-body h3{font-size:24px;letter-spacing:-.8px;margin:6px 0 8px}
+.case-body p{font-size:14px;line-height:1.55;color:#425064;margin:0}
+.case-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin:20px 0}
+.case-nums b{display:block;font-size:32px;letter-spacing:-1px;line-height:1;color:#12b52a}
+.case-nums span{font-size:12px;color:#526071}
+.case blockquote{margin:18px 0 0;padding-left:14px;border-left:3px solid #19e64b;font-size:14px;line-height:1.55;color:#243447}
+.case blockquote cite{display:block;margin-top:8px;font-size:12px;font-style:normal;font-weight:700;color:#071421}
+.portal{background:radial-gradient(circle at 88% 15%,#0a7d2e 0,#06341f 34%,#06131c 72%);border:1px solid #09db42;border-radius:20px;color:#fff;padding:40px;display:grid;grid-template-columns:1.1fr .9fr;gap:36px;align-items:center;box-shadow:0 14px 40px #09db4226}
+.portal h2{color:#fff}.portal p{color:#d4e3d9;font-size:15px;line-height:1.55;margin:0 0 22px}
+.portal-list{display:grid;gap:12px}
+.portal-list div{display:flex;gap:12px;align-items:center;background:#ffffff0f;border:1px solid #ffffff1f;border-radius:12px;padding:14px 16px;font-size:14px;font-weight:650}
+.portal-list b{color:var(--green);font-size:20px;line-height:1}
+.closing .hero-actions{margin-top:4px}
+footer .contact{display:block;margin-top:2px}
+@media(max-width:850px){
+.hero{background:linear-gradient(180deg,#06131cf2 0%,#06131cb3 45%,#06131c40 100%),var(--hero-img) center/cover no-repeat #06131c}
+.svc-grid,.svc-grid.c4{grid-template-columns:repeat(2,1fr)}
+.why-grid{grid-template-columns:1fr;gap:26px}
+.steps5,.steps5.s4{grid-template-columns:1fr 1fr}
+.fmt-grid{grid-template-columns:1fr}
+.case{grid-template-columns:1fr}
+.portal{grid-template-columns:1fr;padding:28px 22px}
+}
+@media(max-width:480px){
+.svc-grid,.svc-grid.c4,.steps5,.steps5.s4,.why-list{grid-template-columns:1fr}
+.svc{min-height:0}
+.case-body{padding:24px 20px}
+}
+</style>
+</head>
+<body>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
+{%- endmacro %}
+<header><div class="container nav"><a class="logo" href="{{ url_for('home') }}" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
+<nav class="menu" aria-label="Principal"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}</nav>
+<div class="actions"><a class="anunciar" href="{{ url_for('cadastrar', tipo='imobiliaria') }}">Anunciar</a><a class="near" href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}" aria-label="Favoritos">♡</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></div><button class="burger" id="burger" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span><span></span></button></div>
+<nav class="mnav" id="mnav" aria-label="Menu"><a href="{{ url_for('buscar', finalidade='venda') }}">Comprar</a><a href="{{ url_for('buscar', finalidade='aluguel') }}">Alugar</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('guia') }}">Guia</a><a href="{{ url_for('anuncie') }}">Anuncie seu imóvel</a>{% if tem_rota('para_empresas') %}<a href="{{ url_for('para_empresas') }}">Para empresas</a>{% endif %}<hr><a href="{{ url_for('perto_de_mim') }}">⌖ Perto de mim</a><a href="{{ url_for('favoritos') }}">♡ Favoritos</a><a href="{{ url_for('painel') if usuario else url_for('entrar') }}">♙ {{ usuario.nome.split()[0] if usuario else 'Entrar' }}</a></nav></header>
+
+<main>
+<section class="hero" style="--hero-img:url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1900&q=85')">
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <a class="back" href="{{ url_for('para_empresas') }}">← Todos os serviços</a><br><span class="eyebrow">Sites imobiliários</span>
+      <h1>Site imobiliário profissional para <span class="green">vender mais imóveis.</span></h1>
+      <p>Tenha um site moderno, rápido e completo, feito especialmente para o mercado imobiliário. Mais visibilidade, mais leads e mais oportunidades para o seu negócio.</p>
+      <div class="hero-actions"><a class="btn" href="{{ wa_orc }}" target="_blank" rel="noopener">Quero um orçamento de site <span aria-hidden="true">→</span></a><a class="btn ghost" href="#formatos">Ver formatos de site</a></div>
+    </div>
+    <div class="hero-art">
+      <div class="pin" aria-hidden="true"></div>
+      <div class="float-card one"><span class="mini-icon">⌕</span><span><strong>Feito para aparecer</strong><br>no Google</span></div>
+      <div class="float-card two"><span class="mini-icon">▯</span><span><strong>100% responsivo</strong><br>celular, tablet e desktop</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">Por que ter um site imobiliário?</div>
+      <h2>Mais do que um site, é uma <em>máquina de vendas.</em></h2>
+      <p class="sub">Seu site é o primeiro contato de muitos clientes com o seu trabalho. Um site bem feito transmite profissionalismo, inspira confiança e gera mais oportunidades de negócio.</p>
+    </div>
+    <div class="svc-grid">
+      <div class="card svc"><div class="icon-circle">⌂</div><h3>Apresentação profissional</h3><p>Mostre seu portfólio com um visual moderno e atrativo.</p></div>
+      <div class="card svc"><div class="icon-circle">⌕</div><h3>Mais visibilidade no Google</h3><p>Seja encontrado por quem realmente está procurando.</p></div>
+      <div class="card svc"><div class="icon-circle">♧</div><h3>Geração de leads</h3><p>Receba contatos diretos de potenciais compradores e locatários.</p></div>
+      <div class="card svc"><div class="icon-circle">▯</div><h3>100% responsivo</h3><p>Seu site perfeito em todos os dispositivos: celular, tablet e desktop.</p></div>
+      <div class="card svc"><div class="icon-circle">♢</div><h3>Gestão simples</h3><p>Você atualiza os imóveis, fotos e informações com facilidade.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="formatos" class="steps-section">
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">O que criamos</div>
+      <h2>Um formato de site para <em>cada momento</em> do seu negócio.</h2>
+    </div>
+    <div class="fmt-grid">
+      <article class="card fmt"><img src="https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=700&q=80" alt="" loading="lazy"><div><h3>Site para imobiliária</h3><p>Site completo com busca avançada, filtros e destaque de imóveis.</p></div></article>
+      <article class="card fmt"><img src="https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=700&q=80" alt="" loading="lazy"><div><h3>Landing page para corretor</h3><p>Página moderna e focada em captação de leads.</p></div></article>
+      <article class="card fmt"><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=700&q=80" alt="" loading="lazy"><div><h3>Site de lançamento</h3><p>Site com páginas específicas para cada empreendimento.</p></div></article>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">Como funciona</div>
+      <h2>Do planejamento ao <em>seu site no ar.</em></h2>
+      <p class="sub">Um processo simples e transparente. Você acompanha tudo de perto e participa de cada etapa.</p>
+    </div>
+    <div class="steps5">
+      <article class="card s5"><span class="num">01</span><h3>Briefing</h3><p>Entendemos seus objetivos, público e diferenciais.</p></article>
+      <article class="card s5"><span class="num">02</span><h3>Criação do layout</h3><p>Desenvolvemos um design moderno e alinhado com a sua marca.</p></article>
+      <article class="card s5"><span class="num">03</span><h3>Desenvolvimento</h3><p>Transformamos o layout em um site rápido, seguro e otimizado.</p></article>
+      <article class="card s5"><span class="num">04</span><h3>Testes e ajustes</h3><p>Garantimos que tudo funcione perfeitamente antes de publicar.</p></article>
+      <article class="card s5"><span class="num">05</span><h3>Site no ar</h3><p>Seu site pronto para atrair mais visitantes e gerar negócios.</p></article>
+    </div>
+  </div>
+</section>
+
+{% if case %}
+<section id="cases">
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">Case</div>
+      <h2>Resultado <em>real</em>, de cliente real</h2>
+    </div>
+    <article class="card case{% if not case.imagem %} noimg{% endif %}">
+      {% if case.imagem %}<div class="case-img"><img src="{{ case.imagem }}" alt="{{ case.cliente }}" loading="lazy"></div>{% endif %}
+      <div class="case-body">
+        {% if case.servico %}<span class="eyebrow" style="color:#0b8f3f;border-color:#10c93e">{{ case.servico }}</span>{% endif %}
+        <h3>{{ case.cliente }}</h3>
+        {% if case.resumo %}<p>{{ case.resumo }}</p>{% endif %}
+        {% if case.numeros %}<div class="case-nums">{% for n in case.numeros %}<div><b>{{ n.valor }}</b><span>{{ n.texto }}</span></div>{% endfor %}</div>{% endif %}
+        {% if case.depoimento %}<blockquote>“{{ case.depoimento }}”{% if case.autor %}<cite>{{ case.autor }}</cite>{% endif %}</blockquote>{% endif %}
+      </div>
+    </article>
+  </div>
+</section>
+{% endif %}
+<section class="closing">
+  <div class="wrap closing-inner">
+    <div>
+      <div class="section-label" style="color:#d9e8df">Vamos conversar?</div>
+      <h2>Seu próximo cliente pode estar <span class="green">no digital.</span></h2>
+      <p>Fale com a gente no WhatsApp e receba uma proposta personalizada para o seu projeto.</p>
+      <a class="btn" href="{{ wa_orc }}" target="_blank" rel="noopener">Solicitar orçamento <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="closing-art"><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=80" alt="" loading="lazy"></div>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap"><span>© {{ ano }} {{ SITE.nome }}. Todos os direitos reservados.<span class="contact">WhatsApp: (11) 97623-2235</span></span><nav aria-label="Rodapé"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('para_empresas') }}">Para empresas</a><a href="{{ url_for('empresas_sites') }}">Sites imobiliários</a><a href="{{ url_for('empresas_trafego') }}">Tráfego pago</a><a href="{{ url_for('anuncie') }}">Anunciar imóvel</a><a href="{{ url_for('guia') }}">Guia</a></nav></div></footer>
+<a class="wa-float" href="{{ wa_geral }}" target="_blank" rel="noopener" aria-label="Falar no WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a>
+<script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
+function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
+b.onclick=function(){set(!m.classList.contains('on'))};
+m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});
+document.addEventListener('click',function(e){if(!m.contains(e.target)&&!b.contains(e.target))set(false)});
+window.addEventListener('resize',function(){if(window.innerWidth>700)set(false)})})();</script>
+</body>
+</html>
