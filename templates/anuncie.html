@@ -7,6 +7,9 @@
 {% set seo_desc = 'Anuncie casas e apartamentos grátis e receba contatos direto no seu WhatsApp. Página profissional para corretores, proprietários e imobiliárias.' %}
 {% set preco_pro = ('%.2f'|format(PRECO_PROFISSIONAL))|replace('.', ',') %}
 {% set voltar = url_for('anuncie') ~ '#planos' %}
+{% set wa_num = '5511976232235' %}
+{% set wa_geral = 'https://wa.me/' ~ wa_num ~ '?text=' ~ ('Olá! Vim pela página Anuncie seu imóvel e gostaria de tirar uma dúvida.'|urlencode) %}
+{% set wa_contratar = 'https://wa.me/' ~ wa_num ~ '?text=' ~ (('Olá! Quero contratar o plano Profissional no ' ~ SITE.nome ~ '.')|urlencode) %}
 {% include '_seo.html' %}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
@@ -18,13 +21,15 @@
 .hero{background:linear-gradient(90deg,#06131cf2 0%,#06131ccc 32%,#06131c40 62%,transparent 100%),url('https://testeeee.leanttro.com/site-media/img-c6ee5763-design-sem-nome-2026-10-11t220544-713.png') center/cover no-repeat #06131c;color:white;overflow:hidden;position:relative}.hero-inner{min-height:410px;display:grid;grid-template-columns:.92fr 1.08fr;align-items:center;gap:18px;position:relative}.hero-copy{padding:52px 0;position:relative;z-index:2}.eyebrow{display:inline-flex;align-items:center;border:1px solid var(--green);color:var(--green);border-radius:30px;padding:7px 13px;font-size:10px;font-weight:800;letter-spacing:.45px;text-transform:uppercase}.hero h1{font-size:clamp(38px,4.1vw,58px);line-height:.99;letter-spacing:-2.3px;margin:17px 0 17px;max-width:520px}.green{color:var(--green)}.hero p{font-size:15px;line-height:1.55;color:#e3e9ee;max-width:430px;margin:0 0 22px}.btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:14px 21px;border:0;border-radius:10px;background:var(--green);color:#06130b;font-weight:850;font-size:14px;box-shadow:0 8px 24px #00c93b22;transition:transform .2s,filter .2s}.btn:hover{transform:translateY(-2px);filter:brightness(1.04)}.hero-perks{display:flex;gap:19px;align-items:center;flex-wrap:wrap;margin-top:25px;color:#f3f6f8;font-size:11px;font-weight:650}.perk{display:flex;align-items:center;gap:8px}.perk b{color:var(--green);font-size:19px}.perk+.perk{border-left:1px solid #51616a;padding-left:19px}.hero-art{height:410px;position:relative;align-self:stretch}.pin{position:absolute;z-index:2;right:8%;top:12%;width:64px;height:78px;background:var(--green);border-radius:55% 55% 55% 8%;transform:rotate(-45deg);box-shadow:0 0 35px #14f04d77}.pin:after{content:"";position:absolute;width:25px;height:25px;background:#06402a;border-radius:50%;top:20px;left:20px}.float-card{position:absolute;z-index:3;background:white;color:#0c1720;border-radius:13px;padding:13px 16px;display:flex;gap:11px;align-items:center;box-shadow:0 12px 40px #0004;font-size:11px;font-weight:650}.float-card .mini-icon{font-size:23px;color:var(--green-dark)}.float-card.one{right:17%;top:18%}.float-card.two{right:3%;bottom:10%}.avatars{display:flex}.avatars i{width:24px;height:24px;border-radius:50%;border:2px solid white;margin-left:-6px;background:linear-gradient(145deg,#f0c7a5,#5e3826)}.avatars i:first-child{margin-left:0}
 section{padding:46px 0}.section-label{display:flex;align-items:center;gap:9px;text-transform:uppercase;font-size:14px;font-weight:600;color:#46545e;letter-spacing:.2px;margin:0 0 8px}.section-label:before{content:"";display:block;width:3px;height:18px;background:#12c42a}h2{font-size:clamp(28px,3.6vw,46px);line-height:1.05;letter-spacing:-1.8px;margin:0 0 10px;font-weight:800;color:#071421}h2 em{font-style:normal;color:#12b52a}.sub{color:#405064;font-size:15px;line-height:1.5;margin:0}.benefits-head{margin-bottom:24px}.benefits-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.card{border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:0 5px 15px #0a1a2510}.benefit{padding:21px 20px;min-height:166px}.icon-circle{width:46px;height:46px;border-radius:50%;background:#dcfce4;color:#08a52e;display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:800;margin-bottom:14px}.benefit h3{font-size:15px;margin:0 0 7px;letter-spacing:-.35px}.benefit p{font-size:12px;line-height:1.5;color:#425064;margin:0}
 .steps-section{background:linear-gradient(110deg,#f1faf4,#f6faf8)}.steps-top{margin-bottom:22px}.steps-grid{display:grid;grid-template-columns:1fr 26px 1fr 26px 1fr;gap:13px;align-items:center}.step{display:flex;gap:14px;align-items:flex-start;padding:20px 18px;min-height:126px}.num{flex:0 0 38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#dcfce4;color:#049e2b;font-weight:850}.step-icon{color:#00ad30;font-size:27px;margin-bottom:8px}.step h3{font-size:14px;margin:0 0 5px}.step p{font-size:11px;line-height:1.45;color:#425064;margin:0}.chevron{text-align:center;color:#5b6877;font-size:30px;font-weight:300}
-.plans-head{margin-bottom:21px}.plans-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.plan{padding:24px 25px 18px;position:relative;overflow:hidden;min-height:280px}.plan h3{font-size:22px;letter-spacing:-.5px;margin:9px 0 3px}.plan .desc{font-size:12px;color:#4d5b6a;margin:0 0 17px}.pill{display:inline-block;border-radius:20px;padding:5px 10px;background:#d9fbe2;color:#078d28;font-size:9px;font-weight:850;text-transform:uppercase}.plan ul{list-style:none;margin:0 0 20px;padding:0;display:grid;gap:8px;font-size:12px;position:relative;z-index:1}.plan li:before{content:"✓";color:#00c43b;font-size:16px;font-weight:900;margin-right:9px}.plan .plan-btn{display:block;width:100%;padding:12px;border-radius:9px;border:1px solid #10c93e;color:#078e29;background:white;font-size:12px;font-weight:800;text-align:center;position:relative;z-index:2}.plan.pro{background:radial-gradient(circle at 88% 35%,#0a7d2e 0,#06341f 32%,#06131c 70%);color:#fff;border:1px solid #09db42}.plan.pro .desc{color:#d4e3d9}.plan.pro .pill{background:#ffe04a;color:#16200e}.plan.pro .plan-btn{background:var(--green);color:#04140a;border-color:var(--green)}.plan-art{position:absolute;width:160px;height:170px;right:-5px;top:47px;object-fit:cover;opacity:.72;-webkit-mask-image:linear-gradient(90deg,transparent 0%,black 38%);mask-image:linear-gradient(90deg,transparent 0%,black 38%);pointer-events:none}.plan.pro ul{max-width:65%}
-.price{display:flex;align-items:baseline;gap:6px;margin:0 0 14px;position:relative;z-index:1}.price b{font-size:30px;letter-spacing:-1px}.price small{font-size:12px;color:#d4e3d9}.plan:not(.pro) .price small{color:#4d5b6a}
-.plan form{margin:0}.plan-note{font-size:10.5px;line-height:1.4;margin:9px 0 0;color:#d4e3d9;position:relative;z-index:2}.plan:not(.pro) .plan-note{color:#687583}
+.plans-head{margin-bottom:21px}.plans-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.plan{padding:26px 26px 24px;position:relative;display:flex;flex-direction:column}.plan h3{font-size:26px;letter-spacing:-.8px;margin:12px 0 4px}.plan .desc{font-size:13px;line-height:1.45;color:#4d5b6a;margin:0}.pill{display:inline-block;border-radius:20px;padding:5px 10px;background:#d9fbe2;color:#078d28;font-size:9px;font-weight:850;text-transform:uppercase}.plan ul{list-style:none;margin:0;padding:0;display:grid;gap:9px;font-size:13px;line-height:1.35}.plan li{display:flex;gap:9px;align-items:flex-start}.plan li:before{content:"✓";flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:#dcfce4;color:#07992a;font-size:11px;font-weight:900;display:grid;place-items:center;margin-top:0}.plan li.no{color:#8a97a0}.plan li.no:before{content:"✕";background:#eef1f3;color:#a4afb7}.plan .plan-btn{display:block;width:100%;padding:14px;border-radius:10px;border:1px solid #10c93e;color:#078e29;background:white;font-size:13px;font-weight:800;text-align:center;transition:transform .2s,filter .2s}.plan .plan-btn:hover{transform:translateY(-2px);filter:brightness(1.03)}.plan-cta{margin-top:auto;padding-top:24px}.plan.pro{background:radial-gradient(circle at 88% 12%,#0a7d2e 0,#06341f 34%,#06131c 72%);color:#fff;border:1px solid #09db42;box-shadow:0 14px 40px #09db4226}.plan.pro .desc{color:#d4e3d9}.plan.pro .pill{background:#ffe04a;color:#16200e}.plan.pro .plan-btn{background:var(--green);color:#04140a;border-color:var(--green)}.plan-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.plan-thumb{flex:0 0 auto;width:92px;height:92px;border-radius:18px;object-fit:cover;box-shadow:0 8px 22px #0a1a2522;border:1px solid #0000000f}.plan.pro .plan-thumb{border-color:#ffffff2b;box-shadow:0 8px 24px #0006}.plan-sep{height:1px;background:var(--line);margin:20px 0 4px}.plan.pro .plan-sep{background:#ffffff1f}.grp{font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#6b7a83;margin:18px 0 10px}.plan.pro .grp{color:#8fd9a5}.plan.pro li:before{background:#19e64b26;color:#19e64b}.plan.pro li b{color:#fff}.plan li b{color:#071421}.plan.pro .plan-lead{font-size:13px;color:#d4e3d9;margin:0 0 2px}
+.price{display:flex;align-items:baseline;gap:6px;margin:18px 0 0}.price b{font-size:38px;letter-spacing:-1.5px;line-height:1}.price small{font-size:13px;color:#d4e3d9}.plan:not(.pro) .price small{color:#4d5b6a}
+.plan form{margin:0}.plan-note{font-size:11px;line-height:1.4;margin:10px 0 0;color:#d4e3d9}.plan:not(.pro) .plan-note{color:#687583}
+.wa-strip{margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 18px;border:1px dashed #c9d6cf;border-radius:12px;background:#f7faf8;font-size:13px;color:#425064}.wa-strip b{color:#071421}.wa-strip a{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:9px;border:1px solid #25d366;color:#0b8f3f;background:#fff;font-weight:800;font-size:12px;white-space:nowrap;transition:background .2s,color .2s}.wa-strip a:hover{background:#25d366;color:#fff}.wa-strip svg{width:16px;height:16px}
+.wa-float{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:90;width:58px;height:58px;border-radius:50%;background:#25d366;color:#fff;display:grid;place-items:center;box-shadow:0 8px 24px #0004;transition:transform .2s}.wa-float:hover{transform:scale(1.07)}.wa-float svg{width:30px;height:30px}
 .closing{padding:0;background:#06131c;color:#fff;overflow:hidden}.closing-inner{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:48px;padding:64px 0;position:relative}.closing h2{font-size:clamp(30px,3.4vw,42px);max-width:none;color:#fff}.closing p{font-size:15px;line-height:1.5;color:#dce5e9;margin:12px 0 24px}.closing-art{height:300px;position:relative}.closing-art img{display:block;width:100%;height:100%;object-fit:cover;object-position:center;border-radius:22px;box-shadow:0 18px 50px #0007}
 footer{background:#f3f6f5;padding:18px 0;color:#687583;font-size:10px}footer .wrap{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}footer nav{display:flex;gap:16px;flex-wrap:wrap}footer a:hover{color:#08a92e}
-@media(max-width:850px){.wrap{width:min(100% - 32px,650px)}.hero-inner{grid-template-columns:1fr;min-height:auto}.hero-copy{padding:42px 0 24px}.hero h1{max-width:570px}.hero{background:linear-gradient(180deg,#06131cf2 0%,#06131cb3 45%,#06131c40 100%),url('https://testeeee.leanttro.com/site-media/img-c6ee5763-design-sem-nome-2026-10-11t220544-713.png') center/cover no-repeat #06131c}.hero-art{height:280px;margin:0 -16px}.float-card.one{right:10%;top:10%}.float-card.two{right:4%;bottom:7%}.benefits-grid{grid-template-columns:repeat(2,1fr)}.steps-grid{grid-template-columns:1fr;gap:10px}.chevron{transform:rotate(90deg);line-height:15px}.step{min-height:100px}.plans-grid{grid-template-columns:1fr}.plan.pro ul{max-width:70%}.closing-inner{grid-template-columns:1fr;gap:28px;padding:44px 0 0}.closing-art{height:220px;margin:0 -16px}.closing-art img{border-radius:0;box-shadow:none}}
-@media(max-width:480px){.hero h1{font-size:39px}.hero p{font-size:14px}.hero-perks{gap:12px}.perk+.perk{padding-left:12px}.benefits-grid{gap:10px}.benefit{padding:15px;min-height:180px}.benefit h3{font-size:13px}.benefit p{font-size:11px}.icon-circle{width:40px;height:40px}.section-label{font-size:12px}section{padding:35px 0}.plan{padding:20px 18px}.plan-art{width:125px;opacity:.5}.plan.pro ul{max-width:75%}.closing h2{font-size:30px}footer .wrap{flex-direction:column}}
+@media(max-width:850px){.wrap{width:min(100% - 32px,650px)}.hero-inner{grid-template-columns:1fr;min-height:auto}.hero-copy{padding:42px 0 24px}.hero h1{max-width:570px}.hero{background:linear-gradient(180deg,#06131cf2 0%,#06131cb3 45%,#06131c40 100%),url('https://testeeee.leanttro.com/site-media/img-c6ee5763-design-sem-nome-2026-10-11t220544-713.png') center/cover no-repeat #06131c}.hero-art{height:280px;margin:0 -16px}.float-card.one{right:10%;top:10%}.float-card.two{right:4%;bottom:7%}.benefits-grid{grid-template-columns:repeat(2,1fr)}.steps-grid{grid-template-columns:1fr;gap:10px}.chevron{transform:rotate(90deg);line-height:15px}.step{min-height:100px}.plans-grid{grid-template-columns:1fr}.closing-inner{grid-template-columns:1fr;gap:28px;padding:44px 0 0}.closing-art{height:220px;margin:0 -16px}.closing-art img{border-radius:0;box-shadow:none}}
+@media(max-width:480px){.wa-strip{flex-direction:column;align-items:flex-start}.wa-float{width:54px;height:54px;right:14px}.hero h1{font-size:39px}.hero p{font-size:14px}.hero-perks{gap:12px}.perk+.perk{padding-left:12px}.benefits-grid{gap:10px}.benefit{padding:15px;min-height:180px}.benefit h3{font-size:13px}.benefit p{font-size:11px}.icon-circle{width:40px;height:40px}.section-label{font-size:12px}section{padding:35px 0}.plan{padding:20px 18px}.plan-thumb{width:72px;height:72px;border-radius:14px}.closing h2{font-size:30px}footer .wrap{flex-direction:column}}
 
 /* ===== CABEÇALHO — idêntico à home ===== */
 :root{--g:#39e44b;--ink:#071421;--muted:#66737b}
@@ -90,11 +95,6 @@ form.inline{display:inline;margin:0}
       <h1>Seu imóvel no lugar certo, para quem <span class="green">realmente procura.</span></h1>
       <p>Anuncie no {{ SITE.nome }} e alcance milhares de pessoas da sua região que estão procurando imóveis como o seu.</p>
       <a class="btn" href="#planos">Começar a anunciar <span aria-hidden="true">→</span></a>
-      <div class="hero-perks">
-        <div class="perk"><b>ϟ</b> Rápido e simples</div>
-        <div class="perk"><b>♢</b> Sem burocracia</div>
-        <div class="perk"><b>▥</b> Mais visibilidade</div>
-      </div>
     </div>
     <div class="hero-art">
       <div class="pin" aria-hidden="true"></div>
@@ -146,28 +146,76 @@ form.inline{display:inline;margin:0}
     </div>
     <div class="plans-grid">
       <article class="card plan">
-        <span class="pill">Grátis</span>
-        <h3>Básico</h3><p class="desc">Ideal para quem quer começar a anunciar.</p>
-        <ul><li>Até {{ limites.gratis.imoveis }} imóveis publicados</li><li>Até {{ limites.gratis.fotos }} fotos por imóvel</li><li>Página própria no portal</li><li>Contato direto via WhatsApp</li><li>Presença nas buscas</li><li>Sem custo</li></ul>
-        {% if tenant %}<a class="plan-btn" href="{{ url_for('painel') }}">Ir para o meu painel</a>
-        {% elif usuario %}<a class="plan-btn" href="{{ url_for('painel') }}">Ir para minha conta</a>
-        {% else %}<a class="plan-btn" href="{{ url_for('cadastrar', tipo='imobiliaria', next=voltar) }}">Começar grátis</a>{% endif %}
-        <img class="plan-art" src="https://testeeee.leanttro.com/site-media/img-ac17c6c2-open-sauce-visual-12.png" alt="" aria-hidden="true" loading="lazy">
+        <div class="plan-top">
+          <div><span class="pill">Grátis</span><h3>Básico</h3><p class="desc">Ideal para quem quer começar a anunciar, sem custo.</p></div>
+          <img class="plan-thumb" src="https://testeeee.leanttro.com/site-media/img-ac17c6c2-open-sauce-visual-12.png" alt="" aria-hidden="true" loading="lazy">
+        </div>
+        <div class="price"><b>R$ 0</b><small>sem prazo</small></div>
+        <div class="plan-sep"></div>
+        <div class="grp">Incluso</div>
+        <ul>
+          <li>Até <b>{{ limites.gratis.imoveis }} imóveis</b> publicados</li>
+          <li>Até <b>{{ limites.gratis.fotos }} fotos</b> por imóvel</li>
+          <li>Página própria no portal</li>
+          <li>Contato direto via WhatsApp</li>
+          <li>Presença nas buscas</li>
+        </ul>
+        <div class="grp">Não inclui</div>
+        <ul>
+          <li class="no">Painel com interessados e estatísticas</li>
+          <li class="no">Imóveis em destaque</li>
+          <li class="no">Logo, cor e template da página</li>
+          <li class="no">Prioridade na lista de imobiliárias</li>
+          <li class="no">Vitrine de imobiliárias na home</li>
+        </ul>
+        <div class="plan-cta">
+          {% if tenant %}<a class="plan-btn" href="{{ url_for('painel') }}">Ir para o meu painel</a>
+          {% elif usuario %}<a class="plan-btn" href="{{ url_for('painel') }}">Ir para minha conta</a>
+          {% else %}<a class="plan-btn" href="{{ url_for('cadastrar', tipo='imobiliaria', next=voltar) }}">Começar grátis</a>{% endif %}
+        </div>
       </article>
       <article class="card plan pro">
-        <span class="pill">Mais popular</span>
-        <h3>Profissional</h3><p class="desc">Mais espaço e visibilidade para os seus imóveis.</p>
+        <div class="plan-top">
+          <div><span class="pill">Mais popular</span><h3>Profissional</h3><p class="desc">Mais espaço, mais visibilidade e a sua marca na página.</p></div>
+          <img class="plan-thumb" src="https://testeeee.leanttro.com/site-media/img-54aaeb30-open-sauce-visual-13.png" alt="" aria-hidden="true" loading="lazy">
+        </div>
         <div class="price"><b>R$ {{ preco_pro }}</b><small>por 30 dias</small></div>
-        <ul><li>Até {{ limites.profissional.imoveis }} imóveis e {{ limites.profissional.fotos }} fotos por imóvel</li><li>Até {{ limites.profissional.destaques }} imóveis em destaque</li><li>Prioridade na lista de imobiliárias</li><li>Escolha de template da sua página</li><li>Logo e cores personalizadas</li></ul>
-        {% if tenant and tenant.pro %}<a class="plan-btn" href="{{ url_for('anunciante_assinatura') }}">Ver minha assinatura</a>
-        {% elif tenant %}<form method="post" action="{{ url_for('anunciante_assinar') }}">{{ csrf() }}<button class="plan-btn" type="submit">Assinar plano Profissional</button></form>
-        <p class="plan-note">Você será levado ao pagamento seguro (PagBank). Pagamento único por 30 dias, sem renovação automática.</p>
-        {% elif usuario %}<a class="plan-btn" href="{{ url_for('painel') }}">Ir para minha conta</a>
-        {% else %}<a class="plan-btn" href="{{ url_for('cadastrar', tipo='imobiliaria', next=voltar) }}">Criar conta e assinar</a>
-        <p class="plan-note">Crie sua conta grátis e volte aqui para ativar o Profissional.</p>{% endif %}
-        <img class="plan-art" src="https://testeeee.leanttro.com/site-media/img-54aaeb30-open-sauce-visual-13.png" alt="" aria-hidden="true" loading="lazy">
+        <div class="plan-sep"></div>
+        <p class="plan-lead" style="margin-top:14px">Tudo do Básico, e mais:</p>
+        <div class="grp">Mais espaço</div>
+        <ul>
+          <li>Até <b>{{ limites.profissional.imoveis }} imóveis</b> publicados</li>
+          <li>Até <b>{{ limites.profissional.fotos }} fotos</b> por imóvel</li>
+        </ul>
+        <div class="grp">Mais visibilidade</div>
+        <ul>
+          <li>Até <b>{{ limites.profissional.destaques }} imóveis em destaque</b>, com prioridade nas buscas e na home</li>
+          <li>Aparece <b>primeiro</b> na lista de imobiliárias</li>
+          <li>Card ampliado, com logo grande, galeria de fotos e finalidades</li>
+          <li>Chance de aparecer na vitrine de imobiliárias da home</li>
+        </ul>
+        <div class="grp">Sua marca</div>
+        <ul>
+          <li>Logo na sua página pública</li>
+          <li>Cor personalizada</li>
+          <li>Escolha do template da página</li>
+        </ul>
+        <div class="grp">Acompanhamento</div>
+        <ul>
+          <li>Painel com interessados e estatísticas</li>
+          <li>Contagem regressiva e aviso de vencimento por e-mail</li>
+        </ul>
+        <div class="plan-cta">
+          {% if tenant and tenant.pro %}<a class="plan-btn" href="{{ url_for('anunciante_assinatura') }}">Ver minha assinatura</a>
+          {% elif tenant %}<form method="post" action="{{ url_for('anunciante_assinar') }}">{{ csrf() }}<button class="plan-btn" type="submit">Assinar plano Profissional</button></form>
+          <p class="plan-note">Você será levado ao pagamento seguro (PagBank). Pagamento único por 30 dias, sem renovação automática.</p>
+          {% elif usuario %}<a class="plan-btn" href="{{ url_for('painel') }}">Ir para minha conta</a>
+          {% else %}<a class="plan-btn" href="{{ url_for('cadastrar', tipo='imobiliaria', next=voltar) }}">Criar conta e assinar</a>
+          <p class="plan-note">Crie sua conta grátis e volte aqui para ativar o Profissional.</p>{% endif %}
+        </div>
       </article>
     </div>
+    <div class="wa-strip"><span><b>Ficou com dúvida ou prefere contratar pelo WhatsApp?</b> Fale com a gente, é rápido.</span><a href="{{ wa_contratar }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>Falar no WhatsApp</a></div>
   </div>
 </section>
 
@@ -185,6 +233,7 @@ form.inline{display:inline;margin:0}
 </main>
 
 <footer><div class="wrap"><span>© {{ ano }} {{ SITE.nome }}. Todos os direitos reservados.</span><nav aria-label="Rodapé"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('anuncie') }}">Anunciar imóvel</a><a href="{{ url_for('como_funciona') }}">Como funciona</a><a href="{{ url_for('guia') }}">Guia</a></nav></div></footer>
+<a class="wa-float" href="{{ wa_geral }}" target="_blank" rel="noopener" aria-label="Falar no WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a>
 <script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
 function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
 b.onclick=function(){set(!m.classList.contains('on'))};
