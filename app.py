@@ -80,7 +80,7 @@ VERIFICAR_EMAIL = _bool("VERIFICAR_EMAIL", bool(SMTP_USER and SMTP_SENHA))
 CONSENTIMENTO_VERSAO = "2026-10-10"      # mude quando alterar o texto do aceite (fica gravado junto da data)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger("imovelonde")
+log = logging.getLogger("ondeimoveis")
 
 TIPOS_IMOVEL = {"apartamento": "Apartamento", "casa": "Casa", "cobertura": "Cobertura",
                 "comercial": "Comercial", "terreno": "Terreno"}
@@ -1055,7 +1055,7 @@ def template_do_tenant(t):
 
 @app.before_request
 def _dominio_canonico():
-    """imovelonde.com.br é o endereço oficial: www.imovelonde.com.br vira 301 para ele."""
+    """O endereço oficial é o do BASE_URL (www.ondeimoveis.com.br): ondeimoveis.com.br, sem o www, vira 301 para ele."""
     if not BASE_URL or request.method not in ("GET", "HEAD") or request.path == "/healthz":
         return None
     oficial = urlparse(BASE_URL).netloc.lower()
@@ -2239,7 +2239,7 @@ def empresas_trafego():
 #              /guia/busca · /guia/feed.xml        Admin: /admin/guia
 # ═══════════════════════════════════════════════════════════════
 
-GUIA_MARCA = "ImovelOnde"
+GUIA_MARCA = SITE_NOME
 TIPOS_GUIA = {"artigo": "Artigo", "noticia": "Notícia", "bairro": "Guia de bairro"}
 STATUS_GUIA = {"rascunho": "Rascunho", "agendado": "Agendado", "publicado": "Publicado"}
 GUIA_POR_PAGINA = 12
@@ -4310,7 +4310,7 @@ def admin_leads_exportar():
                 r["tenant_nome"], r["detalhe"], COOKIES_LEAD.get(r["cookies"], "—"),
                 "Sim" if r["email_verificado"] else "Não", "Sim" if r["telefone_verificado"] else "Não", _local_naive(r["consentimento_em"])]
 
-    nome = f"leads-imovelonde-{datetime.now(TZ).strftime('%Y-%m-%d')}"
+    nome = f"leads-ondeimoveis-{datetime.now(TZ).strftime('%Y-%m-%d')}"
     try:
         from openpyxl import Workbook
         from openpyxl.cell import WriteOnlyCell
