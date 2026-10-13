@@ -287,6 +287,12 @@ ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS meses INT;
 CREATE TABLE IF NOT EXISTS planos_pro (
   codigo TEXT PRIMARY KEY, nome TEXT NOT NULL, meses INT NOT NULL CHECK (meses > 0),
   valor NUMERIC(10,2) NOT NULL CHECK (valor > 0), ativo BOOLEAN NOT NULL DEFAULT TRUE);
+CREATE TABLE IF NOT EXISTS cupons (
+  id SERIAL PRIMARY KEY, codigo TEXT NOT NULL UNIQUE, tipo TEXT NOT NULL CHECK (tipo IN ('percentual','fixo')),
+  valor NUMERIC(10,2) NOT NULL CHECK (valor > 0), planos TEXT, limite_usos INT, usos INT NOT NULL DEFAULT 0,
+  validade DATE, ativo BOOLEAN NOT NULL DEFAULT TRUE, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS cupom_codigo TEXT;
+ALTER TABLE assinaturas ADD COLUMN IF NOT EXISTS valor_original NUMERIC(10,2);
 """
 
 
@@ -3891,6 +3897,42 @@ def desativar_profissional(tenant_id, status="cancelada"):
     sincronizar_planos(tenant_id)                      # voltou ao Grátis: o excedente é pausado agora
 
 
+def _norm_cupom(txt):
+    return re.sub(r"[^A-Z0-9_-]", "", (txt or "").upper())[:30]
+
+
+def aplicar_cupom(tenant_id, codigo, plano):
+    """Valida o cupom e calcula o valor final. Devolve (cupom, valor_final, erro). Sem cupom digitado: (None, valor do plano, None).
+    O valor final é o que vai para assinaturas.valor, para a cobrança e para a conferência do webhook."""
+    codigo = _norm_cupom(codigo)
+    if not codigo:
+        return None, plano["valor"], None
+    c = query_one("SELECT * FROM cupons WHERE codigo = %s", (codigo,))
+    if not c or not c["ativo"]:
+        return None, None, "Cupom inválido."
+    if c["validade"] and c["validade"] < hoje():
+        return None, None, "Esse cupom já venceu."
+    if c["limite_usos"] is not None and c["usos"] >= c["limite_usos"]:
+        return None, None, "Esse cupom já atingiu o limite de usos."
+    if c["planos"] and plano["codigo"] not in [x.strip() for x in c["planos"].split(",")]:
+        return None, None, "Esse cupom não vale para o período escolhido."
+    if query_one("SELECT 1 FROM assinaturas WHERE tenant_id = %s AND cupom_codigo = %s AND status <> 'pendente' LIMIT 1",
+                 (tenant_id, codigo)):
+        return None, None, "Você já usou esse cupom."
+    base = float(plano["valor"])
+    final = base * (1 - float(c["valor"]) / 100) if c["tipo"] == "percentual" else base - float(c["valor"])
+    final = round(max(final, 0.0), 2)
+    if 0 < final < 1:                              # o Mercado Pago não cobra centavos soltos
+        final = 1.0
+    return c, final, None
+
+
+def _contar_uso_cupom(ass):
+    """Soma 1 uso ao cupom da assinatura. Chamada só quando o pagamento é confirmado (o webhook é idempotente)."""
+    if ass.get("cupom_codigo"):
+        execute("UPDATE cupons SET usos = usos + 1 WHERE codigo = %s", (ass["cupom_codigo"],))
+
+
 @app.route("/painel/assinatura/assinar", methods=["POST"])
 @anunciante_required
 def anunciante_assinar():
@@ -3919,19 +3961,41 @@ def anunciante_assinar():
     if not plano:
         flash("Escolha um dos planos disponíveis.", "error")
         return redirect(url_for("anunciante_assinatura"))
-    aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento, recorrente, plano_codigo, meses) "
-                            "VALUES (%s,'profissional','pendente',%s,%s,%s,%s,%s) RETURNING id",
-                            (t["id"], plano["valor"], pagamento.nome, recorrente, plano["codigo"], plano["meses"]))
+    cupom, valor, erro_cupom = aplicar_cupom(t["id"], request.form.get("cupom"), plano)
+    if erro_cupom:
+        flash(erro_cupom, "error")
+        return redirect(url_for("anunciante_assinatura"))
+    if cupom:
+        recorrente = False                          # com cupom a cobrança é sempre avulsa (desconto não se repete sozinho)
+    if cupom and valor <= 0:
+        # Cupom de 100%: não passa pelo Mercado Pago (ele não cria cobrança de R$ 0). Reserva o uso e ativa o Pro direto.
+        if not execute_returning("UPDATE cupons SET usos = usos + 1 WHERE id = %s AND (limite_usos IS NULL OR usos < limite_usos) RETURNING id",
+                                 (cupom["id"],)):
+            flash("Esse cupom já atingiu o limite de usos.", "error")
+            return redirect(url_for("anunciante_assinatura"))
+        aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento, recorrente, plano_codigo, meses, cupom_codigo, valor_original) "
+                                "VALUES (%s,'profissional','pendente',0,'cupom',FALSE,%s,%s,%s,%s) RETURNING id",
+                                (t["id"], plano["codigo"], plano["meses"], cupom["codigo"], plano["valor"]))
+        ativar_profissional(t["id"], assinatura_id=aid, provedor="cupom", meses=plano["meses"])
+        execute("INSERT INTO pagamentos (tenant_id, provedor, evento_id, referencia, status, valor, payload) "
+                "VALUES (%s,'cupom',%s,%s,'pago',0,%s) ON CONFLICT (provedor, evento_id) DO NOTHING",
+                (t["id"], f"cupom-{aid}", f"assin-{aid}", json.dumps({"cupom": cupom["codigo"], "plano": plano["codigo"]})))
+        flash(f"Cupom aplicado! Seu plano Profissional ({plano['nome']}) está ativo.", "success")
+        return redirect(url_for("anunciante_assinatura"))
+    aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento, recorrente, plano_codigo, meses, cupom_codigo, valor_original) "
+                            "VALUES (%s,'profissional','pendente',%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                            (t["id"], valor, pagamento.nome, recorrente, plano["codigo"], plano["meses"],
+                             cupom["codigo"] if cupom else None, plano["valor"] if cupom else None))
     try:
         try:
-            ref, link, plano_ext = pagamento.criar_cobranca(t, aid, plano["valor"], recorrente=recorrente, meses=plano["meses"], nome_plano=plano["nome"])
+            ref, link, plano_ext = pagamento.criar_cobranca(t, aid, valor, recorrente=recorrente, meses=plano["meses"], nome_plano=plano["nome"])
         except Exception:
             if not recorrente:
                 raise
             log.exception("PagBank recusou o checkout recorrente; abrindo cobrança avulsa no lugar")
             recorrente = False
             execute("UPDATE assinaturas SET recorrente = FALSE WHERE id = %s", (aid,))
-            ref, link, plano_ext = pagamento.criar_cobranca(t, aid, plano["valor"], recorrente=False, meses=plano["meses"], nome_plano=plano["nome"])
+            ref, link, plano_ext = pagamento.criar_cobranca(t, aid, valor, recorrente=False, meses=plano["meses"], nome_plano=plano["nome"])
     except Exception:
         log.exception("Falha ao criar cobrança no %s", pagamento.nome)
         flash("Não consegui abrir o pagamento agora. Tente de novo em instantes.", "error")
@@ -4062,6 +4126,7 @@ def webhook_pagbank():
                     execute("DELETE FROM pagamentos WHERE provedor = 'pagbank' AND evento_id = %s", (ev["evento_id"],))
                     return jsonify(ok=True, confirmado=False)
                 ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="pagbank", meses=ass.get("meses"))
+                _contar_uso_cupom(ass)
             elif ev["status"] == "falhou" and ass["status"] == "ativa":
                 desativar_profissional(ass["tenant_id"], "atrasada")
         except Exception:
@@ -4118,6 +4183,7 @@ def webhook_mercadopago():
                     execute("DELETE FROM pagamentos WHERE provedor = 'mercadopago' AND evento_id = %s", (evento_id,))
                     return jsonify(ok=True, confirmado=False)
                 ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="mercadopago", meses=ass.get("meses"))
+                _contar_uso_cupom(ass)
             elif status == "estornado" and ass["status"] == "ativa":
                 desativar_profissional(ass["tenant_id"], "cancelada")
         except Exception:
@@ -4390,6 +4456,51 @@ def admin_planos():
         flash("Planos atualizados. O novo preço vale para quem assinar a partir de agora; assinaturas de cartão já ativas mantêm o valor antigo.", "success")
         return redirect(url_for("admin_planos"))
     return render_template("admin.html", planos=planos_pro(False), pagina_ativa="planos")
+
+
+@app.route("/admin/cupons", methods=["GET", "POST"])
+@admin_required
+def admin_cupons():
+    """Cria e lista cupons de desconto do Profissional. Criar pede a senha do admin de novo (muda quanto se cobra)."""
+    if request.method == "POST":
+        if not check_password_hash(g.usuario["senha_hash"], request.form.get("senha_atual", "")):
+            flash("Senha incorreta — nada foi salvo.", "error")
+            return redirect(url_for("admin_cupons"))
+        codigo = _norm_cupom(request.form.get("codigo"))
+        tipo = request.form.get("tipo")
+        valor = num_br(request.form.get("valor"))
+        if len(codigo) < 3:
+            flash("Código inválido: use de 3 a 30 letras, números, - ou _.", "error")
+            return redirect(url_for("admin_cupons"))
+        if tipo not in ("percentual", "fixo") or valor is None or valor <= 0 or (tipo == "percentual" and valor > 100) or valor > 100000:
+            flash("Valor inválido: percentual vai de 1 a 100; valor fixo em reais.", "error")
+            return redirect(url_for("admin_cupons"))
+        limite = request.form.get("limite_usos", type=int)
+        if limite is not None and limite < 1:
+            limite = None
+        validade = None
+        if (request.form.get("validade") or "").strip():
+            try:
+                validade = date.fromisoformat(request.form["validade"].strip())
+            except ValueError:
+                flash("Data de validade inválida.", "error")
+                return redirect(url_for("admin_cupons"))
+        codigos_ok = {pl["codigo"] for pl in planos_pro(False)}
+        planos_sel = [c for c in request.form.getlist("planos") if c in codigos_ok]
+        novo = execute("INSERT INTO cupons (codigo, tipo, valor, planos, limite_usos, validade) VALUES (%s,%s,%s,%s,%s,%s) "
+                       "ON CONFLICT (codigo) DO NOTHING",
+                       (codigo, tipo, round(valor, 2), ",".join(planos_sel) or None, limite, validade))
+        flash(f"Cupom {codigo} criado." if novo else f"Já existe um cupom {codigo}.", "success" if novo else "error")
+        return redirect(url_for("admin_cupons"))
+    return render_template("admin.html", cupons=query_all("SELECT * FROM cupons ORDER BY ativo DESC, criado_em DESC"),
+                           planos=planos_pro(False), pagina_ativa="cupons")
+
+
+@app.route("/admin/cupons/<int:cupom_id>/alternar", methods=["POST"])
+@admin_required
+def admin_cupom_alternar(cupom_id):
+    execute("UPDATE cupons SET ativo = NOT ativo WHERE id = %s", (cupom_id,))
+    return redirect(url_for("admin_cupons"))
 
 
 @app.route("/admin/assinaturas")
