@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#071521">
 <title>OndeImóveis — Criar conta</title>
 <style>
 
@@ -86,6 +86,44 @@ form.inline{display:inline;margin:0}
 .consent{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.5;color:#55656c;cursor:pointer}
 .consent input{width:18px;height:18px;margin-top:1px;flex:none;accent-color:var(--green)}
 .consent a{color:#18a92b;font-weight:700}
+
+/* ===== identidade da home (pílulas, verde #39e44b, cantos grandes) ===== */
+:root{--green:#39e44b;--green-dark:#15993a}
+.visual-bottom .eyebrow{text-transform:none;letter-spacing:0;font-size:13px;font-weight:700}
+.visual-bottom h2{font-weight:800}
+.feature{border-radius:999px;padding:9px 15px;font-size:12px;font-weight:600}
+.form-head h1{font-weight:800;letter-spacing:-1.2px}
+.field label{font-size:12px}
+.field input,select{border-radius:14px;height:52px;border-color:#d9dfe2}
+.field input:focus,select:focus{border-color:#071421;box-shadow:0 0 0 3px rgba(57,228,75,.25);outline:0}
+.seg{background:#e9eef0;border-radius:999px;padding:5px}
+.seg button{border-radius:999px;height:44px}
+.seg button.on{background:#071421;border-color:#071421;color:#fff}
+.submit{height:54px;border-radius:999px;background:var(--green);font-size:15px;font-weight:800;box-shadow:0 10px 24px -10px rgba(57,228,75,.8)}
+.submit:hover{background:#30d542}
+.notice{border-radius:14px;background:#f2fbf3}
+.consent input{accent-color:var(--green)}
+.signup a,.consent a,.forgot{color:var(--green-dark)}
+.show{border-radius:0 14px 14px 0}
+@media(max-width:850px){
+  /* no celular a foto vira um topo de marca, e o formulário sobe sobre ela */
+  .page{display:block;background:#071521}
+  .visual{display:block;min-height:0;height:auto}
+  .visual img{position:absolute;inset:0;width:100%;height:100%;opacity:.5}
+  .visual-content{position:relative;inset:auto;padding:calc(20px + env(safe-area-inset-top)) 22px 64px;gap:22px;justify-content:flex-start}
+  .logo img{height:50px!important}
+  .logo{font-size:26px}
+  .visual-bottom{max-width:none}
+  .visual-bottom .eyebrow{margin-bottom:8px;font-size:12px}
+  .visual-bottom h2{font-size:30px;letter-spacing:-1.2px;margin:0}
+  .visual-bottom p,.features{display:none}
+  .form-side{position:relative;z-index:3;min-height:0;margin-top:-34px;border-radius:30px 30px 0 0;padding:28px 20px calc(36px + env(safe-area-inset-bottom));box-shadow:0 -14px 40px -18px #0006}
+  .form-wrap{max-width:460px}
+  .mobile-logo{display:none}
+  .form-head{margin-bottom:22px}
+  .form-head h1{font-size:26px}
+  .field input,select{font-size:16px}
+}
 </style>
 </head>
 <body>
