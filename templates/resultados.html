@@ -160,6 +160,15 @@ footer{background:#eef3f4;color:#56636b;padding:26px 0;font-size:11px}footer a:h
 .f:not(.loc)>svg{display:none}
 .f:not(.loc) select{font-size:13px}
 }
+
+/* ===== CABEÇALHO EM UMA LINHA (mesmo bloco das páginas Para empresas) ===== */
+.menu a{white-space:nowrap}
+.nav{gap:28px}
+.menu{gap:24px}
+.actions a:last-child{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:1160px){.menu{gap:20px}.actions .near{display:none}}
+@media(max-width:1000px){.menu{gap:14px;font-size:13px}.actions{gap:14px}}
+@media(max-width:700px){.nav{gap:10px}.actions a:last-child{max-width:none}}
 </style>
 </head>
 <body>
