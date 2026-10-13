@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#071521">
 <title>OndeImóveis — Entrar</title>
 <style>
 
@@ -75,15 +75,53 @@ form.inline{display:inline;margin:0}
 .flashes{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;display:grid;gap:8px;width:min(480px,calc(100% - 24px))}
 .flash{padding:12px 16px;border-radius:10px;font:600 13px/1.4 Inter,Arial,sans-serif;box-shadow:0 8px 28px #0003;background:#fff;color:#17231e;border-left:4px solid #39dc4b;transition:opacity .4s}
 .flash.error{border-left-color:#e45151;color:#9a2b2b}.flash.success{border-left-color:#39dc4b}
+
+/* ===== identidade da home ===== */
+:root{--green:#39e44b;--green-dark:#15993a}
+.logo,.mobile-logo{text-decoration:none;font-size:28px;font-weight:800;letter-spacing:-1.5px;display:inline-flex;align-items:center}
+.logo img,.mobile-logo img{display:block;width:auto}
+.logo img{filter:brightness(0) invert(1)}.mobile-logo img{filter:brightness(0)}
+.mark{display:inline-grid;place-items:center;width:29px;height:29px;border:3px solid #39e44b;border-radius:7px;color:#39e44b;margin-right:7px}
+.accent{color:#39e44b}
+.visual-bottom .eyebrow{text-transform:none;letter-spacing:0;font-size:13px;font-weight:700}
+.visual-bottom h2{font-weight:800}
+.feature{border-radius:999px;padding:9px 15px;font-size:12px;font-weight:600}
+.form-head h1{font-weight:800;letter-spacing:-1.2px}
+.field input,select{border-radius:14px;height:52px;border-color:#d9dfe2}
+.field input:focus,select:focus{border-color:#071421;box-shadow:0 0 0 3px rgba(57,228,75,.25);outline:0}
+.submit{height:54px;border-radius:999px;background:var(--green);font-size:15px;font-weight:800;box-shadow:0 10px 24px -10px rgba(57,228,75,.8)}
+.submit:hover{background:#30d542}
+.notice{border-radius:14px}
+.show{border-radius:0 14px 14px 0}
+.signup a,.forgot{color:var(--green-dark)}
+@media(max-width:850px){
+  .page{display:block;background:#071521}
+  .visual{display:block;min-height:0;height:auto}
+  .visual img{position:absolute;inset:0;width:100%;height:100%;opacity:.5}
+  .visual-content{position:relative;inset:auto;padding:calc(20px + env(safe-area-inset-top)) 22px 64px;gap:22px;justify-content:flex-start}
+  .logo img{height:50px!important}.logo{font-size:26px}
+  .visual-bottom{max-width:none}
+  .visual-bottom .eyebrow{margin-bottom:8px;font-size:12px}
+  .visual-bottom h2{font-size:30px;letter-spacing:-1.2px;margin:0}
+  .visual-bottom p,.features{display:none}
+  .form-side{position:relative;z-index:3;min-height:0;margin-top:-34px;border-radius:30px 30px 0 0;padding:28px 20px calc(36px + env(safe-area-inset-bottom));box-shadow:0 -14px 40px -18px #0006}
+  .form-wrap{max-width:460px}
+  .mobile-logo{display:none}
+  .form-head{margin-bottom:22px}.form-head h1{font-size:26px}
+  .field input,select{font-size:16px}
+}
 </style>
 </head>
 <body>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes" id="flashes">{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}</div><script>setTimeout(function(){var f=document.getElementById('flashes');if(f){f.style.opacity=0;setTimeout(function(){f.remove()},500)}},5000)</script>{% endif %}{% endwith %}
+{% macro marca(tam=34) -%}
+{%- if SITE.logo -%}<img src="{{ SITE.logo }}" alt="{{ SITE.nome }}" height="{{ tam }}" style="height:{{ tam }}px">{%- else -%}<span class="mark">⌂</span>Onde<span class="accent">Imóveis</span>{%- endif -%}
+{%- endmacro %}
 <div class="page">
 <section class="visual">
   <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=85" alt="Imóvel">
   <div class="visual-content">
-    <a class="logo" href="{{ url_for('home') }}" style="color:#fff">Onde<span>Imóveis</span></a>
+    <a class="logo" href="{{ url_for('home') }}" style="color:#fff" aria-label="{{ SITE.nome }} — página inicial">{{ marca(66) }}</a>
     <div class="visual-bottom">
       <span class="eyebrow">Sua busca começa aqui</span>
       <h2>Encontre um lugar para chamar de seu.</h2>
@@ -97,7 +135,7 @@ form.inline{display:inline;margin:0}
     </div>
   </div>
 </section>
-<section class="form-side"><div class="form-wrap"><a class="mobile-logo" href="{{ url_for('home') }}" style="color:inherit">Onde<span>Imóveis</span></a>
+<section class="form-side"><div class="form-wrap"><a class="mobile-logo" href="{{ url_for('home') }}" style="color:inherit" aria-label="{{ SITE.nome }} — página inicial">{{ marca(52) }}</a>
 <div class="form-head"><h1>Bem-vindo de volta</h1><p>Entre na sua conta para continuar sua busca por imóveis.</p></div><form class="form" method="post" action="{{ url_for('entrar') }}">{{ csrf() }}<input type="hidden" name="next" value="{{ next or '' }}">
 <div class="field"><label for="email">E-mail</label><input id="email" name="email" type="email" required value="{{ email or '' }}" placeholder="seu@email.com" autocomplete="email"></div>
 <div class="field"><label for="password">Senha</label><div class="password-wrap"><input id="password" name="senha" type="password" required placeholder="Digite sua senha" autocomplete="current-password"><button type="button" class="show" onclick="togglePassword()" aria-label="Mostrar senha">◉</button></div></div>
