@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{% set seo_title = 'Marketing e tecnologia para imobiliárias'~ ' | ' ~ SITE.nome %}
-{% set seo_desc = 'Sites, landing pages, tráfego pago e tecnologia para imobiliárias, corretores e construtoras. Peça seu orçamento pelo WhatsApp. ' %}
+{% set seo_title = 'Site para imobiliária e corretor, feito para aparecer no Google' ~ ' | ' ~ SITE.nome %}
+{% set seo_desc = 'Sites com catálogo de imóveis e visibilidade no Google do seu bairro para imobiliárias, corretores e construtoras. Peça um diagnóstico grátis pelo WhatsApp.' %}
 {% set wa_num = '5511976232235' %}
 {% set wa_orc = 'https://wa.me/' ~ wa_num ~ '?text=' ~ (('Olá! Vim pelo ' ~ SITE.nome ~ ' e quero conversar sobre um projeto para a minha imobiliária.')|urlencode) %}
 {% set wa_geral = 'https://wa.me/' ~ wa_num ~ '?text=' ~ (('Olá! Vim pela página Para empresas do ' ~ SITE.nome ~ ' e gostaria de tirar uma dúvida.')|urlencode) %}
-{% set wa_conteudo = 'https://wa.me/' ~ wa_num ~ '?text=' ~ ('Olá! Tenho interesse em redes sociais e conteúdo para o meu negócio imobiliário.'|urlencode) %}
-{% set wa_sistemas = 'https://wa.me/' ~ wa_num ~ '?text=' ~ ('Olá! Tenho interesse em sistemas e automações para o meu negócio imobiliário.'|urlencode) %}
+{% set wa_conteudo = 'https://wa.me/' ~ wa_num ~ '?text=' ~ ('Olá! Tenho interesse em aparecer melhor no Google e em conteúdo de bairro para o meu negócio imobiliário.'|urlencode) %}
+{% set wa_sistemas = 'https://wa.me/' ~ wa_num ~ '?text=' ~ ('Olá! Tenho interesse em chatbot e automações para o meu negócio imobiliário.'|urlencode) %}
 {# ── CASE REAL ──────────────────────────────────────────────────────────────
    Quando tiver um case, troque "None" pelo dicionário abaixo e a seção aparece sozinha.
    Todos os campos são opcionais (imagem, números e depoimento somem se ficarem vazios).
@@ -23,7 +23,22 @@
      'imagem': 'https://…'
    } %}
 ────────────────────────────────────────────────────────────────────────── #}
-{% set case = None %}
+{% set case = case_db or None %}
+{% set wa_diag = 'https://wa.me/' ~ wa_num ~ '?text=' ~ (('Olá! Vim pelo ' ~ SITE.nome ~ ' e quero um diagnóstico gratuito da presença online da minha imobiliária.')|urlencode) %}
+{% macro wa_pacote(nome) -%}https://wa.me/{{ wa_num }}?text={{ ('Olá! Vim pelo ' ~ SITE.nome ~ ' e tenho interesse no pacote ' ~ nome ~ '.')|urlencode }}{%- endmacro %}
+{# ── MODELOS DEMONSTRATIVOS ─────────────────────────────────────────────────
+ A seção "Veja como fica o seu site" só aparece quando pelo menos um modelo tiver 'desktop' preenchido.
+ Preencha 'desktop' e 'mobile' com a URL do print (já sem telefone, e-mail, endereço completo ou painel admin).
+ Todos são MODELOS FICTÍCIOS. Não chame de "case" até existir cliente real do ramo imobiliário com resultado medido.
+────────────────────────────────────────────────────────────────────────── #}
+{% set modelos = [
+  {'titulo':'Imobiliária com catálogo','texto':'Busca, filtros e destaque de imóveis, com botão de WhatsApp em cada anúncio.','desktop':'','mobile':'','botao':'Quero um site assim','msg':'Olá! Vi o modelo de imobiliária com catálogo no ' ~ SITE.nome ~ ' e quero um site assim.'},
+  {'titulo':'Alto padrão','texto':'Visual sofisticado para imóveis de maior valor, com fotos grandes e página de apresentação.','desktop':'','mobile':'','botao':'Quero um site assim','msg':'Olá! Vi o modelo alto padrão no ' ~ SITE.nome ~ ' e quero um site assim.'},
+  {'titulo':'Corretor autônomo','texto':'Página enxuta para o corretor se apresentar, mostrar o catálogo e captar contatos.','desktop':'','mobile':'','botao':'Quero um site assim','msg':'Olá! Vi o modelo de corretor autônomo no ' ~ SITE.nome ~ ' e quero um site assim.'},
+  {'titulo':'Lançamento de construtora','texto':'Landing de empreendimento com plantas, diferenciais e formulário de interesse.','desktop':'','mobile':'','botao':'Quero uma página assim','msg':'Olá! Vi o modelo de lançamento de construtora no ' ~ SITE.nome ~ ' e quero uma página assim.'}
+] %}
+{% if modelos_db %}{% set modelos = modelos_db %}{% endif %}
+
 {% include '_seo.html' %}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
@@ -203,6 +218,40 @@ footer .contact{display:block;margin-top:2px}
 .svc{min-height:0}
 .case-body{padding:24px 20px}
 }
+
+/* ===== PACOTES, MODELOS, FAQ ===== */
+.note{font-size:12.5px;line-height:1.5;color:#526071;margin:18px 0 0;max-width:760px}
+.pkg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:stretch}
+.pkg{padding:24px 20px;display:flex;flex-direction:column}
+.pkg h3{font-size:18px;letter-spacing:-.4px;margin:0 0 12px;line-height:1.2}
+.pkg h3 small{display:block;font-size:12px;font-weight:600;color:#66737b;letter-spacing:0;margin-top:2px}
+.pkg .price{font-size:34px;font-weight:850;letter-spacing:-1.2px;line-height:1}
+.pkg .price small{display:block;font-size:11px;font-weight:700;letter-spacing:0;color:#66737b;margin-bottom:4px}
+.pkg .price span{font-size:14px;font-weight:700;letter-spacing:0;color:#526071}
+.pkg .setup{font-size:12px;color:#526071;margin:8px 0 16px}
+.pkg ul{list-style:none;margin:0 0 20px;padding:0;display:grid;gap:9px;font-size:13px;line-height:1.4;color:#243447}
+.pkg li{padding-left:20px;position:relative}
+.pkg li:before{content:"✓";position:absolute;left:0;color:#08a92e;font-weight:800}
+.pkg .btn{margin-top:auto;width:100%}
+.mod-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.mod{overflow:hidden;display:flex;flex-direction:column}
+.mod-shots{position:relative;background:#eef3f0;padding:18px 18px 0;min-height:200px}
+.mod-shots img.d{display:block;width:100%;height:auto;border-radius:8px 8px 0 0;box-shadow:0 6px 20px #0a1a2522}
+.mod-shots img.m{position:absolute;right:26px;bottom:0;width:22%;height:auto;border-radius:12px 12px 0 0;box-shadow:0 8px 24px #0a1a2540;border:3px solid #fff;border-bottom:0}
+.mod-body{padding:20px}
+.mod-body h3{font-size:18px;margin:8px 0 6px;letter-spacing:-.4px}
+.mod-body p{font-size:13px;line-height:1.5;color:#425064;margin:0 0 16px}
+.tag-demo{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#46545e;background:#e6ede9;border-radius:30px;padding:5px 10px}
+.faq{display:grid;gap:10px;max-width:820px}
+.faq details{border:1px solid var(--line);border-radius:12px;background:#fff;padding:0 18px}
+.faq summary{cursor:pointer;list-style:none;padding:16px 0;font-weight:750;font-size:15px;display:flex;justify-content:space-between;gap:12px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:after{content:"+";color:#08a92e;font-size:20px;line-height:1}
+.faq details[open] summary:after{content:"–"}
+.faq details p{margin:0 0 16px;font-size:14px;line-height:1.55;color:#425064}
+@media(max-width:1000px){.pkg-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:850px){.mod-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.pkg-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -221,15 +270,15 @@ footer .contact{display:block;margin-top:2px}
   <div class="wrap hero-inner">
     <div class="hero-copy">
       <span class="eyebrow">Para imobiliárias e corretores</span>
-      <h1>Transforme sua presença digital em <span class="green">novos negócios.</span></h1>
-      <p>Sites, landing pages, tráfego pago, conteúdo e tecnologia para imobiliárias, corretores e empresas do mercado imobiliário.</p>
-      <div class="hero-actions"><a class="btn" href="{{ wa_orc }}" target="_blank" rel="noopener">Quero conversar sobre meu projeto <span aria-hidden="true">→</span></a><a class="btn ghost" href="#servicos">Conheça nossos serviços</a></div>
-      <div class="kick">Mais visibilidade. <b>Mais leads.</b> Mais vendas.</div>
+      <h1>Seu site de imobiliária, feito para aparecer no <span class="green">Google do bairro.</span></h1>
+      <p>Criamos seu site com catálogo de imóveis e trabalhamos para ele ser encontrado nas buscas da sua região, para você receber contatos no WhatsApp sem depender só de portal pago.</p>
+      <div class="hero-actions"><a class="btn" href="{{ wa_diag }}" target="_blank" rel="noopener">Quero um diagnóstico grátis <span aria-hidden="true">→</span></a><a class="btn ghost" href="#pacotes">Ver pacotes</a></div>
+      <div class="kick">Atendimento direto com quem faz o trabalho. <b>Contrato mínimo de 3 meses.</b></div>
     </div>
     <div class="hero-art">
       <div class="pin" aria-hidden="true"></div>
-      <div class="float-card one"><span class="mini-icon">▥</span><span><strong>Sites, landing pages e tráfego</strong><br>para o mercado imobiliário</span></div>
-      <div class="float-card two"><span class="mini-icon">⌂</span><span><strong>Imobiliárias, corretores</strong><br>e construtoras</span></div>
+      <div class="float-card one"><span class="mini-icon">▥</span><span><strong>Site com catálogo</strong><br>e botão de WhatsApp</span></div>
+      <div class="float-card two"><span class="mini-icon">⌕</span><span><strong>Visibilidade no Google</strong><br>da sua região</span></div>
     </div>
   </div>
 </section>
@@ -237,35 +286,130 @@ footer .contact{display:block;margin-top:2px}
 <section id="servicos">
   <div class="wrap">
     <div class="head-block">
-      <div class="section-label">Nossos serviços</div>
-      <h2>Tudo o que sua imobiliária precisa para <em>crescer no digital.</em></h2>
-      <p class="sub">Soluções completas e personalizadas para fortalecer sua marca, atrair mais clientes e gerar resultados reais.</p>
+      <div class="section-label">O que fazemos</div>
+      <h2>Um site que trabalha para você, <em>e uma forma de ser encontrado.</em></h2>
+      <p class="sub">O foco é simples: site com catálogo e presença no Google. O resto entra como complemento, quando faz sentido para o seu momento.</p>
     </div>
-    <div class="svc-grid">
-      <a class="card svc" href="{{ url_for('empresas_sites') }}"><div class="icon-circle">▣</div><h3>Sites imobiliários</h3><p>Sites modernos, responsivos e otimizados para mostrar seus imóveis e gerar mais contatos.</p><span class="more">Saiba mais →</span></a>
-      <a class="card svc" href="{{ url_for('empresas_sites') }}#formatos"><div class="icon-circle">▤</div><h3>Landing pages</h3><p>Páginas estratégicas para campanhas, lançamentos e captação de leads.</p><span class="more">Saiba mais →</span></a>
-      <a class="card svc" href="{{ url_for('empresas_trafego') }}"><div class="icon-circle">◉</div><h3>Tráfego pago</h3><p>Google Ads e Meta Ads para colocar seus imóveis diante de quem realmente está procurando.</p><span class="more">Saiba mais →</span></a>
-      <a class="card svc" href="{{ wa_conteudo }}" target="_blank" rel="noopener"><div class="icon-circle">▧</div><h3>Redes sociais e conteúdo</h3><p>Artes, vídeos e campanhas para fortalecer sua marca e engajar seu público.</p><span class="more">Falar com a gente →</span></a>
-      <a class="card svc" href="{{ wa_sistemas }}" target="_blank" rel="noopener"><div class="icon-circle">⚙</div><h3>Sistemas e automações</h3><p>Ferramentas personalizadas para facilitar sua operação e aumentar sua produtividade.</p><span class="more">Falar com a gente →</span></a>
+    <div class="svc-grid c4">
+      <a class="card svc" href="{{ url_for('empresas_sites') }}"><div class="icon-circle">▣</div><h3>Site com catálogo</h3><p>Site responsivo para mostrar seus imóveis, com WhatsApp em cada anúncio e gestão simples.</p><span class="more">Saiba mais →</span></a>
+      <a class="card svc" href="{{ wa_conteudo }}" target="_blank" rel="noopener"><div class="icon-circle">⌕</div><h3>Google e conteúdo de bairro</h3><p>Google Meu Negócio, Search Console e textos sobre o seu bairro para atrair buscas da região.</p><span class="more">Falar com a gente →</span></a>
+      <a class="card svc" href="{{ url_for('empresas_trafego') }}"><div class="icon-circle">◉</div><h3>Tráfego pago <small style="font-weight:600;color:#66737b">(complemento)</small></h3><p>Google Ads e Meta Ads, com verba paga direto às plataformas.</p><span class="more">Saiba mais →</span></a>
+      <a class="card svc" href="{{ wa_sistemas }}" target="_blank" rel="noopener"><div class="icon-circle">⚙</div><h3>Chatbot e automações <small style="font-weight:600;color:#66737b">(complemento)</small></h3><p>Atendimento inicial no WhatsApp e rotinas automáticas para sua equipe ganhar tempo.</p><span class="more">Falar com a gente →</span></a>
     </div>
   </div>
 </section>
 
 <section class="steps-section">
-  <div class="wrap why-grid">
-    <div>
-      <div class="section-label">Por que escolher o {{ SITE.nome }}?</div>
-      <h2>Especialistas em <em>mercado imobiliário.</em></h2>
-      <p class="sub">Entendemos as necessidades do seu negócio e criamos soluções sob medida para o setor imobiliário. Nosso foco é unir tecnologia, marketing e estratégia para gerar mais visibilidade, leads e vendas.</p>
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">Como funciona</div>
+      <h2>Do diagnóstico ao <em>relatório mensal.</em></h2>
     </div>
-    <div class="why-list">
-      <div class="card why-item"><div class="icon-circle">♧</div>Atendimento personalizado</div>
-      <div class="card why-item"><div class="icon-circle">♜</div>Experiência no mercado imobiliário</div>
-      <div class="card why-item"><div class="icon-circle">⌁</div>Estratégia focada em resultados</div>
-      <div class="card why-item"><div class="icon-circle">♙</div>Suporte contínuo e acompanhamento</div>
+    <div class="steps5 s4">
+      <div class="card s5"><div class="num">01</div><h3>Diagnóstico grátis</h3><p>Olhamos como você aparece hoje no Google, no Google Meu Negócio e nas redes, e mostramos o que falta.</p></div>
+      <div class="card s5"><div class="num">02</div><h3>Site no ar</h3><p>Você recebe um site com catálogo e botão de WhatsApp em cada imóvel, com a sua marca.</p></div>
+      <div class="card s5"><div class="num">03</div><h3>Visibilidade local</h3><p>Configuramos GA4, Search Console e Google Meu Negócio e publicamos conteúdo sobre a sua região.</p></div>
+      <div class="card s5"><div class="num">04</div><h3>Relatório</h3><p>Você acompanha visitas e cliques no WhatsApp, com números reais.</p></div>
+    </div>
+    <p class="note">Resultado de busca orgânica leva meses e depende da concorrência da sua região. Não prometemos posição no Google.</p>
+  </div>
+</section>
+
+<section id="pacotes">
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">Pacotes</div>
+      <h2>Valores <em>claros</em>, desde o início.</h2>
+      <p class="sub">Preços a partir de. O valor final depende do escopo combinado no diagnóstico.</p>
+    </div>
+    <div class="pkg-grid">
+      <article class="card pkg">
+        <h3>Corretor</h3>
+        <div class="price"><small>a partir de</small> R$ 197<span>/mês</span></div>
+        <div class="setup">+ setup de R$ 1.200 · mínimo de 3 meses</div>
+        <ul>
+          <li>Mini site ou landing page</li>
+          <li>Domínio no 1º ano</li>
+          <li>Google: GA4, Search Console e Meu Negócio</li>
+          <li>Catálogo digital</li>
+          <li>2 artes e 1 alteração por mês</li>
+          <li>Relatório mensal</li>
+          <li>Plano Profissional no portal {{ SITE.nome }}</li>
+        </ul>
+        <a class="btn" href="{{ wa_pacote('Corretor') }}" target="_blank" rel="noopener">Quero este pacote</a>
+      </article>
+      <article class="card pkg">
+        <h3>Imobiliária Essencial</h3>
+        <div class="price"><small>a partir de</small> R$ 690<span>/mês</span></div>
+        <div class="setup">+ setup de R$ 2.800 · mínimo de 3 meses</div>
+        <ul>
+          <li>Site com catálogo integrado ao portal</li>
+          <li>4 artes por mês</li>
+          <li>2 alterações por mês</li>
+          <li>Relatório mensal</li>
+        </ul>
+        <a class="btn" href="{{ wa_pacote('Imobiliária Essencial') }}" target="_blank" rel="noopener">Quero este pacote</a>
+      </article>
+      <article class="card pkg">
+        <h3>Imobiliária Pro</h3>
+        <div class="price"><small>a partir de</small> R$ 1.190<span>/mês</span></div>
+        <div class="setup">+ setup de R$ 3.900 · mínimo de 6 meses</div>
+        <ul>
+          <li>Tudo do Essencial</li>
+          <li>Chatbot de WhatsApp para atendimento receptivo</li>
+          <li>8 artes e até 6 alterações por mês</li>
+          <li>Relatório quinzenal por imóvel</li>
+          <li>Tráfego pago opcional, a partir de R$ 1.200/mês de gestão (verba mínima de R$ 1.000/mês paga direto às plataformas)</li>
+        </ul>
+        <a class="btn" href="{{ wa_pacote('Imobiliária Pro') }}" target="_blank" rel="noopener">Quero este pacote</a>
+      </article>
+      <article class="card pkg">
+        <h3>Construtora <small>por empreendimento</small></h3>
+        <div class="price"><small>a partir de</small> R$ 3.500<span>/mês</span></div>
+        <div class="setup">+ setup de R$ 4.900 · mínimo de 6 meses</div>
+        <ul>
+          <li>Landing de lançamento</li>
+          <li>Gestão de Google Ads e Meta Ads (verba recomendada de R$ 3.000/mês, à parte)</li>
+          <li>Até 12 artes, 2 carrosséis e 1 vídeo por mês</li>
+          <li>Chatbot e até 4 alterações por mês</li>
+          <li>Relatório quinzenal</li>
+          <li>Destaque do empreendimento no portal</li>
+        </ul>
+        <a class="btn" href="{{ wa_pacote('Construtora') }}" target="_blank" rel="noopener">Quero este pacote</a>
+      </article>
+    </div>
+    {# CONFIRMAR antes de publicar: (1) escolher UM índice de reajuste (IPCA ou IGP-M) e escrever na linha abaixo; (2) quem paga a API oficial do WhatsApp no chatbot; (3) integração ZAP/Viva Real/OLX/XML dentro ou fora do escopo; (4) propriedade de domínio, site e leads ao fim do contrato; (5) forma de pagamento do setup e regra de rescisão. #}
+    <p class="note">Verba de anúncios é paga à parte, direto às plataformas. Alterações extras são orçadas separadamente. Reajuste anual do valor mensal. O domínio está incluso apenas no 1º ano.</p>
+  </div>
+</section>
+
+{% if modelos|selectattr('desktop')|list|length %}
+<section id="modelos" class="steps-section">
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">Modelos demonstrativos</div>
+      <h2>Veja como fica <em>o seu site.</em></h2>
+      <p class="sub">Os modelos são demonstrações de layout e funcionalidades. Imóveis, nomes e dados exibidos são fictícios.</p>
+    </div>
+    <div class="mod-grid">
+      {% for m in modelos if m.desktop %}
+      <article class="card mod">
+        <div class="mod-shots">
+          <img class="d" src="{{ m.desktop }}" alt="Modelo demonstrativo: {{ m.titulo }} (computador)" loading="lazy">
+          {% if m.mobile %}<img class="m" src="{{ m.mobile }}" alt="Modelo demonstrativo: {{ m.titulo }} (celular)" loading="lazy">{% endif %}
+        </div>
+        <div class="mod-body">
+          <span class="tag-demo">Modelo demonstrativo</span>
+          <h3>{{ m.titulo }}</h3>
+          <p>{{ m.texto }}</p>
+          <a class="btn" href="https://wa.me/{{ wa_num }}?text={{ m.msg|urlencode }}" target="_blank" rel="noopener">{{ m.botao }}</a>
+        </div>
+      </article>
+      {% endfor %}
     </div>
   </div>
 </section>
+{% endif %}
 
 {% if case %}
 <section id="cases">
@@ -289,20 +433,52 @@ footer .contact{display:block;margin-top:2px}
 {% endif %}
 
 <section>
+  <div class="wrap why-grid">
+    <div>
+      <div class="section-label">Como trabalhamos</div>
+      <h2>Atendimento direto e <em>números reais.</em></h2>
+      <p class="sub">Você fala com quem faz o trabalho, recebe relatório do que está acontecendo e sabe desde o início quanto custa e por quanto tempo é o contrato.</p>
+    </div>
+    <div class="why-list">
+      <div class="card why-item"><div class="icon-circle">♧</div>Atendimento direto, sem intermediários</div>
+      <div class="card why-item"><div class="icon-circle">⌂</div>Foco em imobiliárias, corretores e construtoras</div>
+      <div class="card why-item"><div class="icon-circle">⌁</div>Relatório com visitas e cliques reais</div>
+      <div class="card why-item"><div class="icon-circle">▤</div>Preço e prazo mínimo combinados antes de começar</div>
+    </div>
+  </div>
+</section>
+
+<section>
   <div class="wrap">
     <div class="portal">
       <div>
         <div class="section-label" style="color:#d9e8df">O portal {{ SITE.nome }}</div>
-        <h2>Seus imóveis também podem estar <em style="color:var(--green)">no nosso portal.</em></h2>
-        <p>Além dos serviços, você pode anunciar no portal e fazer parte de um ecossistema com mais visibilidade e oportunidades de negócio.</p>
+        <h2>Seus imóveis também podem estar <em style="color:var(--green)">no portal.</em></h2>
+        <p>O portal está em crescimento e funciona como um complemento ao seu site, não como a principal fonte de contatos. Você pode começar com uma página grátis e ver como se sai.</p>
         <div class="hero-actions"><a class="btn" href="{{ url_for('anuncie') }}">Anunciar no portal <span aria-hidden="true">→</span></a><a class="btn ghost" href="{{ url_for('imobiliarias') }}">Ver imobiliárias</a></div>
       </div>
       <div class="portal-list">
-        <div><b>◉</b>Mais visibilidade para seus imóveis</div>
-        <div><b>♙</b>Conexão com compradores e locatários</div>
-        <div><b>◈</b>Tecnologia e segurança</div>
-        <div><b>⚙</b>Fortalecimento da sua marca</div>
+        <div><b>♙</b>Página da sua imobiliária no portal</div>
+        <div><b>◉</b>Contato direto pelo WhatsApp em cada imóvel</div>
+        <div><b>⌂</b>Plano grátis com até 3 imóveis para começar</div>
+        <div><b>▥</b>Plano Profissional com mais imóveis e personalização</div>
       </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head-block">
+      <div class="section-label">Dúvidas frequentes</div>
+      <h2>Antes de <em>conversar.</em></h2>
+    </div>
+    <div class="faq">
+      <details><summary>Vocês garantem posição no Google?</summary><p>Não. Ninguém pode garantir isso. Configuramos o que é necessário e publicamos conteúdo da sua região, e você acompanha o resultado por relatório. Busca orgânica costuma levar meses.</p></details>
+      <details><summary>O portal traz clientes para mim?</summary><p>O portal ainda está crescendo e é um complemento. A principal fonte de contatos tende a ser o seu próprio site e a sua presença no Google.</p></details>
+      <details><summary>Tem fidelidade?</summary><p>Há um contrato mínimo: 3 meses nos pacotes Corretor e Essencial, e 6 meses no Pro e no de Construtora. Depois disso, as condições são as do contrato.</p></details>
+      <details><summary>Como funciona o diagnóstico grátis?</summary><p>Você envia o nome da imobiliária e a região pelo WhatsApp. Devolvemos um resumo curto de como vocês aparecem hoje e o que dá para melhorar. Sem compromisso.</p></details>
+      <details><summary>A verba de anúncios está inclusa?</summary><p>Não. A verba de Google Ads e Meta Ads é paga por você direto às plataformas. A gestão das campanhas é um serviço à parte nos pacotes que a incluem.</p></details>
     </div>
   </div>
 </section>
@@ -311,16 +487,16 @@ footer .contact{display:block;margin-top:2px}
   <div class="wrap closing-inner">
     <div>
       <div class="section-label" style="color:#d9e8df">Vamos conversar?</div>
-      <h2>Pronto para levar sua imobiliária <span class="green">ao próximo nível?</span></h2>
-      <p>Solicite um orçamento e descubra como podemos ajudar o seu negócio a crescer com soluções digitais completas e personalizadas.</p>
-      <a class="btn" href="{{ wa_orc }}" target="_blank" rel="noopener">Solicitar orçamento <span aria-hidden="true">→</span></a>
+      <h2>Quer saber como a sua imobiliária <span class="green">aparece hoje?</span></h2>
+      <p>Peça um diagnóstico grátis. Você manda o nome e a região, e a gente responde com o que encontrou.</p>
+      <a class="btn" href="{{ wa_diag }}" target="_blank" rel="noopener">Pedir diagnóstico grátis <span aria-hidden="true">→</span></a>
     </div>
     <div class="closing-art"><img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=80" alt="" loading="lazy"></div>
   </div>
 </section>
 </main>
 
-<footer><div class="wrap"><span>© {{ ano }} {{ SITE.nome }}. Todos os direitos reservados.<span class="contact">WhatsApp: (11) 97623-2235</span></span><nav aria-label="Rodapé"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('para_empresas') }}">Para empresas</a><a href="{{ url_for('empresas_sites') }}">Sites imobiliários</a><a href="{{ url_for('empresas_trafego') }}">Tráfego pago</a><a href="{{ url_for('anuncie') }}">Anunciar imóvel</a><a href="{{ url_for('guia') }}">Guia</a></nav></div></footer>
+<footer><div class="wrap"><span>© {{ ano }} {{ SITE.nome }}. Todos os direitos reservados.<span class="contact">WhatsApp: (11) 97623-2235</span>{# CONFIRMAR: colocar aqui razão social/nome fantasia e CNPJ do MEI antes de publicar #}</span><nav aria-label="Rodapé"><a href="{{ url_for('buscar') }}">Imóveis</a><a href="{{ url_for('imobiliarias') }}">Imobiliárias</a><a href="{{ url_for('para_empresas') }}">Para empresas</a><a href="{{ url_for('empresas_sites') }}">Sites imobiliários</a><a href="{{ url_for('empresas_trafego') }}">Tráfego pago</a><a href="{{ url_for('anuncie') }}">Anunciar imóvel</a><a href="{{ url_for('guia') }}">Guia</a>{% if tem_rota('privacidade') %}<a href="{{ url_for('privacidade') }}">Privacidade</a>{% endif %}</nav></div></footer>
 <a class="wa-float" href="{{ wa_geral }}" target="_blank" rel="noopener" aria-label="Falar no WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a>
 <script>(function(){var b=document.getElementById('burger'),m=document.getElementById('mnav');if(!b||!m)return;
 function set(o){m.classList.toggle('on',o);b.setAttribute('aria-expanded',o);b.setAttribute('aria-label',o?'Fechar menu':'Abrir menu')}
