@@ -24,3 +24,13 @@
 {% if _img %}<meta name="twitter:image" content="{{ _img }}">{% endif %}
 {% for ld in (seo_jsonld or []) %}<script type="application/ld+json">{{ ld|tojson }}</script>
 {% endfor %}
+{% if 'noindex' not in (seo_robots or '') %}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-NSNZYERNPM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-NSNZYERNPM');
+</script>
+{% endif %}
