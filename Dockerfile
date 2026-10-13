@@ -4,6 +4,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
+COPY mcmv.py .
 COPY templates ./templates
 RUN useradd -m app && mkdir -p /data/uploads && chown -R app:app /data /app
 USER app
