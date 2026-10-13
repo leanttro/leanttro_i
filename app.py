@@ -396,6 +396,21 @@ CREATE INDEX IF NOT EXISTS ix_guia_redir_post ON guia_redirecionamentos (post_id
 """
 
 
+# Vitrine das páginas "Para empresas": modelos demonstrativos e cases (editados em /admin/vitrine).
+SCHEMA_VITRINE = """
+CREATE TABLE IF NOT EXISTS vitrine_empresas (
+  id SERIAL PRIMARY KEY,
+  tipo TEXT NOT NULL CHECK (tipo IN ('modelo','case')),
+  titulo TEXT NOT NULL,
+  texto TEXT, servico TEXT, numeros TEXT, depoimento TEXT, autor TEXT, botao TEXT,
+  img_desktop TEXT, img_mobile TEXT,
+  ordem INT NOT NULL DEFAULT 0,
+  ativo BOOLEAN NOT NULL DEFAULT TRUE,
+  autorizado BOOLEAN NOT NULL DEFAULT FALSE,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());
+"""
+
+
 def init_db():
     """Cria as tabelas (idempotente). Espera o Postgres subir; trava para só 1 worker migrar."""
     ultimo = None
@@ -416,6 +431,7 @@ def init_db():
             cur.execute(SCHEMA_CHAT)
             cur.execute(SCHEMA_LEADS)
             cur.execute(SCHEMA_GUIA)
+            cur.execute(SCHEMA_VITRINE)
             for cod, nome, meses, fator, ativo in PLANOS_PRO_PADRAO:     # só cria o que falta: nunca sobrescreve o que o admin editou
                 cur.execute("INSERT INTO planos_pro (codigo, nome, meses, valor, ativo) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (codigo) DO NOTHING",
                             (cod, nome, meses, round(PRECO_PROFISSIONAL * meses * fator, 2), ativo))
@@ -2237,17 +2253,61 @@ def anuncie():
 
 @app.route("/para-empresas", strict_slashes=False)
 def para_empresas():
-    return render_template("para_empresas.html", seo_canonical=base_url() + url_for("para_empresas"))
+    return render_template("para_empresas.html", seo_canonical=base_url() + url_for("para_empresas"),
+                           modelos_db=vitrine_modelos(), case_db=vitrine_case())
 
 
 @app.route("/para-empresas/sites-imobiliarios", strict_slashes=False)
 def empresas_sites():
-    return render_template("empresas_sites.html", seo_canonical=base_url() + url_for("empresas_sites"))
+    return render_template("empresas_sites.html", seo_canonical=base_url() + url_for("empresas_sites"), case_db=vitrine_case())
 
 
 @app.route("/para-empresas/trafego-pago", strict_slashes=False)
 def empresas_trafego():
-    return render_template("empresas_trafego.html", seo_canonical=base_url() + url_for("empresas_trafego"))
+    return render_template("empresas_trafego.html", seo_canonical=base_url() + url_for("empresas_trafego"), case_db=vitrine_case())
+
+
+def _vit_url(nome):
+    return url_for("site_media", nome=nome) if nome and SITE_NOME_RE.match(nome) else ""
+
+
+def _vit_parse_numeros(txt):
+    """Uma linha por número, no formato 'valor | o que mede'. Devolve [(valor, texto)] (até 6)."""
+    saida = []
+    for ln in str(txt or "").splitlines():
+        if "|" in ln:
+            v, t = [x.strip() for x in ln.split("|", 1)]
+            if v and t:
+                saida.append((v[:20], t[:80]))
+    return saida[:6]
+
+
+def vitrine_modelos():
+    """Modelos demonstrativos ligados. Só aparecem no site os que têm print do computador."""
+    try:
+        rows = query_all("SELECT * FROM vitrine_empresas WHERE tipo = 'modelo' AND ativo ORDER BY ordem, id")
+    except Exception:
+        log.exception("vitrine_modelos falhou")
+        _conn().rollback()
+        return []
+    return [dict(titulo=r["titulo"], texto=r["texto"] or "", desktop=_vit_url(r["img_desktop"]), mobile=_vit_url(r["img_mobile"]),
+                 botao=r["botao"] or "Quero um site assim",
+                 msg=f"Olá! Vi o modelo {r['titulo']} no {SITE_NOME} e quero um site assim.") for r in rows]
+
+
+def vitrine_case():
+    """1 case real (o primeiro ligado E com autorização confirmada) ou None."""
+    try:
+        r = query_one("SELECT * FROM vitrine_empresas WHERE tipo = 'case' AND ativo AND autorizado ORDER BY ordem, id LIMIT 1")
+    except Exception:
+        log.exception("vitrine_case falhou")
+        _conn().rollback()
+        return None
+    if not r:
+        return None
+    return dict(cliente=r["titulo"], servico=r["servico"] or "", resumo=r["texto"] or "",
+                numeros=[dict(valor=v, texto=t) for v, t in _vit_parse_numeros(r["numeros"])],
+                depoimento=r["depoimento"] or "", autor=r["autor"] or "", imagem=_vit_url(r["img_desktop"]))
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -4730,6 +4790,99 @@ def admin_midia_remover():
     site_remover_imagem(request.form.get("nome", ""))
     flash("Arquivo removido.", "success")
     return redirect(url_for("admin_midia"))
+
+
+# ── Modelos demonstrativos e cases das páginas "Para empresas" ──────────────
+VIT_TIPOS = {"modelo": "Modelo demonstrativo", "case": "Case real"}
+
+
+def _vit_campo(nome, maximo):
+    return sanitize_input(request.form.get(nome))[:maximo]
+
+
+@app.route("/admin/vitrine")
+@admin_required
+def admin_vitrine():
+    itens = query_all("SELECT * FROM vitrine_empresas ORDER BY tipo, ordem, id")
+    for r in itens:
+        r["url_desktop"] = _vit_url(r["img_desktop"])
+        r["url_mobile"] = _vit_url(r["img_mobile"])
+    eid = request.args.get("editar", type=int)
+    editar = next((r for r in itens if r["id"] == eid), None) if eid else None
+    return render_template("admin.html", itens=itens, editar=editar, vol=volume_info(), pagina_ativa="vitrine")
+
+
+@app.route("/admin/vitrine/salvar", methods=["POST"])
+@admin_required
+def admin_vitrine_salvar():
+    vid = request.form.get("id", type=int)
+    atual = query_one("SELECT * FROM vitrine_empresas WHERE id = %s", (vid,)) if vid else None
+    if vid and not atual:
+        abort(404)
+    tipo = atual["tipo"] if atual else request.form.get("tipo")
+    if tipo not in VIT_TIPOS:
+        abort(400)
+    volta = url_for("admin_vitrine", editar=vid) if vid else url_for("admin_vitrine")
+    titulo = _vit_campo("titulo", 80)
+    if len(titulo) < 3:
+        flash("Escreva um título com pelo menos 3 letras.", "error")
+        return redirect(volta)
+    if tipo == "case" and not request.form.get("autorizado"):
+        flash("Para publicar um case, marque a confirmação: cliente real do ramo imobiliário, resultado medido e autorização por escrito.", "error")
+        return redirect(volta)
+    texto, servico = _vit_campo("texto", 400), _vit_campo("servico", 80)
+    depoimento, autor, botao = _vit_campo("depoimento", 300), _vit_campo("autor", 80), _vit_campo("botao", 40)
+    numeros = "\n".join(f"{v} | {t}" for v, t in _vit_parse_numeros(sanitize_input(request.form.get("numeros"))))
+    ordem = request.form.get("ordem", type=int) or 0
+    img = {c: (atual or {}).get(c) for c in ("img_desktop", "img_mobile")}
+    for campo, remover in (("img_desktop", "remover_desktop"), ("img_mobile", "remover_mobile")):
+        arq = request.files.get(campo)
+        if arq and arq.filename:
+            try:
+                novo = site_salvar_imagem(arq)
+            except Exception as e:
+                log.exception("upload da vitrine falhou (%s)", arq.filename)
+                motivo = str(e) if isinstance(e, ValueError) else "não consegui ler a imagem. Use PNG, JPG ou WEBP"
+                flash(f"“{arq.filename}”: {motivo}.", "error")
+                return redirect(volta)
+            if img[campo]:
+                site_remover_imagem(img[campo])
+            img[campo] = novo
+        elif request.form.get(remover) and img[campo]:
+            site_remover_imagem(img[campo])
+            img[campo] = None
+    autorizado = bool(request.form.get("autorizado")) and tipo == "case"
+    if atual:
+        execute("UPDATE vitrine_empresas SET titulo=%s, texto=%s, servico=%s, numeros=%s, depoimento=%s, autor=%s, botao=%s, "
+                "ordem=%s, autorizado=%s, img_desktop=%s, img_mobile=%s WHERE id=%s",
+                (titulo, texto, servico, numeros, depoimento, autor, botao, ordem, autorizado, img["img_desktop"], img["img_mobile"], vid))
+        flash("Salvo.", "success")
+    else:
+        execute("INSERT INTO vitrine_empresas (tipo, titulo, texto, servico, numeros, depoimento, autor, botao, ordem, autorizado, img_desktop, img_mobile) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (tipo, titulo, texto, servico, numeros, depoimento, autor, botao, ordem, autorizado, img["img_desktop"], img["img_mobile"]))
+        flash("Criado.", "success")
+    return redirect(url_for("admin_vitrine"))
+
+
+@app.route("/admin/vitrine/<int:vid>/alternar", methods=["POST"])
+@admin_required
+def admin_vitrine_alternar(vid):
+    execute("UPDATE vitrine_empresas SET ativo = NOT ativo WHERE id = %s", (vid,))
+    return redirect(url_for("admin_vitrine"))
+
+
+@app.route("/admin/vitrine/<int:vid>/excluir", methods=["POST"])
+@admin_required
+def admin_vitrine_excluir(vid):
+    r = query_one("SELECT img_desktop, img_mobile FROM vitrine_empresas WHERE id = %s", (vid,))
+    if r:
+        for nome in (r["img_desktop"], r["img_mobile"]):
+            if nome:
+                site_remover_imagem(nome)
+        execute("DELETE FROM vitrine_empresas WHERE id = %s", (vid,))
+        flash("Excluído.", "success")
+    return redirect(url_for("admin_vitrine"))
 
 
 # ═══════════════════════════════════════════════════════════════
