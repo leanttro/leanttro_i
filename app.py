@@ -4,6 +4,7 @@ OndeImóveis — portal imobiliário (Flask + PostgreSQL).
 Arquivo único. Configuração 100% por variáveis de ambiente (.env):
   DATABASE_URL, SECRET_KEY, BASE_URL, UPLOAD_DIR, ADMIN_EMAIL, ADMIN_SENHA, SEED_DEMO,
   PAGBANK_TOKEN, PAGBANK_SANDBOX, PAGBANK_WEBHOOK_TOKEN, PRECO_PROFISSIONAL, DEBUG, PORT
+  Mercado Pago (Checkout Pro): MP_ACCESS_TOKEN, MP_WEBHOOK_TOKEN (opcional, recomendado), PAGAMENTO_PROVEDOR (mercadopago|pagbank; sem ele, vale mercadopago quando há MP_ACCESS_TOKEN)
   Tarefas agendadas (cron externo, 1x/dia): TAREFAS_TOKEN — chame /tarefas/renovacao?t=<token> (ou header X-Tarefas-Token); sem ele a rota responde 403
   Chatbot (Groq): GROQ_API_KEY, GROQ_API_KEY_2 (reserva), GROQ_MODEL (opcional)
   E-mail (Zoho): SMTP_USER (e-mail completo), SMTP_SENHA (senha de aplicativo), EMAIL_AVISOS, SMTP_HOST (padrão smtp.zoho.com), SMTP_PORT (587)
@@ -62,6 +63,11 @@ SEED_DEMO = _bool("SEED_DEMO")
 PAGBANK_TOKEN = os.environ.get("PAGBANK_TOKEN", "").strip()
 PAGBANK_SANDBOX = _bool("PAGBANK_SANDBOX", True)
 PAGBANK_WEBHOOK_TOKEN = os.environ.get("PAGBANK_WEBHOOK_TOKEN", "").strip()
+# Mercado Pago (Checkout Pro). Os segredos ficam só no ambiente do servidor, nunca no código.
+MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN", "").strip()
+MP_WEBHOOK_TOKEN = os.environ.get("MP_WEBHOOK_TOKEN", "").strip()
+# Qual provedor cobra. Sem a variável: Mercado Pago se houver MP_ACCESS_TOKEN, senão PagBank (como era antes).
+PAGAMENTO_PROVEDOR = os.environ.get("PAGAMENTO_PROVEDOR", "").strip().lower() or ("mercadopago" if MP_ACCESS_TOKEN else "pagbank")
 PRECO_PROFISSIONAL = float(os.environ.get("PRECO_PROFISSIONAL", "89.90"))
 # Cobrança recorrente no cartão (Checkout Recorrente do PagBank). Se o PagBank recusar criar o checkout recorrente, cai no avulso.
 PAGBANK_RECORRENTE = _bool("PAGBANK_RECORRENTE", True)
@@ -3275,7 +3281,7 @@ def _painel(ativa, **form):
                templates_pagina=metadados_templates_pagina(),
                template_atual=t.get("template") if t.get("template") in listar_templates_pagina() else TEMPLATE_PADRAO)
     ctx.update(
-        recorrente_ativo=PAGBANK_RECORRENTE,
+        recorrente_ativo=PAGBANK_RECORRENTE and pagamento.recorrente_suportado,
         planos_assinar=_planos_para_assinar(),
         assinatura_recorrente=query_one(
             "SELECT proxima_cobranca, vencimento, valor, meses FROM assinaturas WHERE tenant_id = %s AND recorrente AND status = 'ativa' "
@@ -3629,6 +3635,7 @@ def minha_area_lista(aba):
 class pagbank:
     """Adaptador do PagBank (Checkout). Para trocar de provedor, crie outra classe com os mesmos 2 métodos."""
     nome = "pagbank"
+    recorrente_suportado = True
 
     @staticmethod
     def configurado():
@@ -3717,6 +3724,75 @@ class pagbank:
                 "reference_id": r.get("reference_id"), "status": str(r.get("status") or "").upper(), "proxima": proxima,
                 "atualizado": str(r.get("updated_at") or r.get("created_at") or ""),
                 "valor": valor / 100 if isinstance(valor, (int, float)) else None}
+
+
+class mercadopago:
+    """Adaptador do Mercado Pago (Checkout Pro). Pagamento avulso (Pix, boleto ou cartão); o aviso (webhook) só diz
+    'houve um pagamento X' e nós consultamos o pagamento na API com o nosso token antes de liberar o Pro."""
+    nome = "mercadopago"
+    recorrente_suportado = False
+    API = "https://api.mercadopago.com"
+
+    @staticmethod
+    def configurado():
+        return bool(MP_ACCESS_TOKEN)
+
+    @staticmethod
+    def _cabecalho():
+        return {"Authorization": f"Bearer {MP_ACCESS_TOKEN}", "Content-Type": "application/json", "Accept": "application/json"}
+
+    @staticmethod
+    def criar_cobranca(tenant, assinatura_id, valor, recorrente=False, meses=1, nome_plano="Mensal"):
+        """Cria a preferência de pagamento. Devolve (id_da_preferencia, link_de_pagamento, None) — mesma assinatura do PagBank."""
+        base = BASE_URL or request.host_url.rstrip("/")
+        volta = base + url_for("anunciante_assinatura")
+        corpo = {
+            "items": [{"id": f"pro-{meses}m", "title": f"OndeImóveis — Plano Profissional ({nome_plano})",
+                       "quantity": 1, "currency_id": "BRL", "unit_price": round(float(valor), 2)}],
+            "external_reference": f"assin-{assinatura_id}",
+            "back_urls": {"success": volta, "pending": volta, "failure": volta},
+            "notification_url": base + url_for("webhook_mercadopago") + (f"?t={quote(MP_WEBHOOK_TOKEN)}" if MP_WEBHOOK_TOKEN else ""),
+        }
+        if volta.startswith("https://"):          # o Mercado Pago só aceita o retorno automático com URL https pública
+            corpo["auto_return"] = "approved"
+        r = requests.post(f"{mercadopago.API}/checkout/preferences", json=corpo, timeout=20, headers=mercadopago._cabecalho())
+        if not r.ok:                              # o corpo da resposta diz o motivo; sem isto o log só mostraria o código HTTP
+            log.error("Mercado Pago recusou a preferência: HTTP %s | %s", r.status_code, r.text[:500])
+        r.raise_for_status()
+        dados = r.json()
+        link = dados.get("init_point")
+        if not link:
+            raise RuntimeError("Mercado Pago não devolveu o link de pagamento.")
+        return dados.get("id"), link, None
+
+    @staticmethod
+    def consultar_pagamento(payment_id):
+        """Busca o pagamento direto na API (fonte da verdade). Levanta exceção se a API falhar."""
+        r = requests.get(f"{mercadopago.API}/v1/payments/{quote(str(payment_id), safe='')}", timeout=15,
+                         headers=mercadopago._cabecalho())
+        r.raise_for_status()
+        return r.json()
+
+    @staticmethod
+    def pagamento_confere(p, assinatura):
+        """True só se o Mercado Pago confirma: referência da nossa assinatura, status aprovado, em reais e valor igual."""
+        if p.get("external_reference") != f"assin-{assinatura['id']}":
+            return False
+        try:
+            valor_ok = abs(float(p.get("transaction_amount")) - float(assinatura["valor"])) < 0.01
+        except (TypeError, ValueError):
+            return False
+        return str(p.get("status", "")).lower() == "approved" and str(p.get("currency_id") or "BRL").upper() == "BRL" and valor_ok
+
+    @staticmethod
+    def status(p):
+        """Status do Mercado Pago → pago | pendente | falhou | estornado."""
+        return {"approved": "pago", "refunded": "estornado", "charged_back": "estornado",
+                "rejected": "falhou", "cancelled": "falhou"}.get(str(p.get("status", "")).lower(), "pendente")
+
+
+# Provedor que está cobrando agora (escolhido pelo ambiente). Para voltar ao PagBank: PAGAMENTO_PROVEDOR=pagbank.
+pagamento = mercadopago if PAGAMENTO_PROVEDOR == "mercadopago" else pagbank
 
 
 def sincronizar_planos(tenant_id=None):
@@ -3832,32 +3908,32 @@ def anunciante_assinar():
         if (venc - hoje()).days > RENOVAR_ANTES_DIAS:
             flash(f"Você poderá renovar a partir de {(venc - timedelta(days=RENOVAR_ANTES_DIAS)).strftime('%d/%m')}.", "success")
             return redirect(url_for("anunciante_assinatura"))
-    if not pagbank.configurado():
+    if not pagamento.configurado():
         flash("O pagamento online ainda não está ativo. Fale com o suporte para contratar o Profissional.", "error")
         return redirect(url_for("anunciante_assinatura"))
     # modo: "recorrente" (cartão, renova sozinho) ou "avulso" (período escolhido, pago uma vez; Pix, boleto ou cartão). Sem o campo no formulário vale o padrão
     # do servidor (PAGBANK_RECORRENTE).
     modo = (request.form.get("modo") or ("recorrente" if PAGBANK_RECORRENTE else "avulso")).lower()
-    recorrente = modo == "recorrente" and PAGBANK_RECORRENTE
+    recorrente = modo == "recorrente" and PAGBANK_RECORRENTE and pagamento.recorrente_suportado
     plano = plano_pro(request.form.get("plano") or "mensal")           # só períodos ativos; sem o campo vale o mensal
     if not plano:
         flash("Escolha um dos planos disponíveis.", "error")
         return redirect(url_for("anunciante_assinatura"))
     aid = execute_returning("INSERT INTO assinaturas (tenant_id, plano, status, valor, provedor_pagamento, recorrente, plano_codigo, meses) "
-                            "VALUES (%s,'profissional','pendente',%s,'pagbank',%s,%s,%s) RETURNING id",
-                            (t["id"], plano["valor"], recorrente, plano["codigo"], plano["meses"]))
+                            "VALUES (%s,'profissional','pendente',%s,%s,%s,%s,%s) RETURNING id",
+                            (t["id"], plano["valor"], pagamento.nome, recorrente, plano["codigo"], plano["meses"]))
     try:
         try:
-            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, plano["valor"], recorrente=recorrente, meses=plano["meses"], nome_plano=plano["nome"])
+            ref, link, plano_ext = pagamento.criar_cobranca(t, aid, plano["valor"], recorrente=recorrente, meses=plano["meses"], nome_plano=plano["nome"])
         except Exception:
             if not recorrente:
                 raise
             log.exception("PagBank recusou o checkout recorrente; abrindo cobrança avulsa no lugar")
             recorrente = False
             execute("UPDATE assinaturas SET recorrente = FALSE WHERE id = %s", (aid,))
-            ref, link, plano_ext = pagbank.criar_cobranca(t, aid, plano["valor"], recorrente=False, meses=plano["meses"], nome_plano=plano["nome"])
+            ref, link, plano_ext = pagamento.criar_cobranca(t, aid, plano["valor"], recorrente=False, meses=plano["meses"], nome_plano=plano["nome"])
     except Exception:
-        log.exception("Falha ao criar cobrança no PagBank")
+        log.exception("Falha ao criar cobrança no %s", pagamento.nome)
         flash("Não consegui abrir o pagamento agora. Tente de novo em instantes.", "error")
         return redirect(url_for("anunciante_assinatura"))
     execute("UPDATE assinaturas SET referencia_externa = %s, plano_externo_id = %s WHERE id = %s", (ref, plano_ext, aid))
@@ -3991,6 +4067,62 @@ def webhook_pagbank():
         except Exception:
             log.exception("Erro ao processar aviso do PagBank; devolvi 500 para ele tentar de novo")
             execute("DELETE FROM pagamentos WHERE provedor = 'pagbank' AND evento_id = %s", (ev["evento_id"],))
+            return jsonify(ok=False), 500
+    return jsonify(ok=True)
+
+
+@app.route("/webhooks/mercadopago", methods=["POST"])
+def webhook_mercadopago():
+    """Aviso do Mercado Pago. Não confiamos no conteúdo do aviso: só pegamos o id do pagamento e consultamos a API com o
+    nosso token. A URL vai em cada cobrança (notification_url), não precisa cadastrar nada no painel."""
+    if not MP_ACCESS_TOKEN:
+        abort(503)
+    if MP_WEBHOOK_TOKEN and not hmac.compare_digest(request.args.get("t", ""), MP_WEBHOOK_TOKEN):
+        abort(403)
+    try:
+        dados = json.loads(request.get_data() or b"{}")
+    except ValueError:
+        dados = {}
+    if not isinstance(dados, dict):
+        dados = {}
+    tipo = str(dados.get("type") or request.args.get("type") or request.args.get("topic") or "")
+    pid = str((dados.get("data") or {}).get("id") or request.args.get("data.id") or request.args.get("id") or "")
+    if tipo != "payment" or not re.fullmatch(r"\d{1,20}", pid):
+        return jsonify(ok=True)                      # outros tipos de aviso (merchant_order etc.): nada a fazer
+    try:
+        p = mercadopago.consultar_pagamento(pid)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:     # ex.: aviso de teste do painel (id inexistente)
+            return jsonify(ok=True, ignorado=True)
+        log.exception("Não consegui consultar o pagamento %s no Mercado Pago; devolvi 500 para ele tentar de novo", pid)
+        return jsonify(ok=False), 500
+    except Exception:
+        log.exception("Não consegui consultar o pagamento %s no Mercado Pago; devolvi 500 para ele tentar de novo", pid)
+        return jsonify(ok=False), 500
+    ref = p.get("external_reference") or ""
+    m = re.match(r"^assin-(\d+)$", ref)
+    ass = query_one("SELECT * FROM assinaturas WHERE id = %s", (int(m.group(1)),)) if m else None
+    status = mercadopago.status(p)
+    evento_id = f"{pid}:{status}"
+    novo = execute("INSERT INTO pagamentos (tenant_id, provedor, evento_id, referencia, status, valor, payload) "
+                   "VALUES (%s,'mercadopago',%s,%s,%s,%s,%s) ON CONFLICT (provedor, evento_id) DO NOTHING",
+                   (ass["tenant_id"] if ass else None, evento_id, ref or None, status, p.get("transaction_amount"),
+                    json.dumps({"id": p.get("id"), "status": p.get("status"), "status_detail": p.get("status_detail"),
+                                "external_reference": ref, "transaction_amount": p.get("transaction_amount"),
+                                "payment_method_id": p.get("payment_method_id")})))
+    if novo and ass:                                 # aviso repetido não renova de novo (idempotente)
+        try:
+            if status == "pago":
+                if not mercadopago.pagamento_confere(p, ass):
+                    log.warning("Pagamento NÃO confere com a assinatura %s (valor/referência): não liberei (pagamento %s)", ass["id"], pid)
+                    execute("DELETE FROM pagamentos WHERE provedor = 'mercadopago' AND evento_id = %s", (evento_id,))
+                    return jsonify(ok=True, confirmado=False)
+                ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="mercadopago", meses=ass.get("meses"))
+            elif status == "estornado" and ass["status"] == "ativa":
+                desativar_profissional(ass["tenant_id"], "cancelada")
+        except Exception:
+            log.exception("Erro ao processar aviso do Mercado Pago; devolvi 500 para ele tentar de novo")
+            execute("DELETE FROM pagamentos WHERE provedor = 'mercadopago' AND evento_id = %s", (evento_id,))
             return jsonify(ok=False), 500
     return jsonify(ok=True)
 
@@ -4268,7 +4400,7 @@ def admin_assinaturas():
     pagamentos = query_all(
         "SELECT p.*, t.nome AS tenant_nome FROM pagamentos p LEFT JOIN tenants t ON t.id = p.tenant_id ORDER BY p.criado_em DESC LIMIT 100")
     return render_template("admin.html", assinaturas=assinaturas, pagamentos=pagamentos,
-                           pagbank_ok=pagbank.configurado(), pagina_ativa="assinaturas")
+                           pagbank_ok=pagamento.configurado(), pagina_ativa="assinaturas")
 
 
 # ═══════════════════════════════════════════════════════════════
