@@ -65,6 +65,7 @@ PAGBANK_WEBHOOK_TOKEN = os.environ.get("PAGBANK_WEBHOOK_TOKEN", "").strip()
 PRECO_PROFISSIONAL = float(os.environ.get("PRECO_PROFISSIONAL", "89.90"))
 # Cobrança recorrente no cartão (Checkout Recorrente do PagBank). Se o PagBank recusar criar o checkout recorrente, cai no avulso.
 PAGBANK_RECORRENTE = _bool("PAGBANK_RECORRENTE", True)
+PAGBANK_CONFIRMAR = _bool("PAGBANK_CONFIRMAR", True)     # confirma na API do PagBank antes de liberar o Pro (deixe ligado em produção)
 # Folga depois da data da próxima cobrança, para o PagBank tentar de novo o cartão sem derrubar o Pro no mesmo dia.
 RECORRENCIA_TOLERANCIA_DIAS = int(os.environ.get("RECORRENCIA_TOLERANCIA_DIAS", "3"))
 TZ = ZoneInfo(os.environ.get("TZ_PORTAL", "America/Sao_Paulo"))
@@ -3658,6 +3659,25 @@ class pagbank:
         return dados.get("id"), link, (dados.get("recurrence_plan") or {}).get("id")
 
     @staticmethod
+    def consultar_pedido(order_id):
+        """Busca o pedido direto na API do PagBank (fonte da verdade). Levanta exceção se a API falhar."""
+        host = "https://sandbox.api.pagseguro.com" if PAGBANK_SANDBOX else "https://api.pagseguro.com"
+        r = requests.get(f"{host}/orders/{quote(str(order_id), safe='')}", timeout=15,
+                         headers={"Authorization": f"Bearer {PAGBANK_TOKEN}", "Accept": "application/json"})
+        r.raise_for_status()
+        return r.json()
+
+    @staticmethod
+    def pagamento_confere(order_id, assinatura):
+        """True só se o PagBank confirma: pedido da nossa referência, cobrança paga e valor igual ao da assinatura."""
+        o = pagbank.consultar_pedido(order_id)
+        if o.get("reference_id") != f"assin-{assinatura['id']}":
+            return False
+        esperado = int(round(float(assinatura["valor"]) * 100))
+        return any(str(c.get("status", "")).upper() in ("PAID", "AUTHORIZED") and (c.get("amount") or {}).get("value") == esperado
+                   for c in (o.get("charges") or []))
+
+    @staticmethod
     def autentico(corpo_bruto):
         """Valida o webhook: assinatura x-authenticity-token (sha256 de 'token-corpo') ou ?t=<token do .env>."""
         enviado = request.headers.get("x-authenticity-token", "")
@@ -3958,10 +3978,20 @@ def webhook_pagbank():
                    (ass["tenant_id"] if ass else None, ev["evento_id"], ev["referencia"], ev["status"], ev["valor"],
                     json.dumps(dados)))
     if novo and ass:                       # evento repetido não renova de novo (idempotente)
-        if ev["status"] == "pago":
-            ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="pagbank", meses=ass.get("meses"))
-        elif ev["status"] == "falhou" and ass["status"] == "ativa":
-            desativar_profissional(ass["tenant_id"], "atrasada")
+        try:
+            if ev["status"] == "pago":
+                order_id = dados.get("id") if str(dados.get("id", "")).startswith("ORDE_") else None
+                if PAGBANK_CONFIRMAR and not (order_id and pagbank.pagamento_confere(order_id, ass)):
+                    log.warning("Pagamento NÃO confirmado na API do PagBank (assinatura %s, pedido %s): não liberei", ass["id"], order_id)
+                    execute("DELETE FROM pagamentos WHERE provedor = 'pagbank' AND evento_id = %s", (ev["evento_id"],))
+                    return jsonify(ok=True, confirmado=False)
+                ativar_profissional(ass["tenant_id"], assinatura_id=ass["id"], provedor="pagbank", meses=ass.get("meses"))
+            elif ev["status"] == "falhou" and ass["status"] == "ativa":
+                desativar_profissional(ass["tenant_id"], "atrasada")
+        except Exception:
+            log.exception("Erro ao processar aviso do PagBank; devolvi 500 para ele tentar de novo")
+            execute("DELETE FROM pagamentos WHERE provedor = 'pagbank' AND evento_id = %s", (ev["evento_id"],))
+            return jsonify(ok=False), 500
     return jsonify(ok=True)
 
 
