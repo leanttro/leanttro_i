@@ -1383,8 +1383,8 @@ def entrar():
             session.clear()
             session["uid"] = u["id"]
             session.permanent = bool(request.form.get("lembrar"))
-            if u["tipo"] == "visitante" and not email_ok(u):
-                return redirect(url_for("verificar", next=nxt))
+            # Visitante não é mais empurrado para /verificar no login: a confirmação do e-mail só é pedida
+            # quando ele clica em WhatsApp, visita ou telefone (verificado_required).
             return redirect(nxt or url_for("painel"))
         flash("E-mail ou senha incorretos.", "error")
     return render_template("entrar.html", next=nxt, email=email)
@@ -1422,7 +1422,9 @@ def cadastrar():
             flash("Conta criada! Bem-vindo ao OndeImóveis.", "success")
             if tipo in TIPOS_TENANT:
                 flash("Complete a página do seu negócio e cadastre o primeiro imóvel.", "success")
-            if VERIFICAR_EMAIL:
+            # Anunciante continua confirmando o e-mail já no cadastro. Visitante não: entra direto e só confirma
+            # na hora de pedir contato (o código é enviado automaticamente ao abrir /verificar).
+            if VERIFICAR_EMAIL and tipo in TIPOS_TENANT:
                 enviar_codigo_verificacao({"id": uid, "nome": nome, "email": email})
                 return redirect(url_for("verificar", next=nxt))
             return redirect(nxt or url_for("painel"))
@@ -4418,6 +4420,41 @@ def _admin_voltar(padrao):
     return redirect(url_for(padrao))
 
 
+@app.route("/admin/anunciantes/novo", methods=["GET", "POST"])
+@admin_required
+def admin_anunciante_novo():
+    tipos_conta = {k: v for k, v in TIPOS_CONTA.items() if k in TIPOS_TENANT}
+    f = {"tipo": request.form.get("tipo", "corretor"), "nome": request.form.get("nome", "")[:120],
+         "email": request.form.get("email", ""), "telefone": request.form.get("telefone", "")[:30],
+         "cidade": request.form.get("cidade", "")[:80], "verificada": request.form.get("verificada") == "1"}
+    if request.method == "POST":
+        nome, email, senha = sanitize_input(f["nome"]), f["email"].strip().lower(), request.form.get("senha", "")
+        tel = so_digitos(f["telefone"])
+        erro = None
+        if f["tipo"] not in TIPOS_TENANT:
+            erro = "Escolha o tipo do anunciante."
+        elif len(nome) < 3:
+            erro = "Informe o nome."
+        elif not EMAIL_RE.match(email) or len(email) > 200:
+            erro = "Informe um e-mail válido."
+        elif len(senha) < 8:
+            erro = "A senha precisa ter pelo menos 8 caracteres."
+        elif tel and len(tel) < 10:
+            erro = "O WhatsApp precisa ter DDD (ou deixe em branco)."
+        elif query_one("SELECT 1 FROM usuarios WHERE email = %s", (email,)):
+            erro = "Já existe uma conta com esse e-mail."
+        if erro:
+            flash(erro, "error")
+        else:
+            uid = criar_usuario(nome, email, senha, f["tipo"], f["telefone"], cidade=f["cidade"])
+            execute("UPDATE usuarios SET email_verificado_em = NOW() WHERE id = %s", (uid,))      # criada pela equipe: já nasce confirmada
+            if f["verificada"]:
+                execute("UPDATE tenants SET verificada = TRUE WHERE usuario_id = %s", (uid,))
+            flash(f"Anunciante “{nome}” criado. Passe o e-mail e a senha para ele entrar.", "success")
+            return redirect(url_for("admin_anunciantes", q=email))
+    return render_template("admin.html", modo="novo", f=f, tipos_conta=tipos_conta, pagina_ativa="anunciantes")
+
+
 @app.route("/admin/imoveis")
 @admin_required
 def admin_imoveis():
@@ -4465,6 +4502,46 @@ def admin_imovel_acao(imovel_id, acao):
         abort(404)
     flash("Feito.", "success")
     return _admin_voltar("admin_imoveis")
+
+
+@app.route("/admin/imoveis/novo", methods=["GET", "POST"])
+@admin_required
+def admin_imovel_novo():
+    tenants = query_all("SELECT id, nome, tipo FROM tenants WHERE status = 'ativo' ORDER BY nome LIMIT 1000")
+    val, sel, status, destaque, tenant_sel = {}, [], "publicado", False, ""
+    if request.method == "POST":
+        val, sel, _prox, erros = _ler_form_imovel()
+        tenant_sel = request.form.get("tenant_id", "")
+        status = request.form.get("status", "publicado")
+        status = status if status in ("publicado", "pendente", "pausado") else "publicado"
+        destaque = request.form.get("destaque") == "1"
+        t = query_one("SELECT * FROM tenants WHERE id = %s AND status = 'ativo'", (int(tenant_sel),)) if tenant_sel.isdigit() else None
+        if not t:
+            erros.append("Escolha o anunciante.")
+        if erros:
+            for e in erros:
+                flash(e, "error")
+        else:
+            iid = execute_returning(
+                "INSERT INTO imoveis (tenant_id, titulo, slug, finalidade, tipo, preco, condominio, iptu, cidade, cidade_slug, uf, bairro, "
+                "bairro_slug, dormitorios, suites, banheiros, vagas, area, descricao, caracteristicas, whatsapp, lat, lng, status) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                (t["id"], val["titulo"], slug_unico("imoveis", gerar_slug(val["titulo"])), val["finalidade"], val["tipo"], val["preco"],
+                 val["condominio"], val["iptu"], val["cidade"], gerar_slug(val["cidade"]), val["uf"], val["bairro"], gerar_slug(val["bairro"]),
+                 val["dormitorios"], val["suites"], val["banheiros"], val["vagas"], val["area"], val["descricao"], "|".join(sel),
+                 val["whatsapp"], val["lat"], val["lng"], status))
+            execute("UPDATE imoveis SET rua = %s, aceita_mcmv = %s, destaque = %s WHERE id = %s",
+                    (val["rua"], val["aceita_mcmv"], destaque, iid))
+            _salvar_fotos(iid, {"limites": {"fotos": LIMITES["profissional"]["fotos"]}})      # equipe não fica presa ao teto de fotos do Grátis
+            flash("Imóvel cadastrado.", "success")
+            if status == "publicado" and not enriquecer_tenant(dict(t))["pro"]:
+                no_ar = query_one("SELECT COUNT(*) AS n FROM imoveis WHERE tenant_id = %s AND status = 'publicado'", (t["id"],))["n"]
+                if no_ar > LIMITES["gratis"]["imoveis"]:
+                    flash(f"Atenção: {t['nome']} está no plano Grátis (máx. {LIMITES['gratis']['imoveis']} no ar). "
+                          "O sistema pode pausar o excedente sozinho; ative o Profissional dele para manter todos no ar.", "error")
+            return redirect(url_for("admin_imoveis", q=val["titulo"]))
+    return render_template("admin.html", modo="novo", val=val, sel=sel, tenants=tenants, tenant_sel=tenant_sel,
+                           status_sel=status, destaque=destaque, pagina_ativa="imoveis")
 
 
 @app.route("/admin/aprovacoes")
